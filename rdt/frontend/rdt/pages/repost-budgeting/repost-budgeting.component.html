@@ -1,0 +1,210 @@
+<div class="page-card">
+  <div class="repost-split">
+    <div class="repost-main">
+
+      <!-- ===== Upload ===== -->
+      <section class="card">
+        <h2 class="card__title">Upload Repost Detail Transaction File</h2>
+
+        <div
+          class="dropzone"
+          [class.dropzone--active]="isDragOver"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+        >
+          <ng-container *ngIf="!selectedFile; else fileInfo">
+            <p class="dropzone__hint">Tarik file .xlsx ke sini, atau</p>
+            <label class="btn btn--ghost">
+              Pilih file
+              <input type="file" accept=".xlsx" (change)="onFileInput($event)" hidden />
+            </label>
+          </ng-container>
+          <ng-template #fileInfo>
+            <p class="dropzone__file">{{ selectedFile?.name }}</p>
+            <p class="dropzone__meta">{{ ((selectedFile?.size || 0) / 1024 / 1024) | number: '1.1-1' }} MB</p>
+            <button class="btn btn--link" type="button" (click)="reset()">Ganti file</button>
+          </ng-template>
+        </div>
+
+        <div class="card__actions">
+          <span class="card__note" style="margin:0" *ngIf="!currentUser.current">
+            Pilih "Login sebagai" dulu — dinas pengunggah mengikuti akun yang login.
+          </span>
+          <span class="card__note" style="margin:0" *ngIf="currentUser.current">
+            Dinas pengunggah: {{ currentUser.current?.dinas }}
+          </span>
+          <button
+            class="btn btn--primary"
+            type="button"
+            [disabled]="!selectedFile || phase === 'parsing' || !currentUser.current"
+            (click)="parse()"
+          >
+            {{ phase === 'parsing' ? 'Memproses…' : 'Proses file' }}
+          </button>
+        </div>
+
+        <p class="alert alert--error" *ngIf="phase === 'error'">{{ errorMessage }}</p>
+      </section>
+
+      <!-- ===== Review: merged matrix + detail rows preview ===== -->
+      <ng-container *ngIf="phase === 'parsed' || phase === 'committing' || phase === 'committed'">
+        <section class="card">
+          <h2 class="card__title">Review Detail Transaction Before Upload</h2>
+
+          <div class="counts">
+            <div class="counts__item">
+              <span class="chip chip--pending">PENDING</span>
+              <strong>{{ statusCounts['PENDING'] || 0 }}</strong>
+              <span class="counts__label">tagihan lintas dinas</span>
+            </div>
+            <div class="counts__item">
+              <span class="chip chip--excluded">EXCLUDED</span>
+              <strong>{{ statusCounts['EXCLUDED'] || 0 }}</strong>
+              <span class="counts__label">internal / non-tagihan</span>
+            </div>
+            <div class="counts__item">
+              <span class="chip chip--invalid">INVALID</span>
+              <strong>{{ statusCounts['INVALID'] || 0 }}</strong>
+              <span class="counts__label">perlu diperbaiki</span>
+            </div>
+          </div>
+
+          <!-- Matriks agregasi: bentuknya SENGAJA meniru pivot di file Excel dinas,
+               supaya PIC bisa mencocokkan angka aplikasi vs pivot mereka secara langsung. -->
+          <h3 class="card__subtitle">Rekap per dinas target</h3>
+          <p class="card__note">
+            Bandingkan tabel ini dengan sheet pivot di file Excel Anda — angkanya harus sama.
+            Jika berbeda, periksa baris INVALID/EXCLUDED sebelum menyimpan.
+          </p>
+          <div class="table-scroll">
+            <table class="matrix">
+              <thead>
+                <tr>
+                  <th class="matrix__rowhead">Kategori</th>
+                  <th *ngFor="let d of aggregationDinasList">{{ d }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let cat of aggregationCategories">
+                  <th class="matrix__rowhead">{{ cat }}</th>
+                  <td *ngFor="let d of aggregationDinasList" class="matrix__num">
+                    {{ aggValue(cat, d) !== null ? (aggValue(cat, d) | number: '1.2-2') : '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="card__subtitle" style="margin-top:26px;padding-top:16px;border-top:1px solid #dde5ec">
+            Detail baris ({{ filteredRows.length }} dari {{ rows.length }})
+          </h3>
+
+          <div class="filters">
+            <label>
+              Status
+              <select [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()">
+                <option value="ALL">Semua</option>
+                <option value="PENDING">PENDING</option>
+                <option value="EXCLUDED">EXCLUDED</option>
+                <option value="INVALID">INVALID</option>
+              </select>
+            </label>
+            <label>
+              Dinas target
+              <select [(ngModel)]="dinasFilter" (ngModelChange)="onFilterChange()">
+                <option value="ALL">Semua</option>
+                <option *ngFor="let d of dinasOptions" [value]="d">{{ d }}</option>
+              </select>
+            </label>
+            <label class="filters__search">
+              Cari
+              <input
+                type="search"
+                placeholder="account / remark / kategori…"
+                [(ngModel)]="searchText"
+                (ngModelChange)="onFilterChange()"
+              />
+            </label>
+          </div>
+
+          <div class="table-scroll">
+            <table class="rows">
+              <thead>
+                <tr>
+                  <th>Sheet</th>
+                  <th>Baris</th>
+                  <th>Account</th>
+                  <th>Ref.Doc</th>
+                  <th>Dinas target</th>
+                  <th class="rows__num">Nominal</th>
+                  <th>Kategori</th>
+                  <th>Status</th>
+                  <th>Remark</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let r of pagedRows; trackBy: trackByIndex">
+                  <td>{{ r.sheet }}</td>
+                  <td>{{ r.row }}</td>
+                  <td>{{ r.account }}</td>
+                  <td>{{ r.ref_doc }}</td>
+                  <td>{{ r.dinas_target || '—' }}</td>
+                  <td class="rows__num" [class.rows__num--negative]="(r.nominal || 0) < 0">
+                    {{ r.nominal | number: '1.2-2' }}
+                  </td>
+                  <td>{{ r.category || '—' }}</td>
+                  <td><span [class]="statusClass(r.status_konfirmasi)">{{ r.status_konfirmasi }}</span></td>
+                  <td class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
+                </tr>
+                <tr *ngIf="!pagedRows.length">
+                  <td colspan="9" class="rows__empty">Tidak ada baris yang cocok dengan filter.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- REQ-RDT-NAV-07: reusable Google-style pager, shared with Confirmation. -->
+          <rdt-pagination [page]="page" [totalItems]="filteredRows.length" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></rdt-pagination>
+        </section>
+      </ng-container>
+    </div>
+
+    <!-- ===== Confirm-to-Repost: sticky side panel (Figma: Confirm/Cancel) ===== -->
+    <aside class="repost-side" *ngIf="phase === 'parsed' || phase === 'committing' || phase === 'committed'">
+      <h3>Confirm to Repost</h3>
+      <label class="repost-desc-label">
+        Keterangan (opsional)
+        <div class="mention-wrap">
+          <textarea
+            #descInput
+            class="repost-desc"
+            [(ngModel)]="description"
+            rows="3"
+            placeholder="Catatan tambahan untuk pengajuan ini... ketik @ untuk mention dinas atau orang"
+            (input)="onDescriptionInput()"
+            (keydown)="onDescriptionKeydown($event)"
+            (blur)="closeMentions()"
+          ></textarea>
+          <ul class="mention-list" *ngIf="showMentions">
+            <li
+              *ngFor="let o of mentionSuggestions; let i = index"
+              [class.mention-list__item--active]="i === highlightedMentionIndex"
+              (mouseenter)="highlightedMentionIndex = i"
+              (mousedown)="insertMention(o)"
+            >@{{ o.token }} — {{ o.label }}</li>
+          </ul>
+        </div>
+      </label>
+      <button
+        class="btn btn--primary"
+        type="button"
+        [disabled]="phase === 'committing' || phase === 'committed'"
+        (click)="commit()"
+      >
+        {{ phase === 'committing' ? 'Menyimpan…' : (phase === 'committed' ? 'Tersimpan ✓' : 'Confirm') }}
+      </button>
+      <button class="btn btn--ghost" type="button" (click)="reset()">Cancel</button>
+    </aside>
+  </div>
+</div>

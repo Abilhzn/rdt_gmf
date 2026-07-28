@@ -1,0 +1,56 @@
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
+import { ParseResponse, CommitResponse, Transaction, AggregationMatrix } from './transaction.model';
+import { CurrentUserService } from '@auth/services/current-user.service';
+
+/**
+ * Semua panggilan API modul RDT lewat service ini — JANGAN pakai fetch()
+ * langsung di komponen. Alasannya: HttpClient ikut interceptor platform
+ * (auth token, error handling global) yang nanti dipasang tim IT, sedangkan
+ * fetch() lewat begitu saja tanpa auth. (Lihat SRS 2.4.)
+ */
+@Injectable({ providedIn: 'root' })
+export class TransactionService {
+  // TODO(integrasi): ganti dengan base URL/environment config platform tim IT.
+  private readonly base = '/api';
+
+  constructor(private http: HttpClient, private currentUser: CurrentUserService) {}
+
+  // "Dinas pengunggah" is no longer a manual field — it mirrors whichever dinas the logged-in
+  // account belongs to (see CurrentUserService), same as ui-demo.html's doParse().
+  uploadAndParse(file: File): Observable<ParseResponse> {
+    const user = this.currentUser.current;
+    if (!user) return throwError(() => new Error('Pilih "Login sebagai" dulu — dinas pengunggah mengikuti akun yang login.'));
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('uploaderDinas', user.dinas);
+    return this.http.post<ParseResponse>(`${this.base}/parse`, fd, { headers: this.currentUser.authHeaders() });
+  }
+
+  commitToStaging(rows: Transaction[], aggregation: AggregationMatrix): Observable<CommitResponse> {
+    return this.http.post<CommitResponse>(`${this.base}/commit`, { rows, aggregation });
+  }
+
+  // Bug fix mirrored from ui-demo.html's doCommit(): rdt.uploads.original_filename is
+  // NOT NULL in the schema, but this never sent it — persisting a real file would 500 on
+  // that constraint. dinas_code/uploaded_by_user_id are now derived server-side from the
+  // X-User-Id header (never trusted from the body) — see index.js's /api/persist.
+  // `description` is item 6's optional free-text note on the Repost submit.
+  //
+  // REQ-RDT-EXT-08: now sent as multipart with the actual File object attached (field "file"),
+  // not just JSON — the server saves those bytes so REQ-RDT-LEDGER-09's download-with-live-
+  // formulas has something to serve later. rows/aggregation travel as JSON-stringified fields
+  // since multipart fields are plain strings; index.js's /api/persist parses them back.
+  persistToDatabase(rows: Transaction[], aggregation: AggregationMatrix, originalFile: File | null, description?: string): Observable<CommitResponse> {
+    const user = this.currentUser.current;
+    if (!user) return throwError(() => new Error('Pilih "Login sebagai" dulu.'));
+    const fd = new FormData();
+    fd.append('rows', JSON.stringify(rows));
+    fd.append('aggregation', JSON.stringify(aggregation));
+    fd.append('original_filename', originalFile?.name || 'unknown.xlsx');
+    fd.append('description', description?.trim() || '');
+    if (originalFile) fd.append('file', originalFile);
+    return this.http.post<CommitResponse>(`${this.base}/persist`, fd, { headers: this.currentUser.authHeaders() });
+  }
+}

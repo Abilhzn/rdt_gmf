@@ -1,0 +1,13 @@
+<div class="modal-overlay" *ngIf="modal.state$ | async as state" (click)="state.checkmark && modal.respond(true)">
+  <div class="modal-box" [class.modal-box--checkmark]="state.checkmark" (click)="$event.stopPropagation()">
+    <svg *ngIf="state.checkmark" class="checkmark" viewBox="0 0 52 52">
+      <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none" />
+      <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+    </svg>
+    <p class="modal-message">{{ state.message }}</p>
+    <div class="modal-actions" *ngIf="!state.checkmark">
+      <button *ngIf="state.showCancel" type="button" class="btn btn--ghost" (click)="modal.respond(false)">{{ state.cancelText }}</button>
+      <button type="button" class="btn btn--primary" (click)="modal.respond(true)">{{ state.okText }}</button>
+    </div>
+  </div>
+</div>

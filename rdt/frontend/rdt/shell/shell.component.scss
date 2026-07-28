@@ -1,0 +1,206 @@
+// REQ-RDT-NAV-01 — persistent sidebar shell. Tokens taken LITERALLY from the updated Figma
+// (fileKey ZLbcosQTNTZdWQRusRYH0R) — confirmed with the project owner that layout, shadow,
+// data viz, AND color are fixed/final here, not just a structural reference like the
+// earlier draft. Duplicated across components since there's no shared global stylesheet in
+// this repo by design — see src/README.md.
+
+$page-bg: #f2f2f2;
+$accent: #006298;
+$ink: #000;
+$ink-600: #52616e;
+$line: #cccccc;
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
+$shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
+$radius-md: 8px;
+$radius-lg: 16px;
+
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+.sidebar {
+  // Item: Figma node 27:96 draws the nav rail at 450/1920px = 23.4% of viewport width
+  // (confirmed with project owner over the annotation text, which said 41.7% but didn't match
+  // the actual drawn box — going with the box). flex-basis as a percentage, not a fixed px, so
+  // it scales with viewport like the Figma frame's "fill" sizing intent (item 1), bounded so it
+  // stays usable at both very narrow and very wide viewports.
+  flex: 0 0 23.4%;
+  min-width: 220px;
+  max-width: 420px;
+  background: $page-bg;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+  box-sizing: border-box;
+
+  &__logo { max-width: 100%; height: auto; margin: 0 0 6px; display: block; }
+
+  &__subtitle {
+    color: $accent;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 0 0 22px;
+  }
+
+  &__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+.nav-icon {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-md;
+  background: $accent;
+  margin-right: 12px;
+  flex: 0 0 auto;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: $radius-md;
+  color: $ink;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 120ms ease;
+
+  &:hover { background: rgba(0, 0, 0, 0.05); }
+  &.active { font-weight: 700; }
+
+  &--disabled {
+    opacity: 0.4;
+    cursor: default;
+    &:hover { background: none; }
+  }
+}
+
+.main-area {
+  flex: 1;
+  min-width: 0;
+  max-width: 1800px; // avoid absurdly wide rows on an ultrawide monitor
+  padding: 32px 40px 72px;
+  box-sizing: border-box;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+
+  &__user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
+.page-title { margin: 0; font-size: 30px; font-weight: 800; color: $ink; letter-spacing: 0.03em; }
+
+// ---------- clickable user badge + notif bell + dropdown menus (REQ-RDT-NAV-01/08) ----------
+.user-menu-wrap { position: relative; }
+
+.user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: $ink;
+  background: #fff;
+  box-shadow: $shadow-sm;
+  padding: 8px 20px 8px 8px;
+  border-radius: $radius-lg;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #d9d9d9;
+  }
+}
+
+.user-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+  padding: 12px;
+  min-width: 220px;
+  z-index: 50;
+  text-align: left;
+}
+
+.user-menu-info { font-size: 12.5px; color: $ink-600; margin-bottom: 10px; }
+.user-menu .btn { width: 100%; justify-content: center; }
+
+.notif-item {
+  padding: 8px 0;
+  border-bottom: 1px dashed $line;
+  font-size: 12.5px;
+
+  &:last-child { border-bottom: none; }
+  &--unread { font-weight: 700; }
+
+  &__body { color: $ink; margin: 2px 0; }
+  &__meta { color: $ink-600; font-size: 11.5px; }
+}
+
+.note { margin: 0; font-size: 12.5px; color: $ink-600; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: $radius-md;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: background 120ms ease, box-shadow 120ms ease;
+
+  &--ghost {
+    background: #fff;
+    color: $ink;
+    box-shadow: $shadow-sm;
+    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+  }
+}
+
+@media (max-width: 860px) {
+  .app-shell { flex-direction: column; }
+  .sidebar {
+    width: 100%;
+    flex: none;
+    min-height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+
+    &__logo { margin: 0; max-height: 32px; width: auto; }
+    &__subtitle { display: none; }
+    &__nav { flex-direction: row; flex-wrap: wrap; }
+  }
+}

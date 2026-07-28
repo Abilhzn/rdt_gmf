@@ -1,0 +1,202 @@
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
+// shell.component.scss for the "why literal, not just structural" note.
+
+$accent: #006298;
+$check-blue: #55b2ff;
+$ink: #000;
+$ink-600: #52616e;
+$line: #cccccc;
+$page-bg: #f2f2f2;
+$danger-600: #b3261e;
+$danger-050: #fdecea;
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
+$shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
+$radius-xl: 32px;
+$radius-md: 8px;
+
+.page-card {
+  background: #fff;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-lg;
+  padding: 36px;
+  color: $ink;
+}
+
+.view-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.context-badge {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 700;
+  color: $ink;
+  background: #fff;
+  box-shadow: $shadow-lg;
+  padding: 10px 20px;
+  border-radius: $radius-md;
+}
+
+.card__subtitle { margin: 18px 0 4px; font-size: 14px; font-weight: 700; }
+.note { font-size: 12.5px; color: $ink-600; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: $radius-md;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+
+  &--primary { background: $accent; color: #fff; box-shadow: $shadow-sm; &:hover { background: #004a73; } }
+  &--ghost {
+    background: #fff;
+    color: $ink;
+    box-shadow: $shadow-sm;
+    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+  }
+}
+
+.alert {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: $radius-md;
+  font-size: 13.5px;
+  &--error { background: $danger-050; color: $danger-600; }
+}
+
+input[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid #000;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  margin: 0;
+
+  &:checked { background: $check-blue; }
+  &:disabled { cursor: default; }
+}
+
+.checkbox-legend {
+  display: flex;
+  gap: 22px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: $ink;
+  align-items: center;
+
+  input[type='checkbox'] { margin-right: 6px; vertical-align: middle; }
+}
+
+.table-scroll { overflow-x: auto; }
+
+.rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th, td { padding: 8px 12px; border-bottom: 1px solid $line; text-align: left; }
+  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 12px; text-transform: uppercase; }
+  &__num { text-align: right; font-variant-numeric: tabular-nums; }
+  &__remark { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  tbody tr:hover td { background: #f5f9fb; }
+}
+
+.select-all-col { text-align: center; }
+.select-all-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.declined-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px dashed $line;
+
+  &__info { flex: 1; }
+  &__actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+}
+
+.target-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: $ink-600;
+
+  select { border: 1px solid $line; border-radius: $radius-md; padding: 6px 10px; font-size: 13.5px; }
+}
+
+.just-declined {
+  background: $danger-050;
+  border-radius: $radius-md;
+  padding: 14px 16px;
+  margin: 14px 0;
+
+  &__list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: $ink; }
+}
+
+.batch-resolve-footer {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid $line;
+}
+
+.batch-note-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: $ink-600;
+  flex: 1 1 320px;
+}
+
+.original-file-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.batch-note {
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.rows select {
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  background: #fff;
+}
+
+// Pager styling now lives in shared/pagination.component.scss (REQ-RDT-NAV-07).

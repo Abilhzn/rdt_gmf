@@ -1,0 +1,17 @@
+<div class="pager" *ngIf="totalPages > 1">
+  <button class="btn btn--ghost" type="button" (click)="prev()" [disabled]="page === 1">‹ Sebelumnya</button>
+
+  <span class="pager__ellipsis" *ngIf="showLeadingEllipsis">…</span>
+
+  <button
+    *ngFor="let p of visiblePages"
+    class="pager__page"
+    type="button"
+    [class.pager__page--active]="page === p"
+    (click)="goTo(p)"
+  >{{ p }}</button>
+
+  <span class="pager__ellipsis" *ngIf="showTrailingEllipsis">…</span>
+
+  <button class="btn btn--ghost" type="button" (click)="next()" [disabled]="page === totalPages">Berikutnya ›</button>
+</div>

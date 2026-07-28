@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "deny": [
+      "Read(.env)",
+      "Read(confidential.txt)",
+      "Bash(rm -rf *)"
+    ]
+  }
+}

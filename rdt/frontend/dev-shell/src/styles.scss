@@ -1,0 +1,14 @@
+// dev-shell-only. RdtModule deliberately does NOT set a global font/reset (see
+// repost-budgeting.component.scss: "Font mengikuti font host platform ... supaya modul
+// menyatu dengan OCX") because in the real integration it inherits the host app's global
+// styles. dev-shell has no host to inherit from, so it plays that role itself here — same
+// base values ui-demo.html sets on <body> when it's the standalone page. This file stays out
+// of src/frontend/rdt on purpose; do not port it there.
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #f2f2f2;
+  color: #000;
+  font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}

@@ -1,0 +1,27 @@
+<div class="page-card">
+  <p class="note">
+    Approval sebelum export: DRAFT → submit (gate: tidak ada
+    PENDING/DECLINED/NEEDS_REVIEW) → WAITING_APPROVAL → APPROVED → EXPORTED.
+    <strong>Generate file export saat ini masih placeholder</strong> — belum ada template
+    kolom impor SAP yang nyata. Hanya role TAB yang bisa bertindak di sini.
+  </p>
+  <div class="card__actions">
+    <input type="text" [(ngModel)]="newBatchPeriod" placeholder="Label periode, mis. 2026-06" />
+    <button class="btn btn--ghost" type="button" (click)="createBatch()">Buat batch baru</button>
+    <button class="btn btn--ghost" type="button" (click)="load()">Muat daftar batch</button>
+  </div>
+  <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <p class="note" *ngIf="!batches.length">Belum ada batch export.</p>
+  <div class="batch-row" *ngFor="let b of batches">
+    <div class="batch-row__id">#{{ b.id }}</div>
+    <div class="batch-row__period">{{ b.period }}</div>
+    <span class="chip" [class]="'chip--' + b.status.toLowerCase()">{{ b.status }}</span>
+    <div class="batch-row__action">
+      <button *ngIf="b.status === 'DRAFT'" class="btn btn--primary" type="button" (click)="batchAction(b, 'submit')">Submit ke Approval</button>
+      <button *ngIf="b.status === 'WAITING_APPROVAL'" class="btn btn--primary" type="button" (click)="batchAction(b, 'approve')">Approve</button>
+      <button *ngIf="b.status === 'APPROVED'" class="btn btn--primary" type="button" (click)="batchAction(b, 'export')">Export (stub)</button>
+      <span *ngIf="b.status === 'EXPORTED'" class="note">File: {{ b.export_filename }}</span>
+    </div>
+  </div>
+</div>

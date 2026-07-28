@@ -1,0 +1,16 @@
+<div class="auth-screen">
+  <form class="auth-card" (ngSubmit)="submit()">
+    <img class="auth-logo" src="assets/gmf-logo.png" alt="GMF AeroAsia" />
+    <!-- <h1 class="auth-title">GMFAPP</h1> -->
+    <!-- <p class="note">Kredensial synthetic/demo untuk testing — bukan integrasi tabel karyawan
+      sungguhan (lihat SRS.md REQ-RDT-NAV-08).</p> -->
+    <label class="auth-label">Username
+      <input type="text" name="username" [(ngModel)]="username" autocomplete="username" required />
+    </label>
+    <label class="auth-label">Password
+      <input type="password" name="password" [(ngModel)]="password" autocomplete="current-password" required />
+    </label>
+    <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+    <button class="btn btn--primary" type="submit" style="width:100%;justify-content:center;margin-top:16px" [disabled]="submitting">Login</button>
+  </form>
+</div>

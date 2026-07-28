@@ -1,0 +1,1830 @@
+<!doctype html>
+<!--
+  RDT — Repost Budgeting (Demo UI)
+  Halaman demo satu-file (vanilla JS) yang di-serve backend di /rdt/demo.
+  DESAIN halaman ini adalah acuan visual untuk versi Angular di
+  src/frontend/rdt/ (yang baru bisa jalan setelah ditempel ke repo Angular
+  tim IT). Kalau mengubah tampilan di sini, samakan juga SCSS Angular-nya.
+
+  Warna/shadow/radius di bawah ini SENGAJA diambil literal dari nilai Figma terbaru
+  (fileKey ZLbcosQTNTZdWQRusRYH0R, node 1:2/20:499/20:712) — dikonfirmasi pemilik
+  proyek bahwa layout, shadow, visualisasi data, DAN warna itu fiks/final, bukan cuma
+  acuan struktur seperti draft Figma sebelumnya.
+-->
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Repost Detail Transaksi — Demo</title>
+<style>
+:root {
+  --page-bg:#f2f2f2; --accent:#006298; --check-blue:#55b2ff;
+  --ink:#000; --ink-600:#52616e; --ink-300:#aeb9c2;
+  --line:#cccccc;
+  --shadow-lg:0 4px 15px rgba(0,0,0,.5); --shadow-sm:0 4px 7.5px rgba(0,0,0,.5);
+  --radius-xl:32px; --radius-lg:16px; --radius-md:8px;
+  --ok-600:#1e7f4f; --ok-050:#e8f5ee;
+  --warn-700:#8a5b00; --warn-050:#fdf3dd;
+  --danger-600:#b3261e; --danger-050:#fdecea;
+  --muted-600:#5a6672; --muted-050:#eef1f4;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--page-bg); color:var(--ink);
+  font:14px/1.5 -apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+.eyebrow { margin:0 0 2px; font-size:12px; font-weight:600; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--accent); }
+.subtitle { margin:0 0 20px; max-width:640px; color:var(--ink-600); }
+.card { background:#fff; border-radius:var(--radius-lg); box-shadow:var(--shadow-sm);
+  padding:20px; margin-bottom:18px; }
+.card h2 { margin:0 0 14px; font-size:16px; color:var(--ink); font-weight:700; }
+.card h3 { margin:18px 0 4px; font-size:14px; }
+.note { margin:0 0 10px; font-size:12.5px; color:var(--ink-600); }
+.dropzone { border:2px dashed var(--ink-300); border-radius:var(--radius-md); padding:28px 16px;
+  text-align:center; background:var(--page-bg); transition:border-color .12s, background .12s; }
+.dropzone.active { border-color:var(--accent); background:#e8f2f7; }
+.dropzone .hint { margin:0 0 10px; color:var(--ink-600); }
+.dropzone .fname { margin:0; font-weight:600; }
+.dropzone .fmeta { margin:2px 0 8px; font-size:12px; color:var(--ink-600); }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:var(--radius-md);
+  padding:9px 16px; font-size:14px; font-weight:700; cursor:pointer;
+  border:none; transition:background .12s, box-shadow .12s; }
+.btn:disabled { opacity:.55; cursor:not-allowed; }
+.btn-primary { background:var(--accent); color:#fff; box-shadow:var(--shadow-sm); }
+.btn-primary:hover:not(:disabled) { background:#004a73; }
+.btn-ghost { background:#fff; color:var(--ink); box-shadow:var(--shadow-sm); }
+.btn-ghost:hover:not(:disabled) { box-shadow:0 4px 10px rgba(0,0,0,.6); }
+.btn-link { background:none; border:none; padding:0; color:var(--accent);
+  text-decoration:underline; font-weight:600; cursor:pointer; }
+.btn:focus-visible, select:focus-visible, input:focus-visible {
+  outline:2px solid var(--accent); outline-offset:2px; }
+.actions { margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.actions.spread { justify-content:space-between; }
+.alert { margin:12px 0 0; padding:10px 14px; border-radius:var(--radius-md); font-size:13.5px; }
+.alert-error { background:var(--danger-050); color:var(--danger-600); }
+.alert-success { background:var(--ok-050); color:var(--ok-600); }
+.counts { display:flex; flex-wrap:wrap; gap:24px; padding:4px 0 6px; }
+.counts .item { display:flex; align-items:baseline; gap:8px; }
+.counts strong { font-size:20px; }
+.counts .lbl { font-size:12.5px; color:var(--ink-600); }
+.chip { display:inline-block; padding:2px 10px; border-radius:999px;
+  font-size:11.5px; font-weight:700; letter-spacing:.03em; }
+.chip-pending, .chip-draft, .chip-waiting_sm, .chip-waiting_gh { background:var(--warn-050); color:var(--warn-700); }
+.chip-approved, .chip-exported { background:var(--ok-050); color:var(--ok-600); }
+.chip-rejected, .chip-invalid { background:var(--danger-050); color:var(--danger-600); }
+.chip-excluded, .chip-cancelled { background:var(--muted-050); color:var(--muted-600); }
+.chip-needs_review { background:var(--warn-050); color:var(--warn-700); }
+.tscroll { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th, td { padding:8px 12px; border-bottom:1px solid var(--line); text-align:left;
+  white-space:nowrap; }
+thead th { background:var(--page-bg); font-weight:700; color:var(--ink); font-size:12px;
+  text-transform:uppercase; letter-spacing:.04em; }
+tbody tr:hover td { background:#f5f9fb; }
+.num { text-align:right; font-variant-numeric:tabular-nums; }
+.num.neg { color:var(--danger-600); }
+.remark { max-width:280px; overflow:hidden; text-overflow:ellipsis; }
+.rowhead { font-weight:600; }
+.empty { text-align:center; color:var(--ink-600); padding:24px 12px; }
+.filters { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:12px; }
+.filters label { display:flex; flex-direction:column; gap:4px; font-size:12px;
+  font-weight:600; color:var(--ink-600); }
+.filters select, .filters input { border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:7px 10px; font-size:13.5px; min-width:140px; background:#fff; }
+.filters .grow { flex:1 1 220px; }
+.filters .grow input { width:100%; }
+.pager { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;
+  margin-top:12px; font-size:13px; color:var(--ink-600); }
+.pager-page { min-width:30px; height:30px; border:1px solid var(--line); border-radius:var(--radius-md);
+  background:#fff; color:var(--ink); font-size:13px; font-weight:600; cursor:pointer; }
+.pager-page:hover { background:var(--page-bg); }
+.pager-page-active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.pager-ellipsis { color:var(--ink); font-weight:700; padding:0 2px; }
+.original-file-downloads { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+.mp-redirect { border:1px solid var(--line); border-radius:var(--radius-md); padding:5px 8px; font-size:12.5px; background:#fff; }
+.mp-redirect:disabled { opacity:.5; }
+details.settings { margin-top:18px; border-top:1px solid var(--line); padding-top:12px; }
+details.settings summary { cursor:pointer; font-weight:600; color:var(--ink-600);
+  font-size:13px; }
+details.settings textarea { width:100%; font:12px/1.5 Consolas,monospace;
+  border:1px solid var(--line); border-radius:var(--radius-md); padding:8px; margin:8px 0; }
+
+/* ---------- Login + Select Platform (REQ-RDT-NAV-08) ---------- */
+.auth-screen { min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:var(--page-bg); padding:20px; box-sizing:border-box; }
+.auth-card { background:#fff; border-radius:var(--radius-xl); box-shadow:var(--shadow-lg);
+  padding:40px 36px; width:100%; max-width:380px; text-align:center; box-sizing:border-box; }
+.auth-logo { max-width:160px; height:auto; margin:0 auto 18px; display:block; }
+.auth-title { margin:0 0 6px; font-size:22px; font-weight:800; color:var(--ink); }
+.auth-label { display:block; text-align:left; font-size:12.5px; font-weight:600; color:var(--ink-600); margin:14px 0 4px; }
+.auth-label input { width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:9px 12px; font-size:14px; margin-top:4px; }
+.platform-tile { display:flex; flex-direction:column; gap:4px; align-items:center; width:100%; background:#fff;
+  border:2px solid var(--accent); border-radius:var(--radius-lg); padding:20px; cursor:pointer; margin-top:10px; }
+.platform-tile:hover { background:#e8f2f7; }
+.platform-tile-name { font-size:20px; font-weight:800; color:var(--accent); }
+.platform-tile-desc { font-size:12.5px; color:var(--ink-600); }
+
+/* ---------- clickable user badge + logout menu (REQ-RDT-NAV-01/08) ---------- */
+.user-menu-wrap { position:relative; }
+.user-menu { position:absolute; right:0; top:calc(100% + 6px); background:#fff; border-radius:var(--radius-md);
+  box-shadow:var(--shadow-lg); padding:12px; min-width:220px; z-index:50; text-align:left; }
+.user-menu-info { font-size:12.5px; color:var(--ink-600); margin-bottom:10px; }
+.user-menu .btn { width:100%; justify-content:center; }
+.notif-item { padding:8px 0; border-bottom:1px dashed var(--line); font-size:12.5px; }
+.notif-item:last-child { border-bottom:none; }
+.notif-item.unread { font-weight:700; }
+.notif-item__body { color:var(--ink); margin:2px 0; }
+.notif-item__meta { color:var(--ink-600); font-size:11.5px; }
+
+/* ---------- Dashboard-Detailing comment thread (REQ-RDT-NAV-03 / REQ-RDT-COMMENT) ---------- */
+.thread-comment { display:flex; gap:10px; padding:10px 0; border-bottom:1px dashed var(--line); }
+.thread-comment__avatar { width:32px; height:32px; border-radius:50%; background:#d9d9d9; flex:0 0 auto; }
+.thread-comment__body { flex:1; min-width:0; }
+.thread-comment__name { font-weight:700; font-size:13px; }
+.thread-comment__meta { color:var(--ink-600); font-size:11.5px; margin-left:8px; }
+.thread-comment__text { margin:4px 0; font-size:13.5px; white-space:pre-wrap; }
+
+/* ---------- app shell: persistent sidebar + topbar (REQ-RDT-NAV-01) ---------- */
+.app-shell { display:flex; min-height:100vh; align-items:flex-start; }
+/* Figma node 27:96 draws the nav rail at 450/1920px = 23.4% of viewport width (confirmed with
+   project owner over the annotation text, which said 41.7% but didn't match the drawn box) —
+   flex-basis as a percentage, not a fixed px, bounded so it stays usable at any viewport width. */
+.sidebar { flex:0 0 23.4%; min-width:220px; max-width:420px; background:var(--page-bg); min-height:100vh;
+  display:flex; flex-direction:column; padding:20px 14px; box-sizing:border-box; }
+.sidebar-logo { max-width:100%; height:auto; margin:0 0 6px; display:block; }
+.sidebar-subtitle { color:var(--accent); font-size:11px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; text-align:center; margin:0 0 22px; }
+.sidebar-nav { display:flex; flex-direction:column; gap:4px; }
+.sidebar-nav .nav-link { display:flex; align-items:center; padding:10px 12px; border-radius:var(--radius-md);
+  color:var(--ink); text-decoration:none; font-size:16px; font-weight:500;
+  transition:background .12s; }
+.sidebar-nav .nav-link:hover { background:rgba(0,0,0,.05); }
+.sidebar-nav .nav-link.active { font-weight:700; }
+.sidebar-nav .nav-link--disabled { opacity:.4; cursor:default; }
+.sidebar-nav .nav-link--disabled:hover { background:none; }
+.nav-icon { display:inline-block; width:28px; height:28px; border-radius:var(--radius-md); background:var(--accent);
+  margin-right:12px; flex:0 0 auto; }
+.main-area { flex:1; min-width:0; padding:32px 40px 72px; }
+/* Was max-width:1200px — on a wide monitor that left a big dead gutter of unused space next to
+   the sidebar, which read as cramped/stingy despite the sidebar itself being properly sized.
+   Let content genuinely fill the main area (item 1's "fill" sizing intent), just capped high
+   enough that table rows don't stretch absurdly wide on an ultrawide monitor. */
+.view { max-width:1800px; width:100%; }
+.topbar { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+.topbar-user { display:flex; align-items:center; gap:10px; }
+.topbar-user select { padding:6px; border:1px solid var(--line); border-radius:var(--radius-md); background:#fff; }
+.page-title { margin:0; font-size:30px; font-weight:800; color:var(--ink); letter-spacing:.03em; }
+.user-badge { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:700;
+  color:var(--ink); background:#fff; box-shadow:var(--shadow-sm); padding:8px 20px 8px 8px; border-radius:var(--radius-lg);
+  border:none; cursor:pointer; font-family:inherit; }
+.user-badge::before { content:''; display:inline-block; width:26px; height:26px; border-radius:50%;
+  background:#d9d9d9; }
+.context-badge { display:inline-block; font-size:16px; font-weight:700; color:var(--ink);
+  background:#fff; box-shadow:var(--shadow-lg); padding:10px 20px; border-radius:var(--radius-md); }
+input[type="checkbox"] { -webkit-appearance:none; appearance:none; width:22px; height:22px;
+  border:2px solid #000; border-radius:6px; background:#fff; cursor:pointer; margin:0; }
+input[type="checkbox"]:checked { background:var(--check-blue); }
+input[type="checkbox"]:disabled { cursor:default; }
+.checkbox-legend { display:flex; gap:22px; margin-bottom:14px; font-size:13px; color:var(--ink); align-items:center; }
+.checkbox-legend input[type="checkbox"] { margin-right:6px; vertical-align:middle; }
+.target-picker { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--ink-600,#52616e); }
+.target-picker select { border:1px solid var(--line); border-radius:var(--radius-md); padding:6px 10px; font-size:13.5px; }
+.just-declined { background:#fdecea; border-radius:var(--radius-md); padding:14px 16px; margin:14px 0; }
+.just-declined__list { margin:8px 0 0; padding-left:18px; font-size:13px; color:var(--ink); }
+.batch-resolve-footer { display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-top:16px; padding-top:14px; border-top:1px solid var(--line); }
+.batch-note-label { display:flex; flex-direction:column; gap:4px; font-size:12.5px; font-weight:600; color:var(--ink-600,#52616e); flex:1 1 320px; }
+.batch-note { border:1px solid var(--line); border-radius:var(--radius-md); padding:8px 10px; font-size:13.5px; font-family:inherit; resize:vertical; }
+
+/* ---------- page-level content card (rounded, shadow) ---------- */
+.page-card { background:#fff; border-radius:var(--radius-xl); box-shadow:var(--shadow-lg);
+  padding:36px; }
+.view-header-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+
+/* ---------- Dashboard: two-panel personalized view (REQ-RDT-NAV-02) ---------- */
+.dashboard-grid { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
+.dashboard-own { flex:2 1 560px; min-width:0; }
+.dashboard-need { flex:1 1 260px; min-width:220px; }
+.dashboard-need h3, .dashboard-own h3 { margin:0 0 16px; font-size:15px; color:var(--ink); font-weight:700; }
+.dinas-btn { display:block; width:100%; background:#fff; border:none;
+  border-radius:var(--radius-md); padding:16px; margin-bottom:12px; font-size:17px; font-weight:700;
+  color:var(--ink); text-align:center; cursor:pointer; box-shadow:var(--shadow-sm); }
+.dinas-btn:hover { box-shadow:0 4px 10px rgba(0,0,0,.6); }
+.home-grid { display:flex; flex-wrap:wrap; gap:16px; }
+.dinas-circle-wrap { flex:1 1 150px; max-width:190px; text-align:center;
+  background:#fff; border-radius:var(--radius-lg); padding:16px 12px;
+  box-shadow:var(--shadow-lg); }
+.dinas-circle-header { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:8px; }
+.dinas-circle-count { background:var(--page-bg); border:1px solid #000; border-radius:var(--radius-md);
+  padding:2px 8px; font-size:12px; font-weight:700; }
+.dinas-circle { --pct:0; --ring-color:var(--accent); width:96px; height:96px; border-radius:50%; margin:0 auto 8px;
+  background:conic-gradient(var(--ring-color) calc(var(--pct)*1%), var(--line) 0);
+  display:flex; align-items:center; justify-content:center; position:relative; }
+.dinas-circle::before { content:''; position:absolute; inset:9px; background:#fff; border-radius:50%; }
+.dinas-circle .pct-label { position:relative; z-index:1; font-weight:700; font-size:15px; color:var(--ink); }
+.dinas-circle-label { font-weight:700; font-size:14px; color:var(--ink); }
+.circle-notif { margin-top:6px; font-size:12px; color:var(--danger-600); font-weight:600; }
+
+/* ---------- Repost: two boxes + sticky right "Confirm to Repost" panel ---------- */
+.repost-split { display:flex; gap:20px; align-items:flex-start; }
+.repost-main { flex:1; min-width:0; }
+/* flex:1 1 auto (fill), not a fixed basis, so this panel shares leftover row width like its
+   Figma frame (sized "fill container") rather than staying a rigid 220px regardless of viewport. */
+.repost-side { flex:1 1 220px; max-width:280px; min-width:0; }
+.repost-side h3 { margin:0 0 16px; font-size:15px; color:var(--ink); font-weight:500; text-align:center; }
+.repost-side .btn { display:block; width:100%; margin-bottom:12px; }
+.repost-side .btn-primary, .repost-side .btn-ghost { background:#fff; color:var(--ink); box-shadow:var(--shadow-sm); }
+.repost-side .btn-primary:hover, .repost-side .btn-ghost:hover { box-shadow:0 4px 10px rgba(0,0,0,.6); }
+.repost-desc-label { display:block; text-align:left; font-size:12.5px; font-weight:600; color:var(--ink-600,#52616e); margin-bottom:12px; }
+.repost-desc { width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:8px 10px; font-size:13.5px; font-family:inherit; resize:vertical; margin-top:4px; }
+/* Item 5: @mention dropdown for the description textarea, like tagging on social media. */
+.mention-wrap { position:relative; }
+.mention-list { position:absolute; z-index:20; top:100%; left:0; right:0; margin:2px 0 0; padding:4px;
+  list-style:none; background:#fff; border:1px solid var(--line); border-radius:var(--radius-md);
+  box-shadow:var(--shadow-lg); max-height:180px; overflow-y:auto; text-align:left; }
+.mention-list li { padding:6px 8px; font-size:13px; color:var(--ink); cursor:pointer; border-radius:6px; }
+.mention-list li:hover { background:var(--page-bg); }
+.mention-list li.mention-list__item--active { background:var(--page-bg); }
+
+/* ---------- modal (replaces window.confirm/alert) ---------- */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex;
+  align-items:center; justify-content:center; z-index:1000; padding:20px; }
+.modal-box { background:#fff; border-radius:var(--radius-lg); padding:24px 28px; max-width:480px; width:100%;
+  box-shadow:var(--shadow-lg); }
+.modal-message { margin:0 0 20px; font-size:14.5px; color:var(--ink); white-space:pre-line; line-height:1.5; }
+.modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+/* Item 2: animated checkmark for a short "done!" confirmation. */
+.modal-box-checkmark { text-align:center; cursor:pointer; }
+.modal-box-checkmark .modal-message { margin:0; font-weight:700; font-size:16px; }
+.checkmark { width:72px; height:72px; margin:0 auto 12px; display:block; }
+.checkmark__circle { stroke-dasharray:166; stroke-dashoffset:166; stroke-width:2; stroke:#1e7f4f; fill:none;
+  animation:checkmark-stroke .6s cubic-bezier(.65,0,.45,1) forwards; }
+.checkmark__check { stroke-dasharray:48; stroke-dashoffset:48; stroke-width:3; stroke:#1e7f4f;
+  animation:checkmark-stroke .3s cubic-bezier(.65,0,.45,1) .6s forwards; }
+@keyframes checkmark-stroke { 100% { stroke-dashoffset:0; } }
+
+@media (max-width:860px){ .app-shell{flex-direction:column;} .sidebar{width:100%; flex:none;
+  min-height:auto; flex-direction:row; align-items:center; gap:16px; flex-wrap:wrap;}
+  .sidebar-logo{margin:0; max-height:32px; width:auto;} .sidebar-subtitle{display:none;}
+  .sidebar-nav{flex-direction:row; flex-wrap:wrap;}
+  .repost-split{flex-direction:column;} .repost-side{width:100%;} }
+@media (max-width:720px){ .main-area{padding:16px 12px 48px;} .counts{gap:14px;}
+  .actions.spread{flex-direction:column-reverse; align-items:stretch;} }
+@media (prefers-reduced-motion:reduce){ .btn,.dropzone{transition:none;} }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+
+<!-- ============ Login (REQ-RDT-NAV-08) ============ -->
+<div class="auth-screen" id="screen-login">
+  <form class="auth-card" id="login-form">
+    <img class="auth-logo" src="/rdt/assets/gmf-logo.png" alt="GMF AeroAsia" />
+    <h1 class="auth-title">Masuk ke OCX</h1>
+    <p class="note">Kredensial synthetic/demo untuk testing — bukan integrasi tabel karyawan
+      sungguhan (lihat SRS.md REQ-RDT-NAV-08).</p>
+    <label class="auth-label">Username
+      <input type="text" id="login-username" autocomplete="username" required />
+    </label>
+    <label class="auth-label">Password
+      <input type="password" id="login-password" autocomplete="current-password" required />
+    </label>
+    <p class="alert alert-error hidden" id="login-err"></p>
+    <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;margin-top:16px">Login</button>
+  </form>
+</div>
+
+<!-- ============ Select Platform ============ -->
+<div class="auth-screen hidden" id="screen-select-platform">
+  <div class="auth-card">
+    <h1 class="auth-title">Pilih Platform</h1>
+    <p class="note">Untuk saat ini hanya RDT yang tersedia — klik untuk lanjut.</p>
+    <button class="platform-tile" type="button" onclick="selectPlatform()">
+      <span class="platform-tile-name">RDT</span>
+      <span class="platform-tile-desc">Repost Detail Transaksi</span>
+    </button>
+  </div>
+</div>
+
+<div class="app-shell hidden" id="app-shell">
+
+  <!-- Persistent sidebar (REQ-RDT-NAV-01) -->
+  <aside class="sidebar">
+    <img class="sidebar-logo" src="/rdt/assets/gmf-logo.png" alt="GMF AeroAsia" />
+    <p class="sidebar-subtitle">Repost Detail Transaction</p>
+    <nav class="sidebar-nav">
+      <a href="#dashboard" class="nav-link" data-view="dashboard"><span class="nav-icon"></span>Dashboard</a>
+      <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"></span>Repost</a>
+      <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"></span>Confirmation</a>
+      <a id="nav-need-approval" href="#need-approval" class="nav-link" data-view="need-approval"><span class="nav-icon"></span>Need Approval</a>
+      <span class="nav-link nav-link--disabled"><span class="nav-icon"></span>Guidance Application</span>
+      <span class="nav-link nav-link--disabled"><span class="nav-icon"></span>Feedback Application</span>
+    </nav>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <h1 class="page-title" id="page-title">Dashboard</h1>
+      <div class="topbar-user">
+        <div class="user-menu-wrap">
+          <button class="user-badge" id="notif-bell" type="button" onclick="toggleNotifMenu()">🔔 <span id="notif-count"></span></button>
+          <div class="user-menu hidden" id="notif-menu" style="min-width:320px">
+            <div id="notif-list"></div>
+            <p class="note" id="notif-empty">Tidak ada notifikasi.</p>
+          </div>
+        </div>
+        <div class="user-menu-wrap">
+          <button class="user-badge" id="user-badge" type="button" onclick="toggleUserMenu()">Belum login</button>
+          <div class="user-menu hidden" id="user-menu">
+            <div class="user-menu-info" id="user-menu-info"></div>
+            <button class="btn btn-ghost" type="button" onclick="doLogout()">Logout</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============ Dashboard (REQ-RDT-NAV-02) — personalized per own dinas ============ -->
+    <div class="view" id="view-dashboard">
+      <div class="page-card">
+        <div class="dashboard-grid">
+          <div class="dashboard-own">
+            <h3 id="dash-own-title">Dashboard Pengajuan <span id="dash-own-user"></span></h3>
+            <p class="note" id="dash-own-note">Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda
+              belum mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah circle muncul
+              jika dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu
+              tindak lanjut (Tanggung Sendiri / Ajukan ulang).</p>
+            <p class="alert alert-error hidden" id="dash-err"></p>
+            <div class="home-grid" id="dash-own-grid"></div>
+          </div>
+          <div class="dashboard-need">
+            <h3>Need to Confirm</h3>
+            <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
+              langsung meninjau pengajuan dinas tersebut.</p>
+            <div id="dash-need-list"></div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" onclick="loadDashboard()">Muat ulang</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ Dashboard-Detailing (REQ-RDT-NAV-03, REQ-RDT-COMMENT) ============ -->
+    <div class="view hidden" id="view-dashboard-detail">
+      <div class="page-card">
+        <div class="view-header-row">
+          <div class="context-badge" id="dd-badge">—</div>
+          <button class="btn btn-ghost" type="button" onclick="location.hash='dashboard'">‹ Kembali ke Dashboard</button>
+        </div>
+        <p class="alert alert-error hidden" id="dd-err"></p>
+        <div class="dashboard-grid" id="dd-summary-wrap">
+          <div class="home-grid">
+            <div class="dinas-circle-wrap" style="max-width:220px">
+              <div class="dinas-circle-header"><div class="dinas-circle-label" id="dd-target-label"></div></div>
+              <div class="dinas-circle" id="dd-circle"><span class="pct-label" id="dd-pct-label"></span></div>
+              <div class="note" id="dd-reply-count" style="margin:8px 0 0"></div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin:24px 0 4px;font-size:14px">Diskusi</h3>
+        <div id="dd-thread"></div>
+        <p class="note" id="dd-thread-empty">Belum ada komentar pada pasangan dinas ini.</p>
+
+        <div class="mention-wrap" style="margin-top:14px">
+          <textarea id="dd-comment-body" class="repost-desc" rows="3"
+            placeholder="Tulis komentar... ketik @ untuk mention dinas/user"></textarea>
+          <ul id="dd-comment-mentions" class="mention-list hidden"></ul>
+        </div>
+        <div class="actions" id="dd-reply-context-wrap" style="display:none;align-items:center">
+          <span class="note" id="dd-reply-context" style="margin:0"></span>
+          <button class="btn-link" type="button" onclick="clearDdReplyTarget()">Batal balas</button>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" onclick="postDdComment()">Kirim komentar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ Repost (REQ-RDT-NAV-03) ============ -->
+    <div class="view hidden" id="view-repost">
+      <div class="page-card">
+        <div class="repost-split">
+          <div class="repost-main">
+            <!-- Upload -->
+            <section class="card">
+              <h2>Upload Repost Detail Transaction File</h2>
+              <div class="dropzone" id="dz">
+                <div id="dz-empty">
+                  <p class="hint">Tarik file .xlsx ke sini, atau</p>
+                  <label class="btn btn-ghost">Pilih file
+                    <input type="file" id="file" accept=".xlsx" hidden />
+                  </label>
+                </div>
+                <div id="dz-file" class="hidden">
+                  <p class="fname" id="fname"></p>
+                  <p class="fmeta" id="fmeta"></p>
+                  <button class="btn-link" type="button" onclick="resetAll()">Ganti file</button>
+                </div>
+              </div>
+              <div class="actions">
+                <span class="note" id="uploader-dinas-note" style="margin:0"></span>
+                <button class="btn btn-primary" id="btn-parse" disabled onclick="doParse()">Proses file</button>
+              </div>
+              <p class="alert alert-error hidden" id="err"></p>
+
+              <details class="settings">
+                <summary>Pengaturan mapping &amp; eksklusi (admin)</summary>
+                <h3>Mapping normalisasi dinas</h3>
+                <textarea id="map-edit" rows="6"></textarea>
+                <div class="actions">
+                  <button class="btn btn-ghost" onclick="loadCfg()">Muat ulang</button>
+                  <button class="btn btn-ghost" onclick="saveMapping()">Simpan mapping</button>
+                </div>
+                <h3>Prefix eksklusi</h3>
+                <textarea id="excl-edit" rows="3"></textarea>
+                <div class="actions">
+                  <button class="btn btn-ghost" onclick="saveExcl()">Simpan eksklusi</button>
+                </div>
+              </details>
+            </section>
+
+            <!-- Review: merged matrix + detail rows preview -->
+            <section class="card hidden" id="sec-preview">
+              <h2>Review Detail Transaction Before Upload</h2>
+              <div class="counts" id="counts"></div>
+              <h3>Rekap per dinas target</h3>
+              <p class="note">Bandingkan tabel ini dengan sheet pivot di file Excel Anda — angkanya
+                harus sama. Jika berbeda, periksa baris INVALID/EXCLUDED sebelum menyimpan.</p>
+              <div class="tscroll"><table id="matrix"></table></div>
+
+              <h3 id="rows-title" style="margin-top:26px;padding-top:16px;border-top:1px solid var(--line)">Detail baris</h3>
+              <div class="filters">
+                <label>Status
+                  <select id="f-status" onchange="applyFilters()">
+                    <option value="ALL">Semua</option>
+                  </select>
+                </label>
+                <label>Dinas target
+                  <select id="f-dinas" onchange="applyFilters()">
+                    <option value="ALL">Semua</option>
+                  </select>
+                </label>
+                <label class="grow">Cari
+                  <input type="search" id="f-search" placeholder="account / remark / kategori…"
+                    oninput="applyFilters()" />
+                </label>
+              </div>
+              <div class="tscroll">
+                <table>
+                  <thead><tr>
+                    <th>Sheet</th><th>Baris</th><th>Account</th><th>Ref.Doc</th><th>Dinas target</th>
+                    <th class="num">Nominal</th><th>Kategori</th><th>Status</th><th>Remark</th>
+                  </tr></thead>
+                  <tbody id="tbody"></tbody>
+                </table>
+              </div>
+              <!-- REQ-RDT-NAV-07: reusable Google-style pager, shared with the Confirmation
+                   "My Pending" table via pagerButtonsHtml(). -->
+              <div class="pager hidden" id="pager"></div>
+            </section>
+          </div>
+
+          <!-- Confirm-to-Repost: sticky side panel (Figma: Confirm/Cancel) -->
+          <aside class="repost-side">
+            <h3>Confirm to Repost</h3>
+            <label class="repost-desc-label">Keterangan (opsional)
+              <div class="mention-wrap">
+                <textarea id="repost-desc" class="repost-desc" rows="3" placeholder="Catatan tambahan untuk pengajuan ini... ketik @ untuk mention dinas"></textarea>
+                <ul id="repost-desc-mentions" class="mention-list hidden"></ul>
+              </div>
+            </label>
+            <button class="btn btn-primary" id="btn-commit" onclick="doCommit()">Confirm</button>
+            <button class="btn btn-ghost" onclick="resetAll()">Cancel</button>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ Confirmation (REQ-RDT-NAV-04) ============ -->
+    <div class="view hidden" id="view-confirmation">
+      <div class="page-card">
+        <div class="view-header-row">
+          <div class="context-badge" id="confirming-user-badge">Belum login</div>
+          <label class="target-picker hidden" id="confirm-target-picker">Antrian
+            <select id="confirm-target-select"></select>
+          </label>
+          <button class="btn btn-primary" id="btn-submit-my-pending">Submit</button>
+        </div>
+        <div id="mp-legend"></div>
+        <p class="alert alert-error hidden" id="my-status-err"></p>
+
+        <div class="just-declined hidden" id="just-declined-wrap">
+          <h3>Baru saja ditolak, balik ke pengaju</h3>
+          <p class="note">Item ini dikembalikan ke dinas pengaju untuk ditindaklanjuti (Tanggung Sendiri / Ajukan ulang).</p>
+          <ul class="just-declined__list" id="just-declined-list"></ul>
+        </div>
+
+        <div class="just-declined hidden" id="just-redirected-wrap">
+          <h3>Baru saja ditolak, langsung diarahkan</h3>
+          <ul class="just-declined__list" id="just-redirected-list"></ul>
+        </div>
+
+        <div id="my-pending-wrap" class="hidden">
+          <!-- REQ-RDT-LEDGER-09: one button per source upload — filled in by renderMpPage(). -->
+          <div class="original-file-downloads" id="mp-downloads"></div>
+          <div id="my-pending-list"></div>
+          <div class="pager" id="mp-pager"></div>
+        </div>
+
+        <section class="hidden" id="my-declined-wrap" style="margin-top:20px">
+          <h3>Perlu keputusan Anda (DECLINED oleh dinas target)</h3>
+          <p class="note">Tentukan tujuan tiap baris dulu, lalu klik "Confirm All" untuk menyelesaikan
+            semuanya sekaligus — atau pakai tombol per-baris untuk menyelesaikan satu per satu.</p>
+          <div id="my-declined-list"></div>
+          <div class="batch-resolve-footer">
+            <label class="batch-note-label">Keterangan (opsional)
+              <textarea class="batch-note" id="batch-resolve-note" rows="2" placeholder="Catatan tambahan untuk keputusan ini..."></textarea>
+            </label>
+            <button class="btn btn-primary" id="btn-confirm-all-declined">Confirm All</button>
+          </div>
+        </section>
+
+        <p class="note" id="confirmation-empty-note" style="margin-top:12px"></p>
+      </div>
+    </div>
+
+    <!-- ============ Need Approval — export SAP batch approval (Gap 4) ============ -->
+    <!-- STUB: file generation is a placeholder only, no real SAP import column template
+         exists yet (see routes/exportBatches.js). Own nav item now, per updated Figma
+         (previously tucked at the bottom of Confirming). -->
+    <div class="view hidden" id="view-need-approval">
+      <div class="page-card">
+        <p class="note">Approval sebelum export: DRAFT → submit (gate: tidak ada
+          PENDING/DECLINED/NEEDS_REVIEW) → WAITING_APPROVAL → APPROVED → EXPORTED.
+          <strong>Generate file export saat ini masih placeholder</strong> — belum ada template
+          kolom impor SAP yang nyata. Hanya role TAB yang bisa bertindak di sini.</p>
+        <div class="actions">
+          <input type="text" id="new-batch-period" placeholder="Label periode, mis. 2026-06" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;min-width:180px" />
+          <button class="btn btn-ghost" onclick="createExportBatch()">Buat batch baru</button>
+          <button class="btn btn-ghost" onclick="loadExportBatches()">Muat daftar batch</button>
+        </div>
+        <p class="alert alert-error hidden" id="export-batches-err"></p>
+        <div id="export-batches-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- In-page modal (replaces window.confirm/alert per project owner's request) -->
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-box" id="modal-box">
+    <svg class="checkmark hidden" id="modal-checkmark" viewBox="0 0 52 52">
+      <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none" />
+      <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+    </svg>
+    <p class="modal-message" id="modal-message"></p>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<script>
+const fmtNum = new Intl.NumberFormat('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2});
+let selectedFile = null, allRows = [], aggregation = {}, filtered = [];
+let page = 1; const PAGE_SIZE = 100;
+
+const $ = (id) => document.getElementById(id);
+
+// Restructured 24 Jul 2026: login/logout moved OUT to the standalone `auth` service (own port,
+// not proxied through this backend anymore — see rdt/CLAUDE.md). Hardcoded localhost like every
+// other port in this demo file (dev-shell's proxy configs do the same) — not meant to survive
+// past local dev.
+const AUTH_SERVICE_URL = 'http://localhost:4001';
+
+// REQ-RDT-NAV-07: shared "Google-style" pager markup (max 5 page-number buttons shown as a
+// sliding window centered on the current page, with a non-clickable "…" indicator when the
+// window doesn't reach page 1 / the last page). Used by both the Repost review table and the
+// Confirmation "My Pending" table so the pattern isn't implemented twice inconsistently —
+// previously Repost only had prev/next + a jump-to-page input, and Confirmation rendered a
+// numbered button for every page with no truncation.
+function pagerButtonsHtml(page, totalPages, gotoFn) {
+  if (totalPages <= 1) return '';
+  const maxVisible = 5;
+  let start = page - 2, end = page + 2;
+  if (start < 1) { start = 1; end = Math.min(totalPages, maxVisible); }
+  if (end > totalPages) { end = totalPages; start = Math.max(1, totalPages - maxVisible + 1); }
+  let html = `<button class="btn btn-ghost" onclick="${gotoFn}(${page - 1})" ${page === 1 ? 'disabled' : ''}>‹ Sebelumnya</button>`;
+  if (start > 1) html += '<span class="pager-ellipsis">…</span>';
+  for (let p = start; p <= end; p++) {
+    html += `<button class="pager-page${p === page ? ' pager-page-active' : ''}" onclick="${gotoFn}(${p})">${p}</button>`;
+  }
+  if (end < totalPages) html += '<span class="pager-ellipsis">…</span>';
+  html += `<button class="btn btn-ghost" onclick="${gotoFn}(${page + 1})" ${page === totalPages ? 'disabled' : ''}>Berikutnya ›</button>`;
+  return html;
+}
+
+// ---------- modal (replaces window.confirm/alert with an in-page centered dialog) ----------
+let modalOpenToken = 0; // guards a stale success() auto-dismiss timer from closing a newer modal
+
+function showModal(message, { showCancel = false, okText = 'OK', cancelText = 'Batal', checkmark = false } = {}) {
+  modalOpenToken++;
+  return new Promise((resolve) => {
+    $('modal-message').textContent = message;
+    $('modal-checkmark').classList.toggle('hidden', !checkmark);
+    $('modal-box').classList.toggle('modal-box-checkmark', checkmark);
+    const actions = $('modal-actions');
+    actions.innerHTML = '';
+    actions.classList.toggle('hidden', checkmark);
+    if (showCancel) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn btn-ghost';
+      cancelBtn.textContent = cancelText;
+      cancelBtn.onclick = () => { closeModal(); resolve(false); };
+      actions.appendChild(cancelBtn);
+    }
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'btn btn-primary';
+    okBtn.textContent = okText;
+    okBtn.onclick = () => { closeModal(); resolve(true); };
+    actions.appendChild(okBtn);
+    $('modal-overlay').classList.remove('hidden');
+    if (checkmark) {
+      // Item 2: click-anywhere-to-dismiss, plus auto-dismiss so it never blocks the user.
+      const overlay = $('modal-overlay');
+      const myToken = modalOpenToken;
+      const onOverlayClick = () => { closeModal(); resolve(true); overlay.removeEventListener('click', onOverlayClick); };
+      overlay.addEventListener('click', onOverlayClick);
+      setTimeout(() => { if (modalOpenToken === myToken) { closeModal(); resolve(true); overlay.removeEventListener('click', onOverlayClick); } }, 1800);
+    } else {
+      okBtn.focus();
+    }
+  });
+}
+function closeModal() { $('modal-overlay').classList.add('hidden'); }
+function confirmModal(message) { return showModal(message, { showCancel: true, okText: 'Ya, lanjutkan', cancelText: 'Batal' }); }
+function alertModal(message) { return showModal(message, { showCancel: false }); }
+// Item 2: a short animated "done!" confirmation, replacing an inline "Data tersimpan ke
+// staging" line.
+function successModal(message) { return showModal(message || 'Selesai!', { checkmark: true }); }
+
+// ---------- view switching (REQ-RDT-NAV-01): hash-based, single file, no router lib ----------
+// Supports an optional ":param" suffix (e.g. "#confirmation:TC") so Dashboard's "Need to
+// Confirm" buttons can deep-link into a Confirmation view filtered to one initiator dinas.
+// REQ-RDT-NAV-03: "dashboard-detail" needs TWO params (initiator dinas + target dinas), so the
+// param is now everything after the FIRST colon rejoined as-is (e.g. "#dashboard-detail:TB:TC"
+// -> param "TB:TC") — each view that needs more than one value splits its own param further,
+// rather than parseHash() hardcoding a fixed arity for every view.
+const VIEWS = ['dashboard', 'repost', 'confirmation', 'need-approval', 'dashboard-detail'];
+const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Repost', confirmation: 'Confirmation', 'need-approval': 'Need Approval', 'dashboard-detail': 'Dashboard' };
+let confirmationFilterDinas = null;
+
+function parseHash() {
+  const raw = location.hash.replace('#', '');
+  const sepIndex = raw.indexOf(':');
+  const view = sepIndex === -1 ? raw : raw.slice(0, sepIndex);
+  const param = sepIndex === -1 ? null : raw.slice(sepIndex + 1);
+  return { view: VIEWS.includes(view) ? view : 'dashboard', param: param || null };
+}
+
+function showView(view, param) {
+  if (!VIEWS.includes(view)) view = 'dashboard';
+  VIEWS.forEach((v) => $('view-' + v).classList.toggle('hidden', v !== view));
+  // "dashboard-detail" isn't a sidebar item (reached only by clicking a Dashboard card, per
+  // SRS's 23 Jul correction that TC/TJ/TN were never meant to be standalone sidebar entries) —
+  // Dashboard stays highlighted as the closest sidebar parent while drilled into a pair.
+  const navHighlight = view === 'dashboard-detail' ? 'dashboard' : view;
+  document.querySelectorAll('.nav-link[data-view]').forEach((a) => a.classList.toggle('active', a.dataset.view === navHighlight));
+  $('page-title').textContent = PAGE_TITLES[view];
+  if (view === 'dashboard') loadDashboard();
+  else if (view === 'confirmation') { confirmationFilterDinas = param || null; loadMyStatus(); }
+  else if (view === 'need-approval') loadExportBatches();
+  else if (view === 'dashboard-detail') {
+    const [initiator, target] = (param || '').split(':');
+    if (initiator && target) loadDashboardDetail(initiator, target);
+  }
+}
+
+function refreshCurrentView() { const h = parseHash(); showView(h.view, h.param); }
+
+function goToConfirmFrom(dinas) { location.hash = 'confirmation:' + dinas; }
+function goToDashboardDetail(initiatorDinas, targetDinas) { location.hash = 'dashboard-detail:' + initiatorDinas + ':' + targetDinas; }
+
+document.querySelectorAll('.nav-link[data-view]').forEach((a) => {
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    location.hash = a.dataset.view;
+  });
+});
+window.addEventListener('hashchange', () => { const h = parseHash(); showView(h.view, h.param); });
+
+// ---------- file selection ----------
+const dz = $('dz');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('active'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('active'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('active');
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) setFile(f);
+});
+$('file').addEventListener('change', e => {
+  if (e.target.files.length) setFile(e.target.files[0]);
+});
+
+function setFile(f) {
+  hideErr();
+  if (!f.name.toLowerCase().endsWith('.xlsx')) {
+    showErr('Format file harus .xlsx. File yang dipilih: ' + f.name);
+    return;
+  }
+  selectedFile = f;
+  $('fname').textContent = f.name;
+  $('fmeta').textContent = (f.size/1024/1024).toFixed(1) + ' MB';
+  $('dz-empty').classList.add('hidden');
+  $('dz-file').classList.remove('hidden');
+  $('btn-parse').disabled = false;
+}
+
+// ---------- @mention in repost description (item 5) ----------
+// Detects "@partial-word" immediately before the cursor and shows matching dinas AND user
+// options — matched against both the insertable token and the human-readable label, same
+// interaction as tagging someone on social media. `directoryEntries` is the same global
+// populated by loadDirectoryEntries() (called from selectPlatform() after login).
+async function mentionOptions() {
+  const codes = await getDinasCodes();
+  const dinasOpts = codes.map((c) => ({ token: c, label: c }));
+  const userOpts = Object.keys(directoryEntries || {}).map((id) => {
+    const e = directoryEntries[id];
+    return { token: id, label: `${e.display_name} (${e.dinas})` };
+  });
+  return dinasOpts.concat(userOpts);
+}
+
+// Generalized so both the Repost description AND the Dashboard-Detailing comment composer
+// (REQ-RDT-COMMENT-03) get the same @mention autocomplete instead of two copies of this logic.
+//
+// Bug fix (live testing, 24 Jul): capped at 8 originally, but with 21 dinas + ~24 directory
+// users to match against, 8 was too few to reliably find someone by scanning alone — raised to
+// 20 (the dropdown box already scrolls, .mention-list's max-height/overflow-y in the CSS). Also
+// added arrow-key navigation + Enter-to-select via a highlighted-index, which wasn't here at
+// all before — mouse-only wasn't enough for a list this size.
+function setupMentionAutocomplete(ta, list) {
+  if (!ta || !list) return;
+  let highlighted = -1;
+  function applyHighlight() {
+    Array.from(list.children).forEach((li, i) => li.classList.toggle('mention-list__item--active', i === highlighted));
+  }
+  function selectLi(li) {
+    if (!li) return;
+    const cursor = ta.selectionStart;
+    const upToCursor = ta.value.slice(0, cursor);
+    const afterCursor = ta.value.slice(cursor);
+    const replaced = upToCursor.replace(/@([\w-]*)$/, '@' + li.dataset.token + ' ');
+    ta.value = replaced + afterCursor;
+    list.classList.add('hidden');
+    ta.focus();
+    ta.setSelectionRange(replaced.length, replaced.length);
+  }
+  ta.addEventListener('input', async () => {
+    const cursor = ta.selectionStart;
+    const upToCursor = ta.value.slice(0, cursor);
+    const match = /@([\w-]*)$/.exec(upToCursor);
+    if (!match) { list.classList.add('hidden'); return; }
+    const query = match[1].toLowerCase();
+    const options = await mentionOptions();
+    const suggestions = options.filter((o) => o.token.toLowerCase().includes(query) || o.label.toLowerCase().includes(query)).slice(0, 20);
+    if (!suggestions.length) { list.classList.add('hidden'); return; }
+    highlighted = 0;
+    list.innerHTML = suggestions.map((o) => `<li data-token="${esc(o.token)}">@${esc(o.token)} — ${esc(o.label)}</li>`).join('');
+    applyHighlight();
+    list.classList.remove('hidden');
+  });
+  ta.addEventListener('keydown', (e) => {
+    if (list.classList.contains('hidden') || !list.children.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlighted = (highlighted + 1) % list.children.length;
+      applyHighlight();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlighted = (highlighted - 1 + list.children.length) % list.children.length;
+      applyHighlight();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      selectLi(list.children[highlighted]);
+    } else if (e.key === 'Escape') {
+      list.classList.add('hidden');
+    }
+  });
+  list.addEventListener('mouseover', (e) => {
+    const li = e.target.closest('li[data-token]');
+    if (!li) return;
+    highlighted = Array.from(list.children).indexOf(li);
+    applyHighlight();
+  });
+  list.addEventListener('mousedown', (e) => {
+    const li = e.target.closest('li[data-token]');
+    if (!li) return;
+    e.preventDefault();
+    selectLi(li);
+  });
+  // Delay so a mousedown on a suggestion registers before the list disappears on blur.
+  ta.addEventListener('blur', () => { setTimeout(() => list.classList.add('hidden'), 150); });
+}
+
+setupMentionAutocomplete($('repost-desc'), $('repost-desc-mentions'));
+setupMentionAutocomplete($('dd-comment-body'), $('dd-comment-mentions'));
+
+function showErr(msg){ const e=$('err'); e.textContent=msg; e.classList.remove('hidden'); }
+function hideErr(){ $('err').classList.add('hidden'); }
+
+  // ---------- parse ----------
+  async function doParse() {
+  if (!selectedFile) return;
+  hideErr();
+  const user = currentUser();
+  if (!user) { showErr('Pilih "Login sebagai" dulu — dinas pengunggah mengikuti akun yang login.'); return; }
+  const btn = $('btn-parse');
+  btn.disabled = true; btn.textContent = 'Memproses…';
+    try {
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      fd.append('uploaderDinas', user.dinas);
+      const res = await fetch('/api/parse', { method:'POST', headers:{'X-Session-Token': user.token}, body:fd });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Parse gagal tanpa pesan error.');
+    allRows = json.rows || [];
+    aggregation = json.aggregation || {};
+    page = 1;
+    renderSummary(); buildFilterOptions(); applyFilters();
+    $('sec-preview').classList.remove('hidden');
+    $('sec-preview').scrollIntoView({behavior:'smooth'});
+  } catch (err) {
+    showErr(err.message || String(err));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Proses file';
+  }
+}
+
+// ---------- summary ----------
+function renderSummary() {
+  const counts = {};
+  for (const r of allRows) counts[r.status_konfirmasi] = (counts[r.status_konfirmasi]||0)+1;
+  const labels = {
+    PENDING:'tagihan lintas dinas', EXCLUDED:'internal / non-tagihan',
+    INVALID:'perlu diperbaiki', NEEDS_REVIEW:'prefix tak dikenal',
+  };
+  $('counts').innerHTML = Object.keys(counts).map(s =>
+    '<div class="item"><span class="chip chip-'+s.toLowerCase()+'">'+s+'</span>' +
+    '<strong>'+counts[s]+'</strong><span class="lbl">'+(labels[s]||'')+'</span></div>'
+  ).join('');
+
+  const cats = Object.keys(aggregation).sort();
+  const dinasSet = new Set();
+  cats.forEach(c => Object.keys(aggregation[c]).forEach(d => dinasSet.add(d)));
+  const dinas = Array.from(dinasSet).sort();
+  let html = '<thead><tr><th>Kategori</th>' +
+    dinas.map(d=>'<th class="num">'+esc(d)+'</th>').join('') + '</tr></thead><tbody>';
+  for (const c of cats) {
+    html += '<tr><td class="rowhead">'+esc(c)+'</td>' + dinas.map(d => {
+      const v = aggregation[c][d];
+      return '<td class="num">'+(typeof v==='number' ? fmtNum.format(v) : '—')+'</td>';
+    }).join('') + '</tr>';
+  }
+  $('matrix').innerHTML = html + '</tbody>';
+}
+
+// ---------- rows table ----------
+  function buildFilterOptions() {
+  const st = new Set(), dn = new Set();
+  allRows.forEach(r => { st.add(r.status_konfirmasi); if (r.dinas_target) dn.add(r.dinas_target); });
+  $('f-status').innerHTML = '<option value="ALL">Semua</option>' +
+    Array.from(st).sort().map(s=>'<option>'+esc(s)+'</option>').join('');
+  $('f-dinas').innerHTML = '<option value="ALL">Semua</option>' +
+    Array.from(dn).sort().map(d=>'<option>'+esc(d)+'</option>').join('');
+}
+
+function applyFilters() {
+  const s = $('f-status').value, d = $('f-dinas').value,
+        q = $('f-search').value.trim().toLowerCase();
+  filtered = allRows.filter(r => {
+    if (s !== 'ALL' && r.status_konfirmasi !== s) return false;
+    if (d !== 'ALL' && r.dinas_target !== d) return false;
+    if (q) {
+      const hay = ((r.account||'')+' '+(r.remark||'')+' '+(r.category||'')+' '+(r.sheet||'')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  page = 1;
+  renderRows();
+}
+
+function renderRows() {
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (page > totalPages) page = totalPages;
+  const slice = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+  $('rows-title').textContent = 'Detail baris ('+filtered.length+' dari '+allRows.length+')';
+  $('tbody').innerHTML = slice.length ? slice.map(r => {
+    const neg = (r.nominal||0) < 0;
+    return '<tr><td>'+esc(r.sheet||'')+'</td><td>'+(r.row??'')+'</td>' +
+      '<td>'+esc(r.account||'')+'</td><td>'+esc(r.ref_doc||'')+'</td><td>'+esc(r.dinas_target||'—')+'</td>' +
+      '<td class="num'+(neg?' neg':'')+'">'+(r.nominal!=null?fmtNum.format(r.nominal):'—')+'</td>' +
+      '<td>'+esc(r.category||'—')+'</td>' +
+      '<td><span class="chip chip-'+String(r.status_konfirmasi).toLowerCase()+'">'+esc(r.status_konfirmasi)+'</span></td>' +
+      '<td class="remark" title="'+esc(r.remark||'')+'">'+esc(r.remark||'')+'</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">Tidak ada baris yang cocok dengan filter.</td></tr>';
+  const pager = $('pager');
+  if (totalPages > 1) {
+    pager.classList.remove('hidden');
+    pager.innerHTML = pagerButtonsHtml(page, totalPages, 'gotoPage');
+  } else { pager.classList.add('hidden'); pager.innerHTML = ''; }
+}
+
+function gotoPage(p) {
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  page = Math.min(Math.max(1, p), totalPages);
+  renderRows();
+}
+
+// ---------- Dashboard (REQ-RDT-NAV-02 / REQ-RDT-DASH-01-02) ----------
+// Personalized per logged-in dinas (see routes/dashboard.js): left panel = progress of MY
+// OWN dinas's outgoing submissions per target dinas ("Dashboard Pengajuan [User]"); right
+// panel = which OTHER dinas have submissions waiting on ME to confirm ("Need to Confirm").
+// Both sections render empty per the Figma annotations when there's nothing to show.
+function showDashErr(msg) { const e = $('dash-err'); e.textContent = msg; e.classList.remove('hidden'); }
+function hideDashErr() { $('dash-err').classList.add('hidden'); }
+
+async function loadDashboard() {
+  hideDashErr();
+  const user = currentUser();
+  $('dash-own-user').textContent = user ? user.display_name : '[User]';
+  if (!user) {
+    $('dash-own-grid').innerHTML = '<p class="note">Pilih "Login sebagai" dulu untuk memuat dashboard.</p>';
+    $('dash-need-list').innerHTML = '';
+    return;
+  }
+  try {
+    const res = await fetch('/api/dashboard/summary', { headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Gagal memuat dashboard');
+    // Role TAB sees a global view across every submitting dinas instead of their own outgoing
+    // submissions — TAB doesn't originate reposts itself.
+    if (j.is_global_view) {
+      $('dash-own-title').innerHTML = 'Progres Semua Dinas';
+      $('dash-own-note').textContent = 'Progress pengajuan dari SETIAP dinas yang pernah repost, lintas seluruh sistem — bukan cuma pengajuan Anda sendiri (Anda login sebagai TAB, yang tidak mengajukan repost). Klik "Muat ulang" untuk menyegarkan.';
+    } else {
+      $('dash-own-title').innerHTML = 'Dashboard Pengajuan <span id="dash-own-user">' + esc(user.display_name) + '</span>';
+      $('dash-own-note').textContent = 'Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda belum mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah circle muncul jika dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu tindak lanjut (Tanggung Sendiri / Ajukan ulang).';
+    }
+    renderDashOwn(j.as_initiator || [], j.is_global_view);
+    renderDashNeed(j.need_to_confirm || []);
+  } catch (err) { showDashErr(err.message || String(err)); }
+}
+
+// Item 5: 3-color progress ring. 100% = blue (done). Below 100% but at/above half = yellow
+// (still needs confirmation, but on track). Below half = red (needs attention).
+function ringColor(percent) {
+  if (percent >= 100) return '#006298';
+  if (percent < 50) return '#b3261e';
+  return '#f2b400';
+}
+
+function renderDashOwn(list, isGlobalView) {
+  const grid = $('dash-own-grid');
+  if (!list.length) {
+    grid.innerHTML = '<p class="note">' + (isGlobalView ? 'Belum ada dinas yang mengajukan repost.' : 'Anda belum mengajukan repost apapun.') + '</p>';
+    return;
+  }
+  // REQ-RDT-NAV-03: drill-down only makes sense for a real (initiator, target) PAIR. The
+  // personal view's cards ARE exactly that (myDinas -> d.dinas), so they're clickable. TAB's
+  // global view groups by INITIATOR only across every target — a card there doesn't represent
+  // one pair, so it deliberately stays non-clickable this round (scope cut, not an oversight).
+  const myDinas = isGlobalView ? null : (currentUser() || {}).dinas;
+  grid.innerHTML = list.map((d) => {
+    const notif = d.declined_pending_action > 0
+      ? `<div class="circle-notif">${d.declined_pending_action} transaksi ditolak, perlu tindak lanjut</div>`
+      : '';
+    const clickAttr = myDinas ? ` onclick="goToDashboardDetail('${esc(myDinas)}','${esc(d.dinas)}')" style="cursor:pointer"` : '';
+    return `<div class="dinas-circle-wrap"${clickAttr}>
+      <div class="dinas-circle-header">
+        <div class="dinas-circle-label">${esc(d.dinas)}</div>
+        <span class="dinas-circle-count">${d.total}</span>
+      </div>
+      <div class="dinas-circle" style="--pct:${d.percent};--ring-color:${ringColor(d.percent)}">
+        <span class="pct-label">${d.percent.toFixed(1)}%</span>
+      </div>
+      ${notif}
+    </div>`;
+  }).join('');
+}
+
+function renderDashNeed(dinasCodes) {
+  const list = $('dash-need-list');
+  if (!dinasCodes.length) { list.innerHTML = '<p class="note">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>'; return; }
+  list.innerHTML = dinasCodes.map((d) => `<button type="button" class="dinas-btn" onclick="goToConfirmFrom('${esc(d)}')">${esc(d)}</button>`).join('');
+}
+
+// ---------- Dashboard-Detailing: drill-down per pasangan dinas (REQ-RDT-NAV-03/COMMENT) ----------
+let ddInitiator = null, ddTarget = null, ddReplyTo = null;
+
+function showDdErr(msg) { const e = $('dd-err'); e.textContent = msg; e.classList.remove('hidden'); }
+function hideDdErr() { $('dd-err').classList.add('hidden'); }
+
+async function loadDashboardDetail(initiatorDinas, targetDinas) {
+  hideDdErr();
+  ddInitiator = initiatorDinas; ddTarget = targetDinas; ddReplyTo = null;
+  $('dd-reply-context-wrap').style.display = 'none';
+  $('dd-badge').textContent = `${initiatorDinas} → ${targetDinas}`;
+  $('dd-target-label').textContent = targetDinas;
+  const user = currentUser();
+  if (!user) { showDdErr('Pilih "Login sebagai" dulu.'); return; }
+  try {
+    const res = await fetch(`/api/dashboard/detail/${encodeURIComponent(initiatorDinas)}/${encodeURIComponent(targetDinas)}`, {
+      headers: { 'X-Session-Token': user.token },
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Gagal memuat detail');
+    const p = j.progress;
+    $('dd-circle').style.setProperty('--pct', p.percent);
+    $('dd-circle').style.setProperty('--ring-color', ringColor(p.percent));
+    $('dd-pct-label').textContent = p.percent.toFixed(1) + '%';
+    $('dd-reply-count').textContent = `${j.comments.length} reply · ${p.total} transaksi`;
+    renderDdThread(j.comments);
+  } catch (err) {
+    showDdErr(err.message || String(err));
+  }
+}
+
+// Builds a parent/child tree from the flat comment list and renders it indented, forum-style
+// (REQ-RDT-COMMENT-02). Comments already arrive sorted oldest-first from the server.
+function renderDdThread(comments) {
+  const wrap = $('dd-thread');
+  $('dd-thread-empty').classList.toggle('hidden', comments.length > 0);
+  if (!comments.length) { wrap.innerHTML = ''; return; }
+  const byParent = {};
+  comments.forEach((c) => {
+    const key = c.parent_comment_id || 'root';
+    (byParent[key] = byParent[key] || []).push(c);
+  });
+  function renderLevel(parentKey, depth) {
+    const children = byParent[parentKey] || [];
+    return children.map((c) => `
+      <div class="thread-comment" style="margin-left:${depth * 28}px">
+        <div class="thread-comment__avatar"></div>
+        <div class="thread-comment__body">
+          <span class="thread-comment__name">${esc(c.author_display_name)}</span>
+          <span class="thread-comment__meta">${new Date(c.created_at).toLocaleString('id-ID')}</span>
+          <p class="thread-comment__text">${esc(c.body)}</p>
+          <button class="btn-link" type="button" onclick="setDdReplyTarget(${c.id}, '${esc(c.author_display_name)}')">Balas</button>
+        </div>
+      </div>
+      ${renderLevel(c.id, depth + 1)}`).join('');
+  }
+  wrap.innerHTML = renderLevel('root', 0);
+}
+
+function setDdReplyTarget(commentId, authorName) {
+  ddReplyTo = commentId;
+  $('dd-reply-context').textContent = `Membalas ${authorName}`;
+  $('dd-reply-context-wrap').style.display = 'flex';
+  $('dd-comment-body').focus();
+}
+function clearDdReplyTarget() {
+  ddReplyTo = null;
+  $('dd-reply-context-wrap').style.display = 'none';
+}
+
+async function postDdComment() {
+  const user = currentUser();
+  if (!user) { await alertModal('Pilih "Login sebagai" dulu.'); return; }
+  const ta = $('dd-comment-body');
+  const body = ta.value.trim();
+  if (!body) return;
+  try {
+    const payload = { body };
+    if (ddReplyTo) payload.parent_comment_id = ddReplyTo;
+    const res = await fetch(`/api/dashboard/detail/${encodeURIComponent(ddInitiator)}/${encodeURIComponent(ddTarget)}/comments`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token },
+      body: JSON.stringify(payload),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Gagal mengirim komentar');
+    ta.value = '';
+    clearDdReplyTarget();
+    loadDashboardDetail(ddInitiator, ddTarget);
+    loadNotifCount();
+  } catch (err) {
+    await alertModal('Error: ' + (err.message || String(err)));
+  }
+}
+
+// ---------- Notifications: simple @mention badge (REQ-RDT-COMMENT-03) ----------
+// Purely informational — never triggers any transaction/reassignment action.
+async function loadNotifCount() {
+  const user = currentUser();
+  if (!user) { $('notif-count').textContent = ''; return; }
+  try {
+    const res = await fetch('/api/notifications', { headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) return;
+    $('notif-count').textContent = j.unread_count > 0 ? String(j.unread_count) : '';
+    window.__lastNotifications = j.notifications;
+  } catch (e) { /* ignore */ }
+}
+
+function renderNotifList(notifications) {
+  const list = $('notif-list');
+  $('notif-empty').classList.toggle('hidden', notifications.length > 0);
+  list.innerHTML = notifications.map((n) => `
+    <div class="notif-item${n.read_at ? '' : ' unread'}" style="cursor:pointer" onclick="goToDashboardDetail('${esc(n.dinas_inisiasi)}','${esc(n.dinas_target)}'); $('notif-menu').classList.add('hidden');">
+      <div class="notif-item__body">${esc(n.author_display_name)}: ${esc(n.body)}</div>
+      <div class="notif-item__meta">${esc(n.dinas_inisiasi)} → ${esc(n.dinas_target)} · ${new Date(n.created_at).toLocaleString('id-ID')}</div>
+    </div>`).join('');
+}
+
+async function toggleNotifMenu() {
+  const menu = $('notif-menu');
+  const opening = menu.classList.contains('hidden');
+  menu.classList.toggle('hidden');
+  if (!opening) return;
+  const user = currentUser();
+  if (!user) return;
+  try {
+    const res = await fetch('/api/notifications', { headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) return;
+    renderNotifList(j.notifications);
+    // Opening the bell counts as "seen" — mark-read right away so the badge clears, matching
+    // the "notifikasi sederhana" ask (no separate per-item read/unread management).
+    if (j.unread_count > 0) {
+      await fetch('/api/notifications/mark-read', { method: 'POST', headers: { 'X-Session-Token': user.token } });
+      $('notif-count').textContent = '';
+    }
+  } catch (e) { /* ignore */ }
+}
+document.addEventListener('click', (e) => {
+  const bellWrap = $('notif-bell') && $('notif-bell').closest('.user-menu-wrap');
+  if (bellWrap && !bellWrap.contains(e.target)) $('notif-menu').classList.add('hidden');
+});
+
+// ---------- "Confirmation": PENDING confirmation (checkbox model) + DECLINED resolution ----------
+let directoryEntries = {};
+let dinasCodesCache = null;
+let myPendingRows = [];
+
+// ---------- Auth: Login + Select Platform (REQ-RDT-NAV-08) ----------
+// TODO(IT-AUTH): provisional/synthetic — same caveat as everywhere else in this demo (see
+// routes/auth.js). Deliberately kept IN MEMORY ONLY (no sessionStorage/localStorage): sessions
+// live server-side in-memory too and are wiped on server restart, so persisting the token
+// client-side would just mean a refresh silently keeps "working" with a token the server no
+// longer recognizes until the next API call fails. A refresh always bounces back to Login
+// instead — simpler than reconciling a stale client token against a possibly-restarted server.
+let currentSession = null; // { token, id, dinas, role, display_name }
+
+function currentUser() {
+  return currentSession;
+}
+
+function showAuthScreen(screen) {
+  $('screen-login').classList.toggle('hidden', screen !== 'login');
+  $('screen-select-platform').classList.toggle('hidden', screen !== 'select-platform');
+  $('app-shell').classList.toggle('hidden', screen !== 'app');
+}
+
+$('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = $('login-username').value.trim();
+  const password = $('login-password').value;
+  $('login-err').classList.add('hidden');
+  try {
+    const res = await fetch(`${AUTH_SERVICE_URL}/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Login gagal');
+    currentSession = Object.assign({ token: j.token }, j.user);
+    $('login-password').value = '';
+    enterSelectPlatform();
+  } catch (err) {
+    const e2 = $('login-err');
+    e2.textContent = err.message || String(err);
+    e2.classList.remove('hidden');
+  }
+});
+
+// Single platform option (RDT). Project owner correction (25 Jul): NO auto-advance, even with
+// only one tile — always require an explicit click. An earlier version auto-navigated after
+// 900ms "since there's nothing else to choose from yet"; that read as broken/un-fun rather than
+// convenient, so it's gone for good — don't reintroduce a timer here even after more platforms
+// (e.g. IBT) are added.
+function enterSelectPlatform() {
+  showAuthScreen('select-platform');
+}
+
+function selectPlatform() {
+  showAuthScreen('app');
+  loadDirectoryEntries();
+  updateUserBadge();
+  loadNotifCount();
+  refreshCurrentView();
+}
+
+function toggleUserMenu() {
+  if (!currentSession) return;
+  $('user-menu-info').textContent = `${currentSession.display_name} — ${currentSession.dinas} (${currentSession.role})`;
+  $('user-menu').classList.toggle('hidden');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.user-menu-wrap');
+  if (wrap && !wrap.contains(e.target)) $('user-menu').classList.add('hidden');
+});
+
+async function doLogout() {
+  try {
+    if (currentSession) {
+      await fetch(`${AUTH_SERVICE_URL}/logout`, { method: 'POST', headers: { 'X-Session-Token': currentSession.token } });
+    }
+  } catch (e) { /* best-effort — clear client-side session regardless */ }
+  currentSession = null;
+  // Prevents this user's unsaved Repost state (parsed rows/selected file/description) from
+  // leaking into whichever account logs in next in the same browser tab (no full page reload
+  // between logout and the next login) — mirrors the old dropdown-switch leak fix (item 3).
+  resetAll();
+  $('user-menu').classList.add('hidden');
+  $('notif-menu').classList.add('hidden');
+  $('notif-count').textContent = '';
+  $('login-username').value = '';
+  showAuthScreen('login');
+}
+
+async function getDinasCodes() {
+  if (dinasCodesCache) return dinasCodesCache;
+  try {
+    const r = await (await fetch('/api/dinas')).json();
+    dinasCodesCache = r.ok ? r.dinas.map((d) => d.code) : [];
+  } catch (e) { dinasCodesCache = []; }
+  return dinasCodesCache;
+}
+
+function showMyStatusErr(msg) { const e = $('my-status-err'); e.textContent = msg; e.classList.remove('hidden'); }
+function hideMyStatusErr() { $('my-status-err').classList.add('hidden'); }
+
+// REQ-RDT-AUTH-04: dinas "Corp" has no dedicated PIC confirming day-to-day — ONLY role TAB
+// may act on its behalf (the row stays labeled "Corp" everywhere). Role was renamed from
+// 'ADMIN_TAB' to plain 'TAB' on 24 Jul; SM_TA/GH_TA were removed entirely the same day
+// (project owner correction) — role TAB alone now handles everything they used to.
+// selectedConfirmTarget picks which queue is currently loaded; a plain PIC only ever has
+// their own dinas.
+let selectedConfirmTarget = null;
+
+function confirmTargetOptions(user) {
+  if (!user) return [];
+  if (user.role === 'TAB') return [user.dinas, 'Corp'];
+  return [user.dinas];
+}
+
+function updateConfirmTargetPicker() {
+  const user = currentUser();
+  const picker = $('confirm-target-picker');
+  const sel = $('confirm-target-select');
+  const opts = confirmTargetOptions(user);
+  if (!user || opts.length < 2) { picker.classList.add('hidden'); selectedConfirmTarget = user ? user.dinas : null; return; }
+  picker.classList.remove('hidden');
+  if (!selectedConfirmTarget || !opts.includes(selectedConfirmTarget)) selectedConfirmTarget = user.dinas;
+  sel.innerHTML = opts.map((o) => `<option value="${esc(o)}"${o === selectedConfirmTarget ? ' selected' : ''}>${esc(o)}</option>`).join('');
+}
+
+function updateConfirmationBadge() {
+  const user = currentUser();
+  const badge = $('confirming-user-badge');
+  if (!user) { badge.textContent = 'Belum login'; return; }
+  const target = selectedConfirmTarget === 'Corp' ? 'Corp' : user.display_name;
+  badge.textContent = confirmationFilterDinas
+    ? `${confirmationFilterDinas} → ${target}`
+    : `Semua dinas → ${target}`;
+}
+
+async function loadMyStatus() {
+  hideMyStatusErr();
+  const user = currentUser();
+  updateConfirmTargetPicker();
+  updateConfirmationBadge();
+  $('confirmation-empty-note').textContent = '';
+  // Bug found via user report: only just-declined-wrap was reset here — just-redirected-wrap
+  // stayed visible forever once shown once, leaking one user's "baru saja ditolak" content into
+  // whichever other user/dinas loaded the Confirmation view next (e.g. after switching "Login
+  // sebagai" without a full page reload).
+  $('just-declined-wrap').classList.add('hidden');
+  $('just-redirected-wrap').classList.add('hidden');
+  if (!user || !selectedConfirmTarget) { $('my-pending-wrap').classList.add('hidden'); $('my-declined-wrap').classList.add('hidden'); return; }
+  try {
+    const headers = { 'X-Session-Token': user.token };
+    const [pendingRes, declinedRes] = await Promise.all([
+      fetch('/api/confirmation/' + encodeURIComponent(selectedConfirmTarget), { headers }),
+      // Declined-resolution stays scoped to the user's OWN dinas as initiator — switching the
+      // confirmation target to Corp only changes which incoming queue is being confirmed.
+      fetch('/api/declined/' + encodeURIComponent(user.dinas), { headers }),
+    ]);
+    const pendingJson = await pendingRes.json();
+    const declinedJson = await declinedRes.json();
+    if (!pendingJson.ok) throw new Error(pendingJson.error || 'Gagal memuat data pending');
+    if (!declinedJson.ok) throw new Error(declinedJson.error || 'Gagal memuat data declined');
+    let pendingRows = pendingJson.rows || [];
+    if (confirmationFilterDinas) {
+      pendingRows = pendingRows.filter((r) => r.dinas_inisiasi === confirmationFilterDinas);
+    }
+    renderMyPending(pendingRows);
+    await renderMyDeclined(declinedJson.rows || [], user);
+    if (!pendingRows.length && !(declinedJson.rows || []).length) {
+      $('confirmation-empty-note').textContent = confirmationFilterDinas
+        ? `Tidak ada pengajuan dari ${confirmationFilterDinas} yang menunggu tindakan Anda.`
+        : 'Tidak ada pengajuan yang menunggu tindakan Anda saat ini.';
+    }
+  } catch (err) {
+    showMyStatusErr(err.message || String(err));
+  }
+}
+
+$('confirm-target-select').addEventListener('change', (e) => {
+  selectedConfirmTarget = e.target.value;
+  updateConfirmationBadge();
+  loadMyStatus();
+});
+
+// Single checkbox per row (checked = Confirm, unchecked = Reject) + Select All, per the
+// updated Figma. Every visible row gets submitted on Submit (checked->YA, unchecked->TIDAK)
+// - there is no "skip, undecided" state - confirmed with the project owner. The confirm
+// dialog on submit spells out the checked/unchecked counts explicitly so this is never an
+// accidental mass-reject.
+let mpPage = 1;
+const MP_PAGE_SIZE = 100;
+// Decision ledger keyed by row id, survives page navigation (only the current page's rows are
+// actually in the DOM at any moment once paginated). { checked: boolean, redirectTo: string }.
+let mpDecisions = {};
+
+// Item 7: dinas choices for a pending row's "reject ke dinas lain" picker — same exclusion
+// rules as REASSIGN (can't send back to the uploader, can't "redirect" to the dinas that's
+// literally doing the rejecting right now).
+function mpRedirectOptions(row, dinasCodes) {
+  const excluded = new Set([String(row.dinas_inisiasi || '').toUpperCase(), String(selectedConfirmTarget || '').toUpperCase()]);
+  return dinasCodes.filter((c) => !excluded.has(String(c).toUpperCase()));
+}
+
+// REQ-RDT-LEDGER-09: one download button per distinct source upload feeding this queue —
+// pending rows already carry upload_id/upload_filename (see confirmation.js's join), so this
+// just dedupes what's already loaded, no separate "list available files" endpoint.
+function renderMpDownloads(rows) {
+  const seen = new Map();
+  rows.forEach((r) => { if (r.upload_id != null && !seen.has(r.upload_id)) seen.set(r.upload_id, r.upload_filename || `upload-${r.upload_id}.xlsx`); });
+  $('mp-downloads').innerHTML = Array.from(seen.entries()).map(([id, name]) =>
+    `<button class="btn btn-ghost" onclick="downloadOriginalFile(${id}, ${JSON.stringify(name)})">⬇ Download file asli: ${esc(name)}</button>`
+  ).join('');
+}
+
+async function downloadOriginalFile(uploadId, filename) {
+  const user = currentUser();
+  if (!user) { showErr('Pilih "Login sebagai" dulu.'); return; }
+  try {
+    const res = await fetch(`/api/uploads/${uploadId}/download`, { headers: { 'X-Session-Token': user.token } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Gagal mengunduh (HTTP ${res.status})`); }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    showErr('Gagal mengunduh file asli: ' + (err.message || String(err)));
+  }
+}
+
+async function renderMyPending(rows) {
+  myPendingRows = rows;
+  mpPage = 1;
+  mpDecisions = {};
+  const submitBtn = $('btn-submit-my-pending');
+  const wrap = $('my-pending-wrap');
+  if (!rows.length) { wrap.classList.add('hidden'); $('mp-legend').innerHTML = ''; $('mp-pager').innerHTML = ''; $('mp-downloads').innerHTML = ''; submitBtn.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  submitBtn.classList.remove('hidden');
+  renderMpDownloads(rows);
+  const dinasCodes = await getDinasCodes();
+  renderMpPage(dinasCodes);
+  $('mp-legend').innerHTML = `
+    <div class="checkbox-legend">
+      <span><input type="checkbox" checked disabled /> Confirm</span>
+      <span><input type="checkbox" disabled /> Reject</span>
+    </div>
+    <label class="batch-note-label">
+      Deskripsi (opsional)
+      <textarea id="mp-description" class="batch-note" rows="2" placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"></textarea>
+    </label>`;
+}
+
+function mpDecisionFor(id) {
+  if (!mpDecisions[id]) mpDecisions[id] = { checked: false, redirectTo: '' };
+  return mpDecisions[id];
+}
+
+// REQ-RDT-NAV-07: paginate the pending table instead of dumping every row on one page.
+function renderMpPage(dinasCodes) {
+  const totalPages = Math.max(1, Math.ceil(myPendingRows.length / MP_PAGE_SIZE));
+  if (mpPage > totalPages) mpPage = totalPages;
+  const slice = myPendingRows.slice((mpPage - 1) * MP_PAGE_SIZE, mpPage * MP_PAGE_SIZE);
+  const body = slice.map((r) => {
+    const decision = mpDecisionFor(r.id);
+    const opts = mpRedirectOptions(r, dinasCodes).map((c) =>
+      `<option value="${esc(c)}"${decision.redirectTo === c ? ' selected' : ''}>Ajukan ke ${esc(c)}</option>`
+    ).join('');
+    return `<tr>
+    <td>${esc(r.dinas_inisiasi || '')}</td>
+    <td>${esc(r.account || '')}</td>
+    <td>${esc(r.ref_doc || '')}</td>
+    <td class="num">${fmtNum.format(Number(r.nominal || 0))}</td>
+    <td class="remark" title="${esc(r.remark || '')}">${esc(r.remark || '')}</td>
+    <td><select class="mp-redirect" id="mp-redirect-${r.id}" ${decision.checked ? 'disabled' : ''} onchange="mpDecisionFor(${r.id}).redirectTo = this.value"><option value="">Balik ke pengaju</option>${opts}</select></td>
+    <td style="text-align:center"><input type="checkbox" class="mp-check" data-id="${r.id}" ${decision.checked ? 'checked' : ''} onchange="onMpCheckChange(${r.id}, this)" /></td>
+  </tr>`;
+  }).join('');
+  $('my-pending-list').innerHTML = `
+    <div class="tscroll"><table>
+      <thead><tr>
+        <th>Dinas Pengaju</th><th>Account</th><th>Ref.Doc</th><th class="num">Nominal</th><th>Remark</th><th>Jika Reject</th>
+        <th style="text-align:center">
+          <label style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:700">
+            <input type="checkbox" id="mp-select-all" />Select All
+          </label>
+        </th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>`;
+  // Select All applies to every row across all pages (not just the current page's DOM), to
+  // match what a user expects from a single checkbox at the top of a paginated list.
+  $('mp-select-all').addEventListener('change', (e) => {
+    myPendingRows.forEach((r) => { mpDecisionFor(r.id).checked = e.target.checked; });
+    renderMpPage(dinasCodes);
+  });
+
+  const pager = $('mp-pager');
+  pager.innerHTML = pagerButtonsHtml(mpPage, totalPages, 'mpGoToPage');
+}
+
+// Disables (rather than hides) the redirect-to picker when a row is checked/confirmed, so the
+// table's column alignment stays intact — a hidden <td> would shift the rest of that row's
+// cells left relative to the header. Also writes through to the mpDecisions ledger so the
+// choice survives navigating to a different page.
+function onMpCheckChange(id, cb) {
+  const decision = mpDecisionFor(id);
+  decision.checked = cb.checked;
+  if (cb.checked) decision.redirectTo = '';
+  const sel = document.getElementById('mp-redirect-' + id);
+  if (sel) { sel.disabled = cb.checked; if (cb.checked) sel.value = ''; }
+}
+
+async function mpGoToPage(p) {
+  const totalPages = Math.max(1, Math.ceil(myPendingRows.length / MP_PAGE_SIZE));
+  mpPage = Math.min(Math.max(1, p), totalPages);
+  renderMpPage(await getDinasCodes());
+}
+
+let lastDeclinedRows = [];
+
+// Item 10 "Confirm All": each row's staged action lives here until the batch is submitted;
+// the one-by-one buttons below still resolve immediately without touching this map.
+function onDeclinedActionChange(id, sel) {
+  const wrap = document.getElementById('declined-target-wrap-' + id);
+  if (wrap) wrap.classList.toggle('hidden', sel.value !== 'REASSIGN');
+}
+
+async function renderMyDeclined(rows, user) {
+  lastDeclinedRows = rows;
+  const wrap = $('my-declined-wrap');
+  if (!rows.length) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  const dinasCodes = await getDinasCodes();
+  $('my-declined-list').innerHTML = rows.map((r) => {
+    const excluded = new Set([String(user.dinas).toUpperCase(), String(r.dinas_target || '').toUpperCase()]);
+    const options = dinasCodes.filter((c) => !excluded.has(String(c).toUpperCase()))
+      .map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    const capReached = (r.reassign_count || 0) >= 3;
+    return `<div class="declined-row" style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)">
+      <div style="width:60px">#${r.id}</div>
+      <div style="flex:1">${esc(r.account || '')} — ${fmtNum.format(Number(r.nominal || 0))}${r.ref_doc ? ' · Ref.Doc ' + esc(r.ref_doc) : ''}
+        <div class="note">Ditolak oleh ${esc(r.dinas_target || '')} · reassign_count=${r.reassign_count || 0}${capReached ? ' (batas tercapai, wajib Tanggung Sendiri)' : ''}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="declined-action-${r.id}" onchange="onDeclinedActionChange(${r.id}, this)">
+          <option value="">Belum ditentukan</option>
+          <option value="BORNE">Tanggung sendiri</option>
+          ${capReached ? '' : `<option value="REASSIGN">Ajukan ulang</option>`}
+        </select>
+        <span id="declined-target-wrap-${r.id}" class="hidden">
+          <select id="reassign-target-${r.id}"><option value="">Ajukan ke...</option>${options}</select>
+        </span>
+        <button class="btn btn-ghost" onclick="resolveDeclined(${r.id}, 'BORNE')">Tanggung sendiri</button>
+        ${capReached ? '' : `<button class="btn btn-primary" onclick="resolveDeclinedReassign(${r.id})">Ajukan</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function resolveDeclined(id, action, newTarget) {
+  const user = currentUser();
+  if (!user) return;
+  if (!(await confirmModal('Apakah kamu sudah yakin?'))) return;
+  try {
+    const body = { action };
+    if (newTarget) body.new_dinas_target = newTarget;
+    const res = await fetch('/api/declined/' + id + '/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token }, body: JSON.stringify(body) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'resolve failed');
+    await alertModal('Tersimpan'); loadMyStatus();
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+
+async function resolveDeclinedReassign(id) {
+  const sel = document.getElementById('reassign-target-' + id);
+  const val = sel ? sel.value : '';
+  if (!val) { await alertModal('Pilih dinas target dulu.'); return; }
+  resolveDeclined(id, 'REASSIGN', val);
+}
+
+async function submitAllDeclined() {
+  const user = currentUser();
+  if (!user) return;
+  const items = [];
+  for (const r of lastDeclinedRows) {
+    const actionSel = document.getElementById('declined-action-' + r.id);
+    const action = actionSel ? actionSel.value : '';
+    if (!action) continue;
+    const item = { id: r.id, action };
+    if (action === 'REASSIGN') {
+      const targetSel = document.getElementById('reassign-target-' + r.id);
+      const target = targetSel ? targetSel.value : '';
+      if (!target) { await alertModal('Pilih dinas target dulu untuk semua baris yang diajukan ulang.'); return; }
+      item.new_dinas_target = target;
+    }
+    items.push(item);
+  }
+  if (!items.length) { await alertModal('Belum ada baris yang ditentukan tujuannya.'); return; }
+  if (!(await confirmModal(`Apakah kamu sudah yakin? ${items.length} transaksi akan diselesaikan sekaligus.`))) return;
+  try {
+    const note = $('batch-resolve-note').value.trim();
+    const body = { items };
+    if (note) body.note = note;
+    const res = await fetch('/api/declined/batch-resolve', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token }, body: JSON.stringify(body) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'batch resolve failed');
+    $('batch-resolve-note').value = '';
+    await alertModal('Tersimpan');
+    loadMyStatus();
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+$('btn-confirm-all-declined').addEventListener('click', submitAllDeclined);
+
+// ---------- Need Approval: export SAP batch approval (Gap 4) ----------
+function showExportBatchesErr(msg) { const e = $('export-batches-err'); e.textContent = msg; e.classList.remove('hidden'); }
+function hideExportBatchesErr() { $('export-batches-err').classList.add('hidden'); }
+
+async function createExportBatch() {
+  const user = currentUser();
+  if (!user) { await alertModal('Pilih "Login sebagai" dulu.'); return; }
+  const period = ($('new-batch-period').value || '').trim();
+  if (!period) { await alertModal('Isi label periode dulu.'); return; }
+  try {
+    const res = await fetch('/api/export-batches', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token }, body: JSON.stringify({ period }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'gagal membuat batch');
+    $('new-batch-period').value = '';
+    loadExportBatches();
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+
+async function loadExportBatches() {
+  hideExportBatchesErr();
+  const user = currentUser();
+  if (!user) { showExportBatchesErr('Pilih "Login sebagai" dulu.'); return; }
+  try {
+    const res = await fetch('/api/export-batches', { headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'gagal memuat batch');
+    renderExportBatches(j.batches || []);
+  } catch (err) { showExportBatchesErr(err.message || String(err)); }
+}
+
+function renderExportBatches(batches) {
+  const list = $('export-batches-list');
+  if (!batches.length) { list.innerHTML = '<p class="note">Belum ada batch export.</p>'; return; }
+  list.innerHTML = batches.map((b) => {
+    let action = '';
+    if (b.status === 'DRAFT') action = `<button class="btn btn-primary" onclick="submitExportBatch(${b.id})">Submit ke Approval</button>`;
+    else if (b.status === 'WAITING_APPROVAL') action = `<button class="btn btn-primary" onclick="approveExportBatch(${b.id})">Approve</button>`;
+    else if (b.status === 'APPROVED') action = `<button class="btn btn-primary" onclick="exportExportBatch(${b.id})">Export (stub)</button>`;
+    else if (b.status === 'EXPORTED') action = `<span class="note">File: ${esc(b.export_filename || '')}</span>`;
+    return `<div style="display:flex;gap:12px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)">
+      <div style="width:40px">#${b.id}</div>
+      <div style="width:140px">${esc(b.period)}</div>
+      <div class="chip chip-${esc(String(b.status).toLowerCase())}" style="width:110px;text-align:center">${esc(b.status)}</div>
+      <div>${action}</div>
+    </div>`;
+  }).join('');
+}
+
+async function batchAction(id, path) {
+  const user = currentUser();
+  if (!user) return;
+  if (!(await confirmModal('Apakah kamu sudah yakin?'))) return;
+  try {
+    const res = await fetch('/api/export-batches/' + id + path, { method: 'POST', headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'aksi gagal');
+    if (j.stub) await alertModal('Catatan: ' + (j.warning || 'file export masih placeholder'));
+    loadExportBatches();
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+function submitExportBatch(id) { batchAction(id, '/submit'); }
+function approveExportBatch(id) { batchAction(id, '/approve'); }
+function exportExportBatch(id) { batchAction(id, '/export'); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const submitBtn = $('btn-submit-my-pending');
+  if (submitBtn) submitBtn.addEventListener('click', async () => {
+    const user = currentUser();
+    if (!user) return;
+    if (!myPendingRows.length) { await alertModal('Tidak ada baris untuk diputuskan.'); return; }
+    // Read from the mpDecisions ledger (persists across pages), not just the DOM — with
+    // pagination, only the current page's checkboxes exist in the DOM at any moment.
+    const confirmedCount = myPendingRows.filter((r) => mpDecisions[r.id] && mpDecisions[r.id].checked).length;
+    const rejectedCount = myPendingRows.length - confirmedCount;
+    const redirectCount = myPendingRows.filter((r) => !(mpDecisions[r.id] && mpDecisions[r.id].checked) && mpDecisions[r.id] && mpDecisions[r.id].redirectTo).length;
+    const ok = await confirmModal(`Apakah kamu sudah yakin? ${confirmedCount} transaksi akan DIKONFIRMASI (Ya), ${rejectedCount} transaksi TIDAK dicentang sehingga akan DITOLAK (Tidak)${redirectCount ? ` (${redirectCount} di antaranya langsung diarahkan ke dinas lain)` : ''}. Tindakan ini akan mengubah status seluruh baris yang tampil dan membuat jurnal ledger.`);
+    if (!ok) return;
+    const decisions = myPendingRows.map((r) => {
+      const d = mpDecisions[r.id] || {};
+      return { id: r.id, claim: d.checked ? 'YA' : 'TIDAK', redirect_to: (!d.checked && d.redirectTo) ? d.redirectTo : undefined };
+    });
+    const mpDescEl = $('mp-description');
+    const description = mpDescEl && mpDescEl.value.trim() ? mpDescEl.value.trim() : '';
+    try {
+      const res = await fetch('/api/confirmation/' + encodeURIComponent(selectedConfirmTarget) + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token }, body: JSON.stringify({ decisions, description }) });
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || 'submit failed');
+      mpDecisions = {};
+      if (mpDescEl) mpDescEl.value = '';
+      loadMyStatus();
+      // Item 7: show exactly which rows just got declined/redirected, from the submit response
+      // itself — no refetch needed to know which ids need initiator followup.
+      const declined = j.declined || [];
+      const redirected = j.redirected || [];
+      const msgParts = [];
+      if (declined.length) {
+        $('just-declined-wrap').classList.remove('hidden');
+        $('just-declined-list').innerHTML = declined.map((d) =>
+          `<li>${esc(d.account || '')} — ${fmtNum.format(Number(d.nominal || 0))}${d.ref_doc ? ' · Ref.Doc ' + esc(d.ref_doc) : ''} · dari ${esc(d.dinas_inisiasi || '')}</li>`
+        ).join('');
+        msgParts.push(`${declined.length} transaksi ditolak dan dikembalikan ke dinas pengaju untuk ditindaklanjuti.`);
+      }
+      if (redirected.length) {
+        $('just-redirected-wrap').classList.remove('hidden');
+        $('just-redirected-list').innerHTML = redirected.map((d) =>
+          `<li>${esc(d.account || '')} — ${fmtNum.format(Number(d.nominal || 0))}${d.ref_doc ? ' · Ref.Doc ' + esc(d.ref_doc) : ''} · dari ${esc(d.dinas_inisiasi || '')} → ${esc(d.redirected_to)}</li>`
+        ).join('');
+        msgParts.push(`${redirected.length} transaksi langsung diarahkan ke dinas lain.`);
+      }
+      await alertModal(msgParts.length ? `Keputusan tersimpan. ${msgParts.join(' ')}` : 'Keputusan tersimpan');
+    } catch (err) { await alertModal('Error: ' + err.message); }
+  });
+});
+
+// ---------- commit ----------
+async function doCommit() {
+  const btn = $('btn-commit');
+  btn.disabled = true; btn.textContent = 'Menyimpan…';
+  try {
+    const user = currentUser();
+    if (!user) { showErr('Pilih "Login sebagai" dulu.'); btn.disabled = false; btn.textContent = 'Confirm'; return; }
+    const descEl = $('repost-desc');
+    // REQ-RDT-EXT-08: send the actual original file (field "file") alongside the parsed rows,
+    // not just JSON, so the server can save its bytes for REQ-RDT-LEDGER-09's download-with-
+    // live-formulas. rows/aggregation travel as JSON-stringified fields (multipart fields are
+    // plain strings) — /api/persist parses them back.
+    const fd = new FormData();
+    fd.append('rows', JSON.stringify(allRows));
+    fd.append('aggregation', JSON.stringify(aggregation));
+    fd.append('original_filename', selectedFile ? selectedFile.name : 'unknown.xlsx');
+    fd.append('description', descEl && descEl.value.trim() ? descEl.value.trim() : '');
+    if (selectedFile) fd.append('file', selectedFile);
+    const res = await fetch('/api/persist', { method:'POST', headers:{'X-Session-Token': user.token}, body: fd });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Simpan gagal tanpa pesan error.');
+    btn.textContent = 'Tersimpan ✓';
+    loadDashboard();
+    // Item 2: animated checkmark instead of an inline "Data tersimpan ke staging" line.
+    // Item 3: reset right after, so this submitter's rows/file/description don't linger on
+    // screen for whoever uses this browser session next.
+    await successModal('Repost berhasil diajukan!');
+    resetAll();
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Confirm';
+    showErr(err.message || String(err));
+    $('sec-preview').scrollIntoView({behavior:'smooth'});
+  }
+}
+
+// ---------- settings ----------
+async function loadCfg() {
+  try {
+    const m = await (await fetch('/api/mapping')).json();
+    if (m.ok) $('map-edit').value = JSON.stringify(m.mapping, null, 2);
+    const e = await (await fetch('/api/exclusions')).json();
+    if (e.ok) $('excl-edit').value = JSON.stringify(e.exclusions, null, 2);
+  } catch (err) { showErr('Gagal memuat konfigurasi: ' + err.message); }
+}
+async function saveMapping() {
+  try {
+    const obj = JSON.parse($('map-edit').value);
+    const j = await (await fetch('/api/mapping', { method:'PUT',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(obj) })).json();
+    if (!j.ok) throw new Error(j.error || 'gagal');
+    await alertModal('Mapping tersimpan');
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+async function saveExcl() {
+  try {
+    const obj = JSON.parse($('excl-edit').value);
+    const j = await (await fetch('/api/exclusions', { method:'PUT',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(obj) })).json();
+    if (!j.ok) throw new Error(j.error || 'gagal');
+    await alertModal('Eksklusi tersimpan');
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+
+// ---------- reset & util ----------
+function resetAll() {
+  selectedFile = null; allRows = []; aggregation = {}; filtered = []; page = 1;
+  $('file').value = '';
+  $('dz-empty').classList.remove('hidden');
+  $('dz-file').classList.add('hidden');
+  $('btn-parse').disabled = true;
+  $('sec-preview').classList.add('hidden');
+  const bc = $('btn-commit'); bc.disabled = false; bc.textContent = 'Confirm';
+  // Item 3: clear the description too, so it doesn't linger for the next user of this session.
+  const descEl = $('repost-desc');
+  if (descEl) descEl.value = '';
+  hideErr();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function esc(s){ return String(s).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  loadCfg();
+  // Directory entries (display_name/dinas per user_id) are still needed for the @mention
+  // autocomplete (mentionOptions() above) — REQ-RDT-NAV-08 replaced the OLD "Login sebagai"
+  // dropdown that used to populate this from the same endpoint, but the endpoint itself and
+  // this listing are still required for that unrelated feature.
+  async function loadDirectoryEntries() {
+    try {
+      const r = await (await fetch('/api/directory')).json();
+      if (r.ok) directoryEntries = r.directory;
+    } catch (e) { /* ignore */ }
+  }
+
+  // Items 2 & 9: role-filtered nav, mirrors shell.component.ts's canSeeNeedApproval. Need
+  // Approval is TAB-only (SM_TA/GH_TA removed entirely 24 Jul 2026, project owner correction —
+  // role TAB alone now approves every submission once 100% confirmed, including Corp's).
+  // Repost and Confirmation have no role gate at all now — every remaining role (PIC, TAB)
+  // is already allowed at both. See exportBatches.js's requireRole('TAB') gates.
+  function updateNavVisibility() {
+    const user = currentUser();
+    const role = user ? user.role : null;
+    const canSeeNeedApproval = role === 'TAB';
+    $('nav-need-approval').classList.toggle('hidden', !canSeeNeedApproval);
+    // If the hidden view is currently active, bounce back to Dashboard rather than leaving a
+    // role-inappropriate page open.
+    const h = parseHash();
+    if (h.view === 'need-approval' && !canSeeNeedApproval) {
+      location.hash = 'dashboard';
+    }
+  }
+
+  function updateUserBadge() {
+    const user = currentUser();
+    $('user-badge').textContent = user ? user.display_name : 'Belum login';
+    $('uploader-dinas-note').textContent = user
+      ? `Dinas pengunggah: ${user.dinas}`
+      : 'Pilih "Login sebagai" dulu — dinas pengunggah mengikuti akun yang login.';
+    updateConfirmationBadge();
+    updateNavVisibility();
+  }
+
+  // REQ-RDT-NAV-08: start at Login, not the app — no persisted session (see currentSession's
+  // comment above), so every fresh page load needs a real login first.
+  showAuthScreen('login');
+</script>
+</body>
+</html>

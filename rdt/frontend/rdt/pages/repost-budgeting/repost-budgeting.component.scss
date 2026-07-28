@@ -1,0 +1,369 @@
+// ============================================================
+// RDT — Repost Budgeting page styles
+// Semua style di-scope ke komponen (Angular ViewEncapsulation default),
+// TIDAK menyentuh global stylesheet platform. Font mengikuti font host
+// platform (tidak import font sendiri) supaya modul menyatu dengan OCX.
+//
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
+// shell.component.scss for the "why literal, not just structural" note.
+// ============================================================
+
+$accent: #006298;
+$ink: #000;
+$ink-600: #52616e;
+$ink-300: #aeb9c2;
+$line:    #cccccc;
+$page-bg: #f2f2f2;
+
+$ok-600:     #1e7f4f;
+$ok-050:     #e8f5ee;
+$warn-700:   #8a5b00;
+$warn-050:   #fdf3dd;
+$danger-600: #b3261e;
+$danger-050: #fdecea;
+$muted-600:  #5a6672;
+$muted-050:  #eef1f4;
+
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
+$shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
+$radius-xl: 32px;
+$radius-lg: 16px;
+$radius-md: 8px;
+
+// Page title/eyebrow now live in shell.component.html's shared topbar — this component
+// only owns its own content card + split layout.
+.page-card {
+  background: #fff;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-lg;
+  padding: 36px;
+  color: $ink;
+}
+
+// ---------- Repost: two boxes + sticky right "Confirm to Repost" panel ----------
+.repost-split {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.repost-main { flex: 1; min-width: 0; }
+
+.repost-side {
+  // flex:1 1 auto (fill), not a fixed basis — matches the Figma frame's "fill container"
+  // sizing instead of staying a rigid 220px regardless of viewport (item 1).
+  flex: 1 1 220px;
+  max-width: 280px;
+  min-width: 0;
+  text-align: center;
+
+  h3 { margin: 0 0 16px; font-size: 15px; color: $ink; font-weight: 500; }
+  .btn { display: block; width: 100%; margin-bottom: 12px; }
+  // Both Confirm and Cancel render white+shadow here per the Figma (only Confirmation's
+  // Submit button is solid-blue-filled) — override regardless of btn--primary/ghost class.
+  .btn--primary, .btn--ghost { background: #fff; color: $ink; box-shadow: $shadow-sm; border: none; }
+  .btn--primary:hover, .btn--ghost:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+}
+
+.repost-desc-label {
+  display: block;
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: $ink-600;
+  margin-bottom: 12px;
+}
+
+.repost-desc {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-family: inherit;
+  resize: vertical;
+  margin-top: 4px;
+}
+
+// Item 5: @mention dropdown for the description textarea, like tagging on social media.
+.mention-wrap { position: relative; }
+
+.mention-list {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+  max-height: 180px;
+  overflow-y: auto;
+  text-align: left;
+
+  li {
+    padding: 6px 8px;
+    font-size: 13px;
+    color: $ink;
+    cursor: pointer;
+    border-radius: 6px;
+
+    &:hover { background: $page-bg; }
+    // Keyboard-selected item (ArrowUp/ArrowDown) — same visual treatment as :hover so the
+    // keyboard and mouse paths feel consistent.
+    &--active { background: $page-bg; }
+  }
+}
+
+@media (max-width: 860px) {
+  .repost-split { flex-direction: column; }
+  .repost-side { width: 100%; }
+}
+
+// ---------- cards ----------
+.card {
+  background: #fff;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-sm;
+  padding: 20px;
+  margin-bottom: 18px;
+
+  &__title {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 700;
+    color: $ink;
+  }
+
+  &__subtitle {
+    margin: 18px 0 4px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  &__note {
+    margin: 0 0 10px;
+    font-size: 12.5px;
+    color: $ink-600;
+  }
+
+  &__actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+
+    &--spread { justify-content: space-between; }
+  }
+}
+
+// ---------- dropzone ----------
+.dropzone {
+  border: 2px dashed $ink-300;
+  border-radius: $radius-md;
+  padding: 28px 16px;
+  text-align: center;
+  background: $page-bg;
+  transition: border-color 120ms ease, background 120ms ease;
+
+  &--active {
+    border-color: $accent;
+    background: #e8f2f7;
+  }
+
+  &__hint { margin: 0 0 10px; font-size: 14px; color: $ink-600; }
+  &__file { margin: 0; font-size: 14px; font-weight: 600; }
+  &__meta { margin: 2px 0 8px; font-size: 12px; color: $ink-600; }
+}
+
+// ---------- buttons ----------
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: $radius-md;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: background 120ms ease, box-shadow 120ms ease;
+
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  &--primary {
+    background: $accent;
+    color: #fff;
+    box-shadow: $shadow-sm;
+    &:hover:not(:disabled) { background: #004a73; }
+  }
+
+  &--ghost {
+    background: #fff;
+    color: $ink;
+    box-shadow: $shadow-sm;
+    &:hover:not(:disabled) { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+  }
+
+  &--link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: $accent;
+    text-decoration: underline;
+    font-weight: 600;
+    box-shadow: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+}
+
+// ---------- alerts ----------
+.alert {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: $radius-md;
+  font-size: 13.5px;
+
+  &--error   { background: $danger-050; color: $danger-600; }
+  &--success { background: $ok-050;     color: $ok-600; }
+}
+
+// ---------- status counts ----------
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 4px 0 6px;
+
+  &__item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    strong { font-size: 20px; }
+  }
+
+  &__label { font-size: 12.5px; color: $ink-600; }
+}
+
+// ---------- status chips ----------
+.chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+
+  &--pending  { background: $warn-050;   color: $warn-700; }
+  &--approved { background: $ok-050;     color: $ok-600; }
+  &--rejected { background: $danger-050; color: $danger-600; }
+  &--invalid  { background: $danger-050; color: $danger-600; }
+  &--excluded { background: $muted-050;  color: $muted-600; }
+}
+
+// ---------- tables ----------
+.table-scroll { overflow-x: auto; }
+
+.matrix,
+.rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th, td {
+    padding: 8px 12px;
+    border-bottom: 1px solid $line;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  thead th {
+    background: $page-bg;
+    font-weight: 700;
+    color: $ink;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.matrix {
+  &__rowhead { font-weight: 600; background: #fff; }
+  &__num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:hover td { background: #f5f9fb; }
+}
+
+.rows {
+  &__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+
+    &--negative { color: $danger-600; }
+  }
+
+  &__remark {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__empty {
+    text-align: center;
+    color: $ink-600;
+    padding: 24px 12px;
+  }
+
+  tbody tr:hover td { background: #f5f9fb; }
+}
+
+// ---------- filters ----------
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 12px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: $ink-600;
+  }
+
+  select, input {
+    border: 1px solid $line;
+    border-radius: $radius-md;
+    padding: 7px 10px;
+    font-size: 13.5px;
+    min-width: 140px;
+    background: #fff;
+
+    &:focus-visible { outline: 2px solid $accent; outline-offset: 1px; }
+  }
+
+  &__search { flex: 1 1 220px; input { width: 100%; } }
+}
+
+// Pager styling now lives in shared/pagination.component.scss (REQ-RDT-NAV-07).
+
+// ---------- responsive ----------
+@media (max-width: 720px) {
+  .page-card { padding: 16px; }
+  .counts { gap: 14px; }
+  .card__actions--spread { flex-direction: column-reverse; align-items: stretch; }
+}
+
+// ---------- reduced motion ----------
+@media (prefers-reduced-motion: reduce) {
+  .btn, .dropzone { transition: none; }
+}

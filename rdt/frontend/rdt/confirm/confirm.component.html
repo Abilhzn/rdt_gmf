@@ -1,0 +1,134 @@
+<div class="page-card">
+  <div class="view-header-row">
+    <div class="context-badge">{{ badgeText }}</div>
+    <label class="target-picker" *ngIf="targetOptions.length > 1">
+      Antrian
+      <select [(ngModel)]="selectedTarget" (ngModelChange)="onTargetChange()">
+        <option *ngFor="let t of targetOptions" [value]="t">{{ t }}</option>
+      </select>
+    </label>
+    <button class="btn btn--primary" type="button" (click)="submitDecisions()" *ngIf="pendingRows.length">Submit</button>
+  </div>
+
+  <div class="checkbox-legend" *ngIf="pendingRows.length">
+    <span><input type="checkbox" checked disabled /> Confirm</span>
+    <span><input type="checkbox" disabled /> Reject</span>
+  </div>
+
+  <label class="batch-note-label" *ngIf="pendingRows.length">
+    Deskripsi (opsional)
+    <textarea class="batch-note" [(ngModel)]="confirmDescription" rows="2"
+      placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"></textarea>
+  </label>
+
+  <p class="alert alert--error" *ngIf="statusError">{{ statusError }}</p>
+
+  <div class="just-declined" *ngIf="justDeclined.length">
+    <h3 class="card__subtitle">Baru saja ditolak, balik ke pengaju ({{ justDeclined.length }})</h3>
+    <p class="note">Item ini dikembalikan ke dinas pengaju untuk ditindaklanjuti (Tanggung Sendiri / Ajukan ulang).</p>
+    <ul class="just-declined__list">
+      <li *ngFor="let d of justDeclined">
+        {{ d.account }} — {{ d.nominal | number: '1.2-2' }} <span *ngIf="d.ref_doc">· Ref.Doc {{ d.ref_doc }}</span> · dari {{ d.dinas_inisiasi }}
+      </li>
+    </ul>
+  </div>
+
+  <div class="just-declined" *ngIf="justRedirected.length">
+    <h3 class="card__subtitle">Baru saja ditolak, langsung diarahkan ({{ justRedirected.length }})</h3>
+    <ul class="just-declined__list">
+      <li *ngFor="let d of justRedirected">
+        {{ d.account }} — {{ d.nominal | number: '1.2-2' }} <span *ngIf="d.ref_doc">· Ref.Doc {{ d.ref_doc }}</span> · dari {{ d.dinas_inisiasi }} → {{ d.redirected_to }}
+      </li>
+    </ul>
+  </div>
+
+  <ng-container *ngIf="pendingRows.length">
+    <!-- REQ-RDT-LEDGER-09: one button per source upload — a file, not a per-row action. -->
+    <div class="original-file-downloads" *ngIf="downloadableUploads.length">
+      <button
+        *ngFor="let u of downloadableUploads"
+        class="btn btn--ghost"
+        type="button"
+        (click)="downloadOriginal(u.upload_id, u.upload_filename)"
+      >⬇ Download file asli: {{ u.upload_filename }}</button>
+    </div>
+    <div class="table-scroll">
+      <table class="rows">
+        <thead>
+          <tr>
+            <th>Dinas Pengaju</th>
+            <th>Account</th>
+            <th>Ref.Doc</th>
+            <th class="rows__num">Nominal</th>
+            <th>Remark</th>
+            <th>Jika Reject</th>
+            <th class="select-all-col">
+              <label class="select-all-label">
+                <input type="checkbox" (change)="toggleSelectAll($any($event.target).checked)" />Select All
+              </label>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of pagedPendingRows">
+            <td>{{ r.dinas_inisiasi }}</td>
+            <td>{{ r.account }}</td>
+            <td>{{ r.ref_doc }}</td>
+            <td class="rows__num">{{ r.nominal | number: '1.2-2' }}</td>
+            <td class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
+            <td>
+              <select *ngIf="!r.checked" [(ngModel)]="r.redirectTo">
+                <option value="">Balik ke pengaju</option>
+                <option *ngFor="let d of redirectTargetsFor(r)" [value]="d.code">Ajukan ke {{ d.code }}</option>
+              </select>
+            </td>
+            <td class="select-all-col"><input type="checkbox" [(ngModel)]="r.checked" /></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- REQ-RDT-NAV-07: reusable Google-style pager, shared with Repost's review table. -->
+    <rdt-pagination [page]="page" [totalItems]="pendingRows.length" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></rdt-pagination>
+  </ng-container>
+
+  <ng-container *ngIf="declinedRows.length">
+    <h3 class="card__subtitle">Perlu keputusan Anda (DECLINED oleh dinas target)</h3>
+    <p class="note">Tentukan tujuan tiap baris dulu, lalu klik "Confirm All" di bawah untuk menyelesaikan semuanya
+      sekaligus — atau pakai tombol per-baris untuk menyelesaikan satu per satu.</p>
+    <div class="declined-row" *ngFor="let r of declinedRows">
+      <div class="declined-row__info">
+        {{ r.account }} — {{ r.nominal | number: '1.2-2' }} <span *ngIf="r.ref_doc">· Ref.Doc {{ r.ref_doc }}</span>
+        <div class="note">
+          Ditolak oleh {{ r.dinas_target }} · reassign_count={{ r.reassign_count }}
+          <span *ngIf="r.reassign_count >= 3"> (batas tercapai, wajib Tanggung Sendiri)</span>
+        </div>
+      </div>
+      <div class="declined-row__actions">
+        <select (ngModelChange)="setPendingAction(r, $any($event))" [ngModel]="pendingActionByRowId[r.id] || ''">
+          <option value="">Belum ditentukan</option>
+          <option value="BORNE">Tanggung sendiri</option>
+          <option value="REASSIGN" *ngIf="r.reassign_count < 3">Ajukan ulang</option>
+        </select>
+        <select *ngIf="pendingActionByRowId[r.id] === 'REASSIGN'" [(ngModel)]="reassignTargetByRowId[r.id]">
+          <option value="">Ajukan ke...</option>
+          <option *ngFor="let d of reassignTargetsFor(r)" [value]="d.code">{{ d.code }}</option>
+        </select>
+        <button class="btn btn--ghost" type="button" (click)="resolveBorne(r)">Tanggung sendiri</button>
+        <button class="btn btn--primary" type="button" *ngIf="r.reassign_count < 3" (click)="resolveReassign(r)">Ajukan</button>
+      </div>
+    </div>
+
+    <div class="batch-resolve-footer">
+      <label class="batch-note-label">
+        Keterangan (opsional)
+        <textarea class="batch-note" [(ngModel)]="batchNote" rows="2" placeholder="Catatan tambahan untuk keputusan ini..."></textarea>
+      </label>
+      <button class="btn btn--primary" type="button" [disabled]="!canSubmitAll()" (click)="submitAllResolutions()">
+        Confirm All ({{ stagedCount }})
+      </button>
+    </div>
+  </ng-container>
+
+  <p class="note" *ngIf="emptyNote">{{ emptyNote }}</p>
+</div>

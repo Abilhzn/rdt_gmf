@@ -1,0 +1,4 @@
+{
+  "_comment": "Fallback list of active dinas codes, used only when DATABASE_URL is not configured. When DB is available, GET /api/dinas reads rdt.dinas directly (see src/migrate.js for the authoritative seed).",
+  "codes": ["TB","TC","TD","TE","TF","TG","TH","TI","TJ","TK","TL","TM","TN","TO","TP","TQ","TR","TS","TT","TU","Corp"]
+}

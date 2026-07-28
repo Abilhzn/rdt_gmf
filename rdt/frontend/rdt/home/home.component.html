@@ -1,0 +1,58 @@
+<div class="page-card">
+  <div class="dashboard-grid">
+    <div class="dashboard-own">
+      <h3 *ngIf="!isGlobalView">Dashboard Pengajuan {{ (currentUser.user$ | async)?.display_name || '[User]' }}</h3>
+      <h3 *ngIf="isGlobalView">Progres Semua Dinas</h3>
+      <p class="note" *ngIf="!isGlobalView">
+        Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda belum
+        mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah circle muncul jika
+        dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu tindak
+        lanjut (Tanggung Sendiri / Ajukan ulang).
+      </p>
+      <p class="note" *ngIf="isGlobalView">
+        Progress pengajuan dari SETIAP dinas yang pernah repost, lintas seluruh sistem —
+        bukan cuma pengajuan Anda sendiri (Anda login sebagai TAB, yang tidak mengajukan
+        repost). Klik "Muat ulang" untuk menyegarkan.
+      </p>
+      <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+      <p class="note" *ngIf="!currentUser.current">Pilih "Login sebagai" dulu untuk memuat dashboard.</p>
+      <ng-container *ngIf="currentUser.current">
+        <p class="note" *ngIf="loaded && !asInitiator.length">
+          {{ isGlobalView ? 'Belum ada dinas yang mengajukan repost.' : 'Anda belum mengajukan repost apapun.' }}
+        </p>
+        <div class="home-grid">
+          <div
+            class="dinas-card"
+            [class.dinas-card--clickable]="!isGlobalView"
+            *ngFor="let d of asInitiator"
+            (click)="goToDetail(d.dinas)"
+          >
+            <div class="dinas-card__header">
+              <span class="dinas-card__label">{{ d.dinas }}</span>
+              <span class="dinas-card__count">{{ d.total }}</span>
+            </div>
+            <div class="dinas-circle" [ngStyle]="{'--pct': d.percent, '--ring-color': ringColor(d.percent)}">
+              <span class="pct-label">{{ d.percent | number: '1.1-1' }}%</span>
+            </div>
+            <div class="dinas-card__notif" *ngIf="d.declined_pending_action > 0">
+              {{ d.declined_pending_action }} transaksi ditolak, perlu tindak lanjut
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="dashboard-need">
+      <h3>Need to Confirm</h3>
+      <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
+        langsung meninjau pengajuan dinas tersebut.</p>
+      <p class="note" *ngIf="loaded && !needToConfirm.length">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>
+      <button type="button" class="dinas-btn" *ngFor="let d of needToConfirm" (click)="goToConfirmFrom(d)">{{ d }}</button>
+    </div>
+  </div>
+
+  <div class="card__actions">
+    <button class="btn btn--ghost" type="button" (click)="load()">Muat ulang</button>
+  </div>
+</div>

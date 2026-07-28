@@ -1,0 +1,49 @@
+<div class="app-shell">
+  <aside class="sidebar">
+    <img class="sidebar__logo" src="assets/gmf-logo.png" alt="GMF AeroAsia" />
+    <p class="sidebar__subtitle">Repost Detail Transaction</p>
+    <nav class="sidebar__nav">
+      <a routerLink="dashboard" routerLinkActive="active" class="nav-link"><span class="nav-icon"></span>Dashboard</a>
+      <a routerLink="repost" routerLinkActive="active" class="nav-link"><span class="nav-icon"></span>Repost</a>
+      <a routerLink="confirm" routerLinkActive="active" class="nav-link"><span class="nav-icon"></span>Confirmation</a>
+      <a *ngIf="canSeeNeedApproval" routerLink="need-approval" routerLinkActive="active" class="nav-link"><span class="nav-icon"></span>Need Approval</a>
+      <span class="nav-link nav-link--disabled"><span class="nav-icon"></span>Guidance Application</span>
+      <span class="nav-link nav-link--disabled"><span class="nav-icon"></span>Feedback Application</span>
+    </nav>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <h1 class="page-title">{{ pageTitle }}</h1>
+      <div class="topbar__user">
+        <div class="user-menu-wrap">
+          <button class="user-badge" type="button" (click)="toggleNotifMenu()">🔔 <span *ngIf="unreadCount > 0">{{ unreadCount }}</span></button>
+          <div class="user-menu" *ngIf="showNotifMenu" style="min-width:320px">
+            <div
+              *ngFor="let n of notifications"
+              class="notif-item"
+              [class.notif-item--unread]="!n.read_at"
+              style="cursor:pointer"
+              (click)="goToNotifDetail(n)"
+            >
+              <div class="notif-item__body">{{ n.author_display_name }}: {{ n.body }}</div>
+              <div class="notif-item__meta">{{ n.dinas_inisiasi }} → {{ n.dinas_target }} · {{ n.created_at | idDate }}</div>
+            </div>
+            <p class="note" *ngIf="!notifications.length">Tidak ada notifikasi.</p>
+          </div>
+        </div>
+        <div class="user-menu-wrap">
+          <button class="user-badge" type="button" (click)="toggleUserMenu()">{{ (currentUser.user$ | async)?.display_name || 'Belum login' }}</button>
+          <div class="user-menu" *ngIf="showUserMenu">
+            <div class="user-menu-info" *ngIf="currentUser.current as user">{{ user.display_name }} — {{ user.dinas }} ({{ user.role }})</div>
+            <button class="btn btn--ghost" type="button" (click)="doLogout()">Logout</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <router-outlet></router-outlet>
+  </div>
+</div>
+
+<rdt-modal></rdt-modal>

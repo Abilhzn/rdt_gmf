@@ -1,0 +1,134 @@
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
+// shell.component.scss for the "why literal, not just structural" note.
+
+$accent: #006298;
+$ink: #000;
+$ink-600: #52616e;
+$line: #cccccc;
+$danger-600: #b3261e;
+$danger-050: #fdecea;
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
+$shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
+$radius-xl: 32px;
+$radius-md: 8px;
+
+.page-card {
+  background: #fff;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-lg;
+  padding: 36px;
+}
+
+.note { margin: 0 0 10px; font-size: 12.5px; color: $ink-600; }
+
+.card__actions { margin-top: 14px; display: flex; gap: 10px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: $radius-md;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+
+  &--ghost {
+    background: #fff;
+    color: $ink;
+    box-shadow: $shadow-sm;
+    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+  }
+}
+
+.alert {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: $radius-md;
+  font-size: 13.5px;
+  &--error { background: $danger-050; color: $danger-600; }
+}
+
+// ---------- two-panel Dashboard (REQ-RDT-NAV-02) ----------
+.dashboard-grid {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.dashboard-own { flex: 2 1 560px; min-width: 0; }
+.dashboard-need { flex: 1 1 260px; min-width: 220px; }
+
+.dashboard-own h3, .dashboard-need h3 { margin: 0 0 16px; font-size: 15px; color: $ink; font-weight: 700; }
+
+.dinas-btn {
+  display: block;
+  width: 100%;
+  background: #fff;
+  border: none;
+  border-radius: $radius-md;
+  padding: 16px;
+  margin-bottom: 12px;
+  font-size: 17px;
+  font-weight: 700;
+  color: $ink;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: $shadow-sm;
+
+  &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+}
+
+.home-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dinas-card {
+  flex: 1 1 150px;
+  max-width: 190px;
+  text-align: center;
+  background: #fff;
+  border-radius: calc($radius-xl / 2);
+  padding: 16px 12px;
+  box-shadow: $shadow-lg;
+
+  // REQ-RDT-NAV-03: only the personal view's cards represent a real (initiator, target) pair —
+  // TAB's global view (grouped by initiator only) stays non-clickable, see HomeComponent.
+  &--clickable {
+    cursor: pointer;
+    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+  }
+
+  &__header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
+  &__label { font-weight: 700; font-size: 14px; color: $ink; }
+  &__count { background: #f2f2f2; border: 1px solid #000; border-radius: $radius-md; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+  &__notif { margin-top: 6px; font-size: 12px; color: $danger-600; font-weight: 600; }
+}
+
+.dinas-circle {
+  --pct: 0;
+  --ring-color: #{$accent};
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), #{$line} 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 9px;
+    background: #fff;
+    border-radius: 50%;
+  }
+
+  .pct-label { position: relative; z-index: 1; font-weight: 700; font-size: 15px; color: $ink; }
+}

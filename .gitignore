@@ -1,0 +1,35 @@
+# Secrets — JANGAN PERNAH commit
+.env
+.env.*
+confidential.txt
+
+# Dependencies
+node_modules/
+package-lock.json.bak
+
+# Build & runtime artifacts
+dist/
+build/
+*.log
+*.log.err
+
+# Backend runtime data (bukan source, jangan ikut commit)
+rdt/backend/staging/*
+!rdt/backend/staging/.gitkeep
+rdt/backend/uploads/*
+!rdt/backend/uploads/.gitkeep
+backend_run_output.txt
+backend_server.log
+backend_server.log.err
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code local/runtime state — machine-specific, not shared config.
+# settings.local.json in particular tends to accumulate secrets pasted into allow-listed
+# Bash commands (DB passwords, etc.) over a session — never commit it.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

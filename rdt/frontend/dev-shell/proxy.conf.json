@@ -1,0 +1,16 @@
+{
+  "/api": {
+    "target": "http://localhost:4000",
+    "secure": false
+  },
+  "/auth-api": {
+    "target": "http://localhost:4001",
+    "secure": false,
+    "pathRewrite": { "^/auth-api": "" }
+  },
+  "/data-api": {
+    "target": "http://localhost:4002",
+    "secure": false,
+    "pathRewrite": { "^/data-api": "" }
+  }
+}

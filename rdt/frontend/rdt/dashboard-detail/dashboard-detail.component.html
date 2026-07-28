@@ -1,0 +1,65 @@
+<div class="page-card">
+  <div class="view-header-row">
+    <div class="context-badge">{{ initiatorDinas }} → {{ targetDinas }}</div>
+    <button class="btn btn--ghost" type="button" (click)="backToDashboard()">‹ Kembali ke Dashboard</button>
+  </div>
+  <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <div class="dashboard-grid" *ngIf="progress as p">
+    <div class="home-grid">
+      <div class="dinas-circle-wrap">
+        <div class="dinas-circle-header"><div class="dinas-circle-label">{{ targetDinas }}</div></div>
+        <div class="dinas-circle" [ngStyle]="{'--pct': p.percent, '--ring-color': ringColor(p.percent)}">
+          <span class="pct-label">{{ p.percent | number: '1.1-1' }}%</span>
+        </div>
+        <div class="note">{{ replyCountLabel }}</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="thread-title">Diskusi</h3>
+  <div>
+    <div
+      *ngFor="let row of threadRows; trackBy: trackByCommentId"
+      class="thread-comment"
+      [style.marginLeft.px]="row.depth * 28"
+    >
+      <div class="thread-comment__avatar"></div>
+      <div class="thread-comment__body">
+        <span class="thread-comment__name">{{ row.comment.author_display_name }}</span>
+        <span class="thread-comment__meta">{{ row.comment.created_at | idDate }}</span>
+        <p class="thread-comment__text">{{ row.comment.body }}</p>
+        <button class="btn btn--link" type="button" (click)="setReplyTarget(row.comment)">Balas</button>
+      </div>
+    </div>
+  </div>
+  <p class="note" *ngIf="loaded && !threadRows.length">Belum ada komentar pada pasangan dinas ini.</p>
+
+  <div class="mention-wrap">
+    <textarea
+      #commentInput
+      class="repost-desc"
+      rows="3"
+      placeholder="Tulis komentar... ketik @ untuk mention dinas/user"
+      [(ngModel)]="commentBody"
+      (input)="onCommentInput()"
+      (keydown)="onCommentKeydown($event)"
+      (blur)="closeMentions()"
+    ></textarea>
+    <ul class="mention-list" *ngIf="showMentions">
+      <li
+        *ngFor="let opt of mentionSuggestions; let i = index"
+        [class.mention-list__item--active]="i === highlightedMentionIndex"
+        (mouseenter)="highlightedMentionIndex = i"
+        (mousedown)="insertMention(opt)"
+      >@{{ opt.token }} — {{ opt.label }}</li>
+    </ul>
+  </div>
+  <div class="actions" *ngIf="replyTo" style="align-items:center">
+    <span class="note" style="margin:0">Membalas {{ replyTo.author_display_name }}</span>
+    <button class="btn btn--link" type="button" (click)="clearReplyTarget()">Batal balas</button>
+  </div>
+  <div class="actions">
+    <button class="btn btn--primary" type="button" [disabled]="submitting || !commentBody.trim()" (click)="submitComment()">Kirim komentar</button>
+  </div>
+</div>

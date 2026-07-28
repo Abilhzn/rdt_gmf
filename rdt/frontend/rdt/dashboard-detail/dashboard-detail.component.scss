@@ -1,0 +1,201 @@
+// REQ-RDT-NAV-03/REQ-RDT-COMMENT — tokens taken literally from the updated Figma (fileKey
+// ZLbcosQTNTZdWQRusRYH0R), same values as shell.component.scss / home.component.scss — see
+// shell.component.scss for the "why literal, not just structural" note.
+
+$accent: #006298;
+$ink: #000;
+$ink-600: #52616e;
+$line: #cccccc;
+$page-bg: #f2f2f2;
+$danger-600: #b3261e;
+$danger-050: #fdecea;
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
+$shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
+$radius-xl: 32px;
+$radius-lg: 16px;
+$radius-md: 8px;
+
+.page-card {
+  background: #fff;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-lg;
+  padding: 36px;
+  color: $ink;
+}
+
+.view-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.context-badge {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 700;
+  color: $ink;
+  background: #fff;
+  box-shadow: $shadow-lg;
+  padding: 10px 20px;
+  border-radius: $radius-md;
+}
+
+.note { margin: 0 0 10px; font-size: 12.5px; color: $ink-600; }
+
+.alert {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: $radius-md;
+  font-size: 13.5px;
+  &--error { background: $danger-050; color: $danger-600; }
+}
+
+.dashboard-grid { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.home-grid { display: flex; flex-wrap: wrap; gap: 16px; }
+
+.dinas-circle-wrap {
+  max-width: 220px;
+  text-align: center;
+  background: #fff;
+  border-radius: $radius-lg;
+  padding: 16px 12px;
+  box-shadow: $shadow-lg;
+}
+
+.dinas-circle-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
+.dinas-circle-label { font-weight: 700; font-size: 14px; color: $ink; }
+
+.dinas-circle {
+  --pct: 0;
+  --ring-color: #{$accent};
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), #{$line} 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 9px;
+    background: #fff;
+    border-radius: 50%;
+  }
+
+  .pct-label { position: relative; z-index: 1; font-weight: 700; font-size: 15px; color: $ink; }
+}
+
+.thread-title { margin: 24px 0 4px; font-size: 14px; }
+
+.thread-comment {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed $line;
+
+  &__avatar { width: 32px; height: 32px; border-radius: 50%; background: #d9d9d9; flex: 0 0 auto; }
+  &__body { flex: 1; min-width: 0; }
+  &__name { font-weight: 700; font-size: 13px; }
+  &__meta { color: $ink-600; font-size: 11.5px; margin-left: 8px; }
+  &__text { margin: 4px 0; font-size: 13.5px; white-space: pre-wrap; }
+}
+
+// ---------- @mention dropdown (shared interaction with RepostBudgetingComponent) ----------
+.mention-wrap { position: relative; margin-top: 14px; }
+
+.mention-list {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+  max-height: 180px;
+  overflow-y: auto;
+  text-align: left;
+
+  li {
+    padding: 6px 8px;
+    font-size: 13px;
+    color: $ink;
+    cursor: pointer;
+    border-radius: 6px;
+    &:hover { background: $page-bg; }
+    // Keyboard-selected item (ArrowUp/ArrowDown) — same visual treatment as :hover so the
+    // keyboard and mouse paths feel consistent.
+    &--active { background: $page-bg; }
+  }
+}
+
+.repost-desc {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-family: inherit;
+  resize: vertical;
+  margin-top: 4px;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+// ---------- buttons ----------
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: $radius-md;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: background 120ms ease, box-shadow 120ms ease;
+
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  &--primary {
+    background: $accent;
+    color: #fff;
+    box-shadow: $shadow-sm;
+    &:hover:not(:disabled) { background: #004a73; }
+  }
+
+  &--ghost {
+    background: #fff;
+    color: $ink;
+    box-shadow: $shadow-sm;
+    &:hover:not(:disabled) { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+  }
+
+  &--link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: $accent;
+    text-decoration: underline;
+    font-weight: 600;
+    box-shadow: none;
+  }
+}
