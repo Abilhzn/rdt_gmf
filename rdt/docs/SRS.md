@@ -279,17 +279,32 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   logo GMF (asset: `src/frontend/rdt/assets/gmf-logo.png`, sudah ada) di atas, 6 item
   navigasi di atas, dan badge profil user pojok kanan atas (avatar + nama). Badge ini
   harus BISA DIKLIK untuk memunculkan opsi **Logout** (lihat REQ-RDT-NAV-08).
-- `REQ-RDT-NAV-02` (halaman **Dashboard**, node `1:2`): terbagi 2 panel.
-  - **Panel kiri "Dashboard Pengajuan [User]"**: menampilkan visualisasi PER PASANGAN
-    dinas (`[User's dinas] → [Dinas Target]`) untuk transaksi yang DIAJUKAN oleh dinas
-    user sendiri. Tiap pasangan ditampilkan sebagai kartu berisi: donut/circular chart
-    persentase confirmed (mis. "75.0%"), jumlah komentar ("10 reply"), dan badge angka
-    (kemungkinan jumlah transaksi — perlu dikonfirmasi). Klik kartu → drill-down ke
-    REQ-RDT-NAV-03. Section kosong jika user tidak mengajukan repost ke dinas manapun.
-  - **Panel kanan "Need to Confirm"**: daftar tombol per dinas yang MEMINTA user
-    mengonfirmasi (dinas lain → user). Klik tombol → `Confirmation-RDT` (REQ-RDT-NAV-05)
-    terfilter ke pasangan dinas itu. Section kosong jika user tidak perlu konfirmasi
-    di dinas manapun.
+- `REQ-RDT-NAV-02` (halaman **Dashboard**, node `1:2` — nama frame Figma sekarang
+  "Dashboard-Confirming-RDT", konfirmasi bahwa **default sub-view saat klik "Dashboard"
+  di sidebar adalah "Need to Confirm", BUKAN "Own Repost"** — lihat REQ-RDT-NAV-02a):
+  terbagi 2 sub-view yang bisa di-switch (bukan digabung satu layar penuh):
+  - **"Need to Confirm"** (default): daftar pasangan dinas yang MEMINTA user
+    mengonfirmasi (dinas lain → user). Tiap pasangan ditampilkan sebagai kartu berisi:
+    donut/circular chart persentase confirmed (mis. "75.0%"), jumlah komentar
+    ("10 reply"), dan badge angka (kemungkinan jumlah transaksi — perlu dikonfirmasi).
+    Klik kartu → drill-down ke REQ-RDT-NAV-03, terfilter ke pasangan dinas itu.
+    Section kosong jika user tidak perlu konfirmasi di dinas manapun.
+  - **"Own Repost"**: sub-view kedua, visualisasi serupa tapi untuk transaksi yang
+    DIAJUKAN oleh dinas user sendiri ke dinas lain. Section kosong jika user tidak
+    mengajukan repost ke dinas manapun.
+- `REQ-RDT-NAV-02a` **(baru 27 Jul, keputusan produk)**: Karena "Need to Confirm" itu
+  action item (ada keputusan yang ditunggu) sementara "Own Repost" murni informasional
+  (monitoring, tidak perlu tindakan), keduanya TIDAK dianggap berbobot sama:
+  1. Sub-view **default** saat sidebar item "Dashboard" diklik harus **"Need to
+     Confirm"**, bukan "Own Repost" — supaya hal yang butuh tindakan lebih dulu
+     ketemu mata, bukan ketiban urutan tab.
+  2. Sidebar HARUS menampilkan **badge counter angka** (jumlah pasangan dinas yang
+     punya transaksi PENDING butuh konfirmasi dari user) yang terlihat dari HALAMAN
+     MANAPUN, bukan cuma saat sedang membuka Dashboard — taruh di item sidebar
+     "Dashboard" itu sendiri (dan/atau badge terpisah kalau nanti ada sub-nav
+     eksplisit). Ini prioritas lebih tinggi dari sekadar urutan tab/sub-view, karena
+     baru inilah yang mencegah PIC lupa ada yang perlu dikonfirmasi walau mereka lagi
+     buka halaman lain sama sekali (Repost, Confirmation dinas lain, dst).
 - `REQ-RDT-NAV-03` (halaman **Dashboard-Detailing**, node `35:209` generik / `36:370`
   & `39:143` contoh terisi untuk TC & TJ): drill-down dari satu kartu di panel kiri
   Dashboard. Menampilkan ulang donut chart + reply count untuk pasangan dinas itu, DAN
@@ -352,6 +367,29 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   `employee-directory.seed.json` (semua PIC 20 dinas + TAB; role SM_TA/GH_TA dihapus 24 Jul)
   harus punya kredensial. Badge user (REQ-RDT-NAV-01) yang diklik memunculkan opsi
   **Logout** yang menghapus sesi dan kembali ke halaman Login.
+
+### 3.9 Pedoman Visual (Design Tokens)
+
+**Priority:** Medium — konsistensi visual, bukan business logic, tapi berlaku ke SEMUA
+halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap komponen.
+
+- `REQ-RDT-UI-01` **(baru 27 Jul)**: Semua ikon di sidebar dan tombol aksi menggunakan
+  **Lucide** (lucide-react untuk Angular via lucide-angular, atau lucide static SVG
+  untuk `ui-demo.html`) — bukan kotak warna polos placeholder yang ada sekarang di
+  draf Figma, dan bukan emoji. Satu icon set konsisten, jangan campur sumber lain.
+- `REQ-RDT-UI-02` **(baru 27 Jul, override draf Figma)**: Border-radius elemen (card,
+  tombol, input) **moderat, TIDAK terlalu bulat** — draf Figma sekarang pakai radius
+  16px–32px untuk card besar, itu di luar preferensi pemilik proyek yang eksplisit
+  minta *"jangan round banget"*. Pedoman pengganti: **6–10px** untuk card/tombol/input
+  pada umumnya, maksimum ~12px untuk container besar (bukan 32px). Kalau draf Figma
+  berikutnya masih pakai radius besar, ikuti pedoman angka di sini, bukan literal
+  pixel value di file Figma — kecuali pemilik proyek eksplisit bilang sudah berubah
+  preferensi.
+- Warna aksen di draf Figma terbaru: `#006298` (biru GMF versi terbaru) — sedikit
+  beda dari `#0b5ba7` yang dipakai duluan di `ui-demo.html`/`pagination.component`.
+  **Perlu diselaraskan** ke satu nilai (rekomendasi: pakai `#006298` karena itu yang
+  ada di aset logo & Figma terbaru, anggap versi lama sebagai draf awal yang belum
+  final) — jangan biarkan dua nilai biru berbeda nyampur di halaman yang beda.
 
 ---
 

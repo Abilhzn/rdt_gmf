@@ -22,7 +22,10 @@
   --ink:#000; --ink-600:#52616e; --ink-300:#aeb9c2;
   --line:#cccccc;
   --shadow-lg:0 4px 15px rgba(0,0,0,.5); --shadow-sm:0 4px 7.5px rgba(0,0,0,.5);
-  --radius-xl:32px; --radius-lg:16px; --radius-md:8px;
+  /* REQ-RDT-UI-02 (27 Jul, override draf Figma): Figma's literal 16px/32px read as "round
+     banget" to the project owner — capped instead at 12px for big containers (page-card,
+     auth-card) and 10px for regular cards/modals, per SRS 3.9's explicit pixel guidance. */
+  --radius-xl:12px; --radius-lg:10px; --radius-md:8px;
   --ok-600:#1e7f4f; --ok-050:#e8f5ee;
   --warn-700:#8a5b00; --warn-050:#fdf3dd;
   --danger-600:#b3261e; --danger-050:#fdecea;
@@ -154,16 +157,31 @@ details.settings textarea { width:100%; font:12px/1.5 Consolas,monospace;
 .sidebar-logo { max-width:100%; height:auto; margin:0 0 6px; display:block; }
 .sidebar-subtitle { color:var(--accent); font-size:11px; font-weight:700; letter-spacing:.1em;
   text-transform:uppercase; text-align:center; margin:0 0 22px; }
-.sidebar-nav { display:flex; flex-direction:column; gap:4px; }
-.sidebar-nav .nav-link { display:flex; align-items:center; padding:10px 12px; border-radius:var(--radius-md);
-  color:var(--ink); text-decoration:none; font-size:16px; font-weight:500;
+/* Sizes bumped up a notch (28 Jul, project owner request) — nav-link/nav-icon/font-size all a
+   bit larger than the original Figma-literal values, sidebar buttons read as too small/cramped. */
+.sidebar-nav { display:flex; flex-direction:column; gap:6px; }
+.sidebar-nav .nav-link { display:flex; align-items:center; padding:13px 14px; border-radius:var(--radius-md);
+  color:var(--ink); text-decoration:none; font-size:18px; font-weight:500;
   transition:background .12s; }
 .sidebar-nav .nav-link:hover { background:rgba(0,0,0,.05); }
 .sidebar-nav .nav-link.active { font-weight:700; }
 .sidebar-nav .nav-link--disabled { opacity:.4; cursor:default; }
 .sidebar-nav .nav-link--disabled:hover { background:none; }
-.nav-icon { display:inline-block; width:28px; height:28px; border-radius:var(--radius-md); background:var(--accent);
-  margin-right:12px; flex:0 0 auto; }
+.nav-icon { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
+  border-radius:var(--radius-md); background:var(--accent); color:#fff; margin-right:14px; flex:0 0 auto; }
+.nav-icon svg { width:20px; height:20px; }
+/* REQ-RDT-NAV-02a: sidebar badge on the "Dashboard" item itself, visible from any page (not
+   just while Dashboard is open) — count of initiator dinas with an actionable transaction
+   waiting on my confirmation. Hidden entirely at 0 rather than showing "0". */
+.nav-badge { margin-left:auto; background:var(--danger-600); color:#fff; font-size:12px; font-weight:700;
+  min-width:22px; height:22px; padding:0 7px; border-radius:999px; display:inline-flex;
+  align-items:center; justify-content:center; }
+.nav-subnav { display:flex; flex-direction:column; margin:2px 0 4px 17px; padding-left:16px;
+  border-left:2px solid var(--line); }
+.sidebar-nav .nav-sublink { display:block; padding:9px 14px; color:var(--ink); text-decoration:none;
+  font-size:16px; font-weight:500; border-radius:var(--radius-md); }
+.sidebar-nav .nav-sublink:hover { background:rgba(0,0,0,.05); }
+.sidebar-nav .nav-sublink.active { font-weight:700; }
 .main-area { flex:1; min-width:0; padding:32px 40px 72px; }
 /* Was max-width:1200px — on a wide monitor that left a big dead gutter of unused space next to
    the sidebar, which read as cramped/stingy despite the sidebar itself being properly sized.
@@ -201,11 +219,11 @@ input[type="checkbox"]:disabled { cursor:default; }
   padding:36px; }
 .view-header-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
 
-/* ---------- Dashboard: two-panel personalized view (REQ-RDT-NAV-02) ---------- */
+/* ---------- Dashboard: switchable sub-view panel (REQ-RDT-NAV-02/02a) ---------- */
+/* .dashboard-grid stays a plain flex-row helper (still used by Dashboard-Detailing's
+   #dd-summary-wrap) — Dashboard itself no longer shows both panels side by side. */
 .dashboard-grid { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
-.dashboard-own { flex:2 1 560px; min-width:0; }
-.dashboard-need { flex:1 1 260px; min-width:220px; }
-.dashboard-need h3, .dashboard-own h3 { margin:0 0 16px; font-size:15px; color:var(--ink); font-weight:700; }
+.dashboard-panel h3 { margin:0 0 16px; font-size:15px; color:var(--ink); font-weight:700; }
 .dinas-btn { display:block; width:100%; background:#fff; border:none;
   border-radius:var(--radius-md); padding:16px; margin-bottom:12px; font-size:17px; font-weight:700;
   color:var(--ink); text-align:center; cursor:pointer; box-shadow:var(--shadow-sm); }
@@ -224,6 +242,21 @@ input[type="checkbox"]:disabled { cursor:default; }
 .dinas-circle .pct-label { position:relative; z-index:1; font-weight:700; font-size:15px; color:var(--ink); }
 .dinas-circle-label { font-weight:700; font-size:14px; color:var(--ink); }
 .circle-notif { margin-top:6px; font-size:12px; color:var(--danger-600); font-weight:600; }
+
+/* ---------- Dashboard pair cards (Figma nodes 1:2 "Need to Confirm" / 69:209 "Own Repost",
+   28 Jul design-detail pass) — full-width card per (initiator, target) pair, shared by both
+   sub-views instead of the old small multi-column ring grid / plain button list. ---------- */
+.pair-card-list { display:flex; flex-direction:column; gap:16px; }
+.pair-card { background:#fff; border-radius:var(--radius-lg); box-shadow:var(--shadow-lg);
+  padding:20px 28px 24px; cursor:pointer; }
+.pair-card:not([onclick]) { cursor:default; }
+.pair-card-header { display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid var(--line); }
+.pair-card-title { font-size:18px; font-weight:600; color:var(--ink); }
+.pair-card-count { background:var(--page-bg); border:1px solid #000; border-radius:var(--radius-md);
+  padding:5px 14px; font-size:14px; font-weight:700; flex:0 0 auto; }
+.pair-card-body { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.pair-card-reply { font-size:14px; color:var(--ink-600); }
 
 /* ---------- Repost: two boxes + sticky right "Confirm to Repost" panel ---------- */
 .repost-split { display:flex; gap:20px; align-items:flex-start; }
@@ -314,12 +347,21 @@ input[type="checkbox"]:disabled { cursor:default; }
     <img class="sidebar-logo" src="/rdt/assets/gmf-logo.png" alt="GMF AeroAsia" />
     <p class="sidebar-subtitle">Repost Detail Transaction</p>
     <nav class="sidebar-nav">
-      <a href="#dashboard" class="nav-link" data-view="dashboard"><span class="nav-icon"></span>Dashboard</a>
-      <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"></span>Repost</a>
-      <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"></span>Confirmation</a>
-      <a id="nav-need-approval" href="#need-approval" class="nav-link" data-view="need-approval"><span class="nav-icon"></span>Need Approval</a>
-      <span class="nav-link nav-link--disabled"><span class="nav-icon"></span>Guidance Application</span>
-      <span class="nav-link nav-link--disabled"><span class="nav-icon"></span>Feedback Application</span>
+      <div class="nav-group">
+        <a href="#dashboard" class="nav-link" data-view="dashboard"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span>Dashboard<span class="nav-badge hidden" id="dash-badge"></span></a>
+        <!-- REQ-RDT-NAV-02a: two switchable sub-views, "Need to Confirm" default (Figma node
+             1:2 shows both as persistent sidebar sub-links under Dashboard, not a page-level
+             tab strip) — see showView()'s subview handling. -->
+        <div class="nav-subnav">
+          <a href="#dashboard:need" class="nav-sublink" data-view="dashboard" data-subview="need">Need to Confirm</a>
+          <a href="#dashboard:own" class="nav-sublink" data-view="dashboard" data-subview="own">Own Repost</a>
+        </div>
+      </div>
+      <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>Repost</a>
+      <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></span>Confirmation</a>
+      <a id="nav-need-approval" href="#need-approval" class="nav-link" data-view="need-approval"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>Need Approval</a>
+      <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>Guidance Application</span>
+      <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Feedback Application</span>
     </nav>
   </aside>
 
@@ -344,25 +386,27 @@ input[type="checkbox"]:disabled { cursor:default; }
       </div>
     </header>
 
-    <!-- ============ Dashboard (REQ-RDT-NAV-02) — personalized per own dinas ============ -->
+    <!-- ============ Dashboard (REQ-RDT-NAV-02/02a) — personalized per own dinas ============ -->
+    <!-- Two switchable sub-views (not shown side by side) — "Need to Confirm" is the default
+         because it's an action item (something waiting on the user), "Own Repost" is purely
+         informational monitoring. Switched via the sidebar sub-links (#dashboard:need /
+         #dashboard:own) — see showView(). -->
     <div class="view" id="view-dashboard">
       <div class="page-card">
-        <div class="dashboard-grid">
-          <div class="dashboard-own">
-            <h3 id="dash-own-title">Dashboard Pengajuan <span id="dash-own-user"></span></h3>
-            <p class="note" id="dash-own-note">Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda
-              belum mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah circle muncul
-              jika dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu
-              tindak lanjut (Tanggung Sendiri / Ajukan ulang).</p>
-            <p class="alert alert-error hidden" id="dash-err"></p>
-            <div class="home-grid" id="dash-own-grid"></div>
-          </div>
-          <div class="dashboard-need">
-            <h3>Need to Confirm</h3>
-            <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
-              langsung meninjau pengajuan dinas tersebut.</p>
-            <div id="dash-need-list"></div>
-          </div>
+        <div class="dashboard-panel" id="dashboard-panel-need">
+          <h3>Need to Confirm</h3>
+          <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
+            langsung meninjau pengajuan dinas tersebut.</p>
+          <div class="pair-card-list" id="dash-need-list"></div>
+        </div>
+        <div class="dashboard-panel hidden" id="dashboard-panel-own">
+          <h3 id="dash-own-title">Dashboard Pengajuan <span id="dash-own-user"></span></h3>
+          <p class="note" id="dash-own-note">Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda
+            belum mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah circle muncul
+            jika dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu
+            tindak lanjut (Tanggung Sendiri / Ajukan ulang).</p>
+          <p class="alert alert-error hidden" id="dash-err"></p>
+          <div class="pair-card-list" id="dash-own-grid"></div>
         </div>
         <div class="actions">
           <button class="btn btn-ghost" onclick="loadDashboard()">Muat ulang</button>
@@ -699,7 +743,15 @@ function showView(view, param) {
   const navHighlight = view === 'dashboard-detail' ? 'dashboard' : view;
   document.querySelectorAll('.nav-link[data-view]').forEach((a) => a.classList.toggle('active', a.dataset.view === navHighlight));
   $('page-title').textContent = PAGE_TITLES[view];
-  if (view === 'dashboard') loadDashboard();
+  if (view === 'dashboard') {
+    // REQ-RDT-NAV-02a: "Need to Confirm" is the default sub-view — an empty/unrecognized param
+    // (e.g. plain "#dashboard" from the top-level sidebar link) falls back to it, not "own".
+    const subview = param === 'own' ? 'own' : 'need';
+    $('dashboard-panel-need').classList.toggle('hidden', subview !== 'need');
+    $('dashboard-panel-own').classList.toggle('hidden', subview !== 'own');
+    document.querySelectorAll('.nav-sublink[data-subview]').forEach((a) => a.classList.toggle('active', a.dataset.subview === subview));
+    loadDashboard();
+  }
   else if (view === 'confirmation') { confirmationFilterDinas = param || null; loadMyStatus(); }
   else if (view === 'need-approval') loadExportBatches();
   else if (view === 'dashboard-detail') {
@@ -717,6 +769,12 @@ document.querySelectorAll('.nav-link[data-view]').forEach((a) => {
   a.addEventListener('click', (e) => {
     e.preventDefault();
     location.hash = a.dataset.view;
+  });
+});
+document.querySelectorAll('.nav-sublink[data-view]').forEach((a) => {
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    location.hash = a.dataset.view + ':' + a.dataset.subview;
   });
 });
 window.addEventListener('hashchange', () => { const h = parseHash(); showView(h.view, h.param); });
@@ -982,6 +1040,7 @@ async function loadDashboard() {
     }
     renderDashOwn(j.as_initiator || [], j.is_global_view);
     renderDashNeed(j.need_to_confirm || []);
+    renderDashboardBadge((j.need_to_confirm || []).length);
   } catch (err) { showDashErr(err.message || String(err)); }
 }
 
@@ -991,6 +1050,29 @@ function ringColor(percent) {
   if (percent >= 100) return '#006298';
   if (percent < 50) return '#b3261e';
   return '#f2b400';
+}
+
+// Shared "pair card" renderer (Figma nodes 1:2 "Need to Confirm" / 69:209 "Own Repost", 28 Jul
+// design-detail pass) — both sub-views show the same rich card: title row + count badge, ring +
+// percent, reply count, optional declined-notification line. `title` and `onClickAttr` are the
+// only things that differ between the two callers below.
+function pairCardHtml(d, title, onClickAttr) {
+  const notif = d.declined_pending_action > 0
+    ? `<div class="circle-notif">${d.declined_pending_action} transaksi ditolak, perlu tindak lanjut</div>`
+    : '';
+  return `<div class="pair-card"${onClickAttr}>
+    <div class="pair-card-header">
+      <span class="pair-card-title">${title}</span>
+      <span class="pair-card-count">${d.total}</span>
+    </div>
+    <div class="pair-card-body">
+      <div class="dinas-circle" style="--pct:${d.percent};--ring-color:${ringColor(d.percent)}">
+        <span class="pct-label">${d.percent.toFixed(1)}%</span>
+      </div>
+      <span class="pair-card-reply">${d.reply_count || 0} reply</span>
+    </div>
+    ${notif}
+  </div>`;
 }
 
 function renderDashOwn(list, isGlobalView) {
@@ -1005,27 +1087,20 @@ function renderDashOwn(list, isGlobalView) {
   // one pair, so it deliberately stays non-clickable this round (scope cut, not an oversight).
   const myDinas = isGlobalView ? null : (currentUser() || {}).dinas;
   grid.innerHTML = list.map((d) => {
-    const notif = d.declined_pending_action > 0
-      ? `<div class="circle-notif">${d.declined_pending_action} transaksi ditolak, perlu tindak lanjut</div>`
-      : '';
-    const clickAttr = myDinas ? ` onclick="goToDashboardDetail('${esc(myDinas)}','${esc(d.dinas)}')" style="cursor:pointer"` : '';
-    return `<div class="dinas-circle-wrap"${clickAttr}>
-      <div class="dinas-circle-header">
-        <div class="dinas-circle-label">${esc(d.dinas)}</div>
-        <span class="dinas-circle-count">${d.total}</span>
-      </div>
-      <div class="dinas-circle" style="--pct:${d.percent};--ring-color:${ringColor(d.percent)}">
-        <span class="pct-label">${d.percent.toFixed(1)}%</span>
-      </div>
-      ${notif}
-    </div>`;
+    const title = myDinas ? `${esc(myDinas)} → ${esc(d.dinas)}` : esc(d.dinas);
+    const clickAttr = myDinas ? ` onclick="goToDashboardDetail('${esc(myDinas)}','${esc(d.dinas)}')"` : '';
+    return pairCardHtml(d, title, clickAttr);
   }).join('');
 }
 
-function renderDashNeed(dinasCodes) {
-  const list = $('dash-need-list');
-  if (!dinasCodes.length) { list.innerHTML = '<p class="note">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>'; return; }
-  list.innerHTML = dinasCodes.map((d) => `<button type="button" class="dinas-btn" onclick="goToConfirmFrom('${esc(d)}')">${esc(d)}</button>`).join('');
+function renderDashNeed(list) {
+  const listEl = $('dash-need-list');
+  if (!list.length) { listEl.innerHTML = '<p class="note">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>'; return; }
+  const myDinas = (currentUser() || {}).dinas || '';
+  listEl.innerHTML = list.map((d) => {
+    const title = `${esc(d.dinas)} → ${esc(myDinas)}`;
+    return pairCardHtml(d, title, ` onclick="goToConfirmFrom('${esc(d.dinas)}')"`);
+  }).join('');
 }
 
 // ---------- Dashboard-Detailing: drill-down per pasangan dinas (REQ-RDT-NAV-03/COMMENT) ----------
@@ -1136,6 +1211,29 @@ async function loadNotifCount() {
   } catch (e) { /* ignore */ }
 }
 
+// ---------- Sidebar "Dashboard" badge (REQ-RDT-NAV-02a) ----------
+// Count-only, deliberately NOT /api/dashboard/summary's full chain-aware aggregation — see
+// routes/dashboard.js's fetchNeedToConfirmDinas comment. Guaranteed call is once at shell load
+// (selectPlatform()); also refreshed for free whenever /summary already ran anyway (Dashboard
+// view loaded — see loadDashboard(), which reuses its own need_to_confirm array instead of an
+// extra round-trip) and after a Confirmation submit changes the count.
+function renderDashboardBadge(count) {
+  const badge = $('dash-badge');
+  badge.textContent = count > 0 ? String(count) : '';
+  badge.classList.toggle('hidden', count <= 0);
+}
+
+async function loadDashboardBadge() {
+  const user = currentUser();
+  if (!user) { renderDashboardBadge(0); return; }
+  try {
+    const res = await fetch('/api/dashboard/need-to-confirm-count', { headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) return;
+    renderDashboardBadge(j.count);
+  } catch (e) { /* ignore */ }
+}
+
 function renderNotifList(notifications) {
   const list = $('notif-list');
   $('notif-empty').classList.toggle('hidden', notifications.length > 0);
@@ -1231,6 +1329,7 @@ function selectPlatform() {
   loadDirectoryEntries();
   updateUserBadge();
   loadNotifCount();
+  loadDashboardBadge();
   refreshCurrentView();
 }
 
@@ -1676,6 +1775,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mpDecisions = {};
       if (mpDescEl) mpDescEl.value = '';
       loadMyStatus();
+      loadDashboardBadge();
       // Item 7: show exactly which rows just got declined/redirected, from the submit response
       // itself — no refetch needed to know which ids need initiator followup.
       const declined = j.declined || [];

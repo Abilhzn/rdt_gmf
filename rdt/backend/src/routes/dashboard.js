@@ -66,6 +66,21 @@ async function fetchReassignChainMap(client, transactionIds) {
   return chainMap;
 }
 
+// Shared by buildChainAwareProgress and buildNeedToConfirmProgress — Figma nodes 1:2/69:209
+// (28 Jul, project owner design-detail pass) show a "N reply" count on every dashboard pair
+// card, not just the percent ring. One batched query per call site rather than per-transaction,
+// so a dashboard load with dozens of transactions doesn't turn into dozens of round trips.
+async function fetchReplyCounts(client, transactionIds) {
+  if (!transactionIds.length) return {};
+  const res = await client.query(
+    `SELECT transaction_id, COUNT(*)::int AS c FROM rdt.comments WHERE transaction_id = ANY($1) GROUP BY transaction_id`,
+    [transactionIds]
+  );
+  const map = {};
+  res.rows.forEach((r) => { map[r.transaction_id] = r.c; });
+  return map;
+}
+
 // groupBy: 'target' expands each transaction across every dinas it was EVER targeted at (its
 // current dinas_target plus every from_dinas in its reassignment chain) — used for the
 // personal as_initiator view. 'initiator' groups by dinas_inisiasi, which never changes on
@@ -89,22 +104,25 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     const reassignedIds = transactions.filter((t) => t.reassign_count > 0).map((t) => t.id);
     chainMap = await fetchReassignChainMap(client, reassignedIds);
   }
+  const replyCounts = await fetchReplyCounts(client, transactions.map((t) => t.id));
 
-  const agg = {}; // dinas code -> { total, resolved, declined_pending_action }
-  const bump = (key, resolved, declinedPending) => {
-    if (!agg[key]) agg[key] = { total: 0, resolved: 0, declined_pending_action: 0 };
+  const agg = {}; // dinas code -> { total, resolved, declined_pending_action, reply_count }
+  const bump = (key, resolved, declinedPending, replyCount) => {
+    if (!agg[key]) agg[key] = { total: 0, resolved: 0, declined_pending_action: 0, reply_count: 0 };
     agg[key].total += 1;
     if (resolved) agg[key].resolved += 1;
     if (declinedPending) agg[key].declined_pending_action += 1;
+    agg[key].reply_count += replyCount;
   };
   for (const t of transactions) {
     const resolved = RESOLVED_STATUSES.includes(t.status_konfirmasi);
     const declinedPending = t.status_konfirmasi === 'DECLINED';
+    const replyCount = replyCounts[t.id] || 0;
     if (groupBy === 'target') {
       const chainDinas = new Set([t.dinas_target, ...(chainMap[t.id] || [])]);
-      for (const d of chainDinas) bump(d, resolved, declinedPending);
+      for (const d of chainDinas) bump(d, resolved, declinedPending, replyCount);
     } else {
-      bump(t.dinas_inisiasi, resolved, declinedPending);
+      bump(t.dinas_inisiasi, resolved, declinedPending, replyCount);
     }
   }
 
@@ -116,6 +134,45 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
       resolved: a.resolved,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       declined_pending_action: a.declined_pending_action,
+      reply_count: a.reply_count,
+    };
+  });
+}
+
+// "Need to Confirm" rich cards (28 Jul, Figma nodes 1:2/69:209): percent + reply count per
+// initiator dinas, not just the bare dinas-code list fetchNeedToConfirmDinas returns for the
+// sidebar badge. Same export-batch visibility rule as fetchNeedToConfirmDinas (stays listed
+// until TAB approves the batch, not just until PENDING hits zero) — grouped by INITIATOR dinas,
+// no chain expansion needed (dinas_inisiasi never changes on reassignment, unlike dinas_target).
+async function buildNeedToConfirmProgress(client, targetDinasCodes) {
+  const txRes = await client.query(
+    `SELECT t.id, t.dinas_inisiasi, t.status_konfirmasi
+     FROM rdt.transactions t
+     LEFT JOIN rdt.export_batches b ON b.id = t.export_batch_id
+     WHERE UPPER(t.dinas_target) = ANY($1)
+       AND t.status_konfirmasi = ANY($2)
+       AND (t.export_batch_id IS NULL OR b.status NOT IN ('APPROVED','EXPORTED'))`,
+    [targetDinasCodes, ACTIONABLE_STATUSES]
+  );
+  const transactions = txRes.rows;
+  const replyCounts = await fetchReplyCounts(client, transactions.map((t) => t.id));
+
+  const agg = {};
+  for (const t of transactions) {
+    const key = t.dinas_inisiasi;
+    if (!agg[key]) agg[key] = { total: 0, resolved: 0, reply_count: 0 };
+    agg[key].total += 1;
+    if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) agg[key].resolved += 1;
+    agg[key].reply_count += replyCounts[t.id] || 0;
+  }
+  return Object.keys(agg).sort().map((dinas) => {
+    const a = agg[dinas];
+    return {
+      dinas,
+      total: a.total,
+      resolved: a.resolved,
+      percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
+      reply_count: a.reply_count,
     };
   });
 }
@@ -279,6 +336,41 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
   }
 });
 
+// Need to Confirm (project owner correction, 25 Jul): an initiator dinas must NOT drop out of
+// this list the instant its PENDING rows targeting me hit zero — other target dinas from the
+// same initiator's submission may still be mid-confirmation, and even once every row here is
+// CONFIRMED/BORNE, the pair should stay visible until TAB has actually approved the export
+// batch that swept it up (see exportBatches.js's DRAFT->WAITING_APPROVAL->APPROVED flow) —
+// "jangan ilang sebelum di-confirm oleh TAB". So: keep any dinas_inisiasi with an ACTIONABLE
+// row targeting me that hasn't yet landed in an APPROVED/EXPORTED batch, not just PENDING ones.
+//
+// TAB also staffs dinas "Corp"'s AND "TA"'s queues (neither has a dedicated PIC,
+// REQ-RDT-AUTH-04) — their dinas_target rows never showed up under myDinas='TAB' before this
+// fix. ('TA' added 28 Jul alongside the project owner's TA-is-a-real-target correction — see
+// schema.sql's rdt.dinas seed comment.)
+//
+function needToConfirmTargetCodes(myDinas, isTabStaff) {
+  return (isTabStaff ? [myDinas, 'Corp', 'TA'] : [myDinas]).map((d) => String(d).toUpperCase());
+}
+
+// Bare dinas-code list, no percent/reply-count aggregation — used ONLY by GET
+// /need-to-confirm-count (REQ-RDT-NAV-02a's sidebar badge, called on every page load) so that
+// route stays a single cheap DISTINCT query instead of paying for buildNeedToConfirmProgress's
+// per-transaction reply-count join just to get a count.
+async function fetchNeedToConfirmDinas(client, targetDinasCodes) {
+  const res = await client.query(
+    `SELECT DISTINCT t.dinas_inisiasi AS dinas
+     FROM rdt.transactions t
+     LEFT JOIN rdt.export_batches b ON b.id = t.export_batch_id
+     WHERE UPPER(t.dinas_target) = ANY($1)
+       AND t.status_konfirmasi = ANY($2)
+       AND (t.export_batch_id IS NULL OR b.status NOT IN ('APPROVED','EXPORTED'))
+     ORDER BY dinas`,
+    [targetDinasCodes, ACTIONABLE_STATUSES]
+  );
+  return res.rows.map((r) => r.dinas);
+}
+
 router.get('/summary', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const myDinas = req.rdtUser.dinas;
@@ -290,33 +382,32 @@ router.get('/summary', async (req, res) => {
     const asInitiator = isTabStaff
       ? await buildChainAwareProgress(client, { initiatorDinas: null, groupBy: 'initiator' })
       : await buildChainAwareProgress(client, { initiatorDinas: myDinas, groupBy: 'target' });
-
-    // Need to Confirm (project owner correction, 25 Jul): an initiator dinas must NOT drop out of
-    // this list the instant its PENDING rows targeting me hit zero — other target dinas from the
-    // same initiator's submission may still be mid-confirmation, and even once every row here is
-    // CONFIRMED/BORNE, the pair should stay visible until TAB has actually approved the export
-    // batch that swept it up (see exportBatches.js's DRAFT->WAITING_APPROVAL->APPROVED flow) —
-    // "jangan ilang sebelum di-confirm oleh TAB". So: keep any dinas_inisiasi with an ACTIONABLE
-    // row targeting me that hasn't yet landed in an APPROVED/EXPORTED batch, not just PENDING ones.
-    //
-    // TAB also staffs dinas "Corp"'s AND "TA"'s queues (neither has a dedicated PIC,
-    // REQ-RDT-AUTH-04) — their dinas_target rows never showed up under myDinas='TAB' before this
-    // fix. ('TA' added 28 Jul alongside the project owner's TA-is-a-real-target correction — see
-    // schema.sql's rdt.dinas seed comment.)
-    const targetDinasCodes = (isTabStaff ? [myDinas, 'Corp', 'TA'] : [myDinas]).map((d) => String(d).toUpperCase());
-    const needToConfirmRes = await client.query(
-      `SELECT DISTINCT t.dinas_inisiasi AS dinas
-       FROM rdt.transactions t
-       LEFT JOIN rdt.export_batches b ON b.id = t.export_batch_id
-       WHERE UPPER(t.dinas_target) = ANY($1)
-         AND t.status_konfirmasi = ANY($2)
-         AND (t.export_batch_id IS NULL OR b.status NOT IN ('APPROVED','EXPORTED'))
-       ORDER BY dinas`,
-      [targetDinasCodes, ACTIONABLE_STATUSES]
-    );
-    const needToConfirm = needToConfirmRes.rows.map((r) => r.dinas);
+    // Rich per-pair cards (percent + reply count), not just the bare dinas-code list — see
+    // buildNeedToConfirmProgress's header comment (Figma nodes 1:2/69:209, 28 Jul).
+    const needToConfirm = await buildNeedToConfirmProgress(client, needToConfirmTargetCodes(myDinas, isTabStaff));
 
     res.json({ ok: true, own_dinas: myDinas, as_initiator: asInitiator, need_to_confirm: needToConfirm, is_global_view: isTabStaff });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  } finally {
+    try { await client.end(); } catch (e) {}
+  }
+});
+
+// REQ-RDT-NAV-02a: lightweight count-only endpoint for the sidebar "Dashboard" badge, visible
+// from any page — called once at shell load (see selectPlatform() in ui-demo.html), not the
+// full /summary aggregation. Deliberately just a count, not the dinas list itself, so this stays
+// cheap to call opportunistically (e.g. after Confirmation submit) without re-fetching more than
+// the badge needs.
+router.get('/need-to-confirm-count', async (req, res) => {
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const myDinas = req.rdtUser.dinas;
+  const isTabStaff = req.rdtUser.role === 'TAB';
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const needToConfirm = await fetchNeedToConfirmDinas(client, needToConfirmTargetCodes(myDinas, isTabStaff));
+    res.json({ ok: true, count: needToConfirm.length });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });
   } finally {
