@@ -11,7 +11,10 @@ $danger-600: #b3261e;
 $danger-050: #fdecea;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-$radius-xl: 32px;
+// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px/10px, not Figma's literal 16-32px — project
+// owner asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-xl/--radius-lg.
+$radius-xl: 12px;
+$radius-lg: 10px;
 $radius-md: 8px;
 
 .page-card {
@@ -63,6 +66,42 @@ $radius-md: 8px;
     box-shadow: $shadow-sm;
     &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
   }
+  &--link {
+    background: none;
+    box-shadow: none;
+    padding: 0;
+    color: $accent;
+    text-decoration: underline;
+    &:hover { box-shadow: none; }
+  }
+}
+
+// ---------- discussion preview (project owner request, 28 Jul — "liatin dulu chatnya" before
+// deciding Ya/Tidak) — same card/thread-comment pattern as pages/repost-budgeting.component.scss
+// and dashboard-detail.component.scss. ----------
+.card {
+  background: #fff;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-sm;
+  padding: 20px;
+  margin-bottom: 18px;
+
+  h2 { margin: 0 0 14px; font-size: 16px; font-weight: 700; color: $ink; }
+}
+
+.card__actions { margin-top: 14px; display: flex; gap: 10px; }
+
+.thread-comment {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed $line;
+
+  &__avatar { width: 32px; height: 32px; border-radius: 50%; background: #d9d9d9; flex: 0 0 auto; }
+  &__body { flex: 1; min-width: 0; }
+  &__name { font-weight: 700; font-size: 13px; }
+  &__meta { color: $ink-600; font-size: 11.5px; margin-left: 8px; }
+  &__text { margin: 4px 0; font-size: 13.5px; white-space: pre-wrap; }
 }
 
 .alert {

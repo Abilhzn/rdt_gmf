@@ -3,11 +3,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { DashboardService, DinasProgress } from '../services/dashboard.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
-// REQ-RDT-NAV-02 — rebuilt to match the updated Figma (node 1:2, "Dashboard"): personalized
-// two-panel view, not a global admin overview. Left = progress of MY OWN dinas's outgoing
-// submissions per target dinas ("Dashboard Pengajuan [User]"). Right = which OTHER dinas
-// have submissions waiting on me to confirm ("Need to Confirm") — clicking one navigates to
-// Confirmation filtered to that initiator dinas.
+// REQ-RDT-NAV-02/02a — rebuilt to match the updated Figma (nodes 1:2 "Need to Confirm" / 69:209
+// "Own Repost"): two switchable sub-views (not a side-by-side two-panel layout), "Need to
+// Confirm" default since it's the action item (Own Repost is pure monitoring). Sub-view lives in
+// the `sub` query param (?sub=need|own) so it's linkable/shareable and ShellComponent's sidebar
+// sub-links (a sibling, not an ancestor of this component) can read it too — see
+// ShellComponent.dashboardSubview.
 @Component({
   selector: 'rdt-home',
   standalone: false,
@@ -16,9 +17,10 @@ import { CurrentUserService } from '@auth/services/current-user.service';
 })
 export class HomeComponent implements OnInit {
   asInitiator: DinasProgress[] = [];
-  needToConfirm: string[] = [];
+  needToConfirm: DinasProgress[] = [];
   errorMessage = '';
   loaded = false;
+  subview: 'need' | 'own' = 'need';
   /** Role TAB sees a global view across every submitting dinas instead of their own outgoing
    * submissions — TAB doesn't originate reposts itself. */
   isGlobalView = false;
@@ -31,7 +33,14 @@ export class HomeComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe((params) => {
+      this.subview = params.get('sub') === 'own' ? 'own' : 'need';
+    });
     this.currentUser.user$.subscribe(() => this.load());
+  }
+
+  get myDinas(): string | undefined {
+    return this.currentUser.current?.dinas;
   }
 
   load(): void {
@@ -49,11 +58,28 @@ export class HomeComponent implements OnInit {
     });
   }
 
-  goToConfirmFrom(dinas: string): void {
-    // relative, not '/confirm' — HomeComponent sits two routing levels below ShellComponent
-    // (dashboard's lazy module, then home's own ''), so '../../confirm' reaches its sibling
-    // regardless of where the host platform mounts RdtModule (see LoginComponent's note).
-    this.router.navigate(['../../confirm'], { relativeTo: this.route, queryParams: { from: dinas } });
+  // Single delegated click handler for the shared #pairCard template (see home.component.html) —
+  // 'need' cards drill into Confirmation, 'own' cards drill into Dashboard-Detailing.
+  onCardClick(kind: 'need' | 'own', d: DinasProgress): void {
+    if (kind === 'need') this.goToConfirmFrom(d.dinas, d.target_dinas);
+    else this.goToDetail(d.dinas);
+  }
+
+  // targetDinas (28 Jul bug fix): the REAL queue this pair sits under (see DinasProgress.target_dinas)
+  // — without it, Confirmation always defaulted to the viewer's own dinas, so TAB clicking a
+  // TA-targeted card landed on an empty TAB queue instead of TA's.
+  //
+  // BUG FIX (28 Jul, live report — "kenapa error?"): the string token '../../confirm' threw
+  // NG04002 "Cannot match any routes" every time this was clicked — counting '../' hops by hand
+  // across a lazy-loaded module boundary (HomeModule) doesn't reliably land where the comment
+  // above (now corrected) assumed it would. Walking the ActivatedRoute OBJECT tree up to the
+  // shell (this.route.parent = 'dashboard', .parent.parent = the shell's own '' route) and
+  // resolving 'confirm' relative to THAT is unambiguous regardless of nesting/lazy boundaries.
+  goToConfirmFrom(dinas: string, targetDinas?: string): void {
+    const queryParams: Record<string, string> = { from: dinas };
+    if (targetDinas) queryParams['target'] = targetDinas;
+    const shellRoute = this.route.parent?.parent || this.route;
+    this.router.navigate(['confirm'], { relativeTo: shellRoute, queryParams });
   }
 
   // REQ-RDT-NAV-03: drill-down only makes sense for a real (initiator, target) PAIR. The

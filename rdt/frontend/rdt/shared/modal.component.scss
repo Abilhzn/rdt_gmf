@@ -5,7 +5,9 @@ $ink: #000;
 $accent: #006298;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-$radius-lg: 16px;
+// REQ-RDT-UI-02 (28 Jul, override draf Figma): 10px, not Figma's literal 16px — project owner
+// asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-lg.
+$radius-lg: 10px;
 $radius-md: 8px;
 
 .modal-overlay {

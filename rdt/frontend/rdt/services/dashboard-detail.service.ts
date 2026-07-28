@@ -46,6 +46,21 @@ export class DashboardDetailService {
       }));
   }
 
+  // Lightweight comments-only fetch (project owner request, 28 Jul: Confirmation shows the pair's
+  // existing discussion, read-only, above the transaction list) — no progress/transactions
+  // payload, unlike getDetail() above, since Confirmation already has its own pending rows.
+  getComments(initiatorDinas: string, targetDinas: string): Observable<Comment[]> {
+    return this.http
+      .get<{ ok: boolean; comments: Comment[]; error?: string }>(
+        `${this.base}/${encodeURIComponent(initiatorDinas)}/${encodeURIComponent(targetDinas)}/comments`,
+        { headers: this.currentUser.authHeaders() },
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'Gagal memuat diskusi');
+        return res.comments;
+      }));
+  }
+
   postComment(initiatorDinas: string, targetDinas: string, body: string, parentCommentId?: number): Observable<Comment> {
     const payload: { body: string; parent_comment_id?: number } = { body };
     if (parentCommentId) payload.parent_comment_id = parentCommentId;

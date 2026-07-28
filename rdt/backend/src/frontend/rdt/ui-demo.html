@@ -176,7 +176,11 @@ details.settings textarea { width:100%; font:12px/1.5 Consolas,monospace;
 .nav-badge { margin-left:auto; background:var(--danger-600); color:#fff; font-size:12px; font-weight:700;
   min-width:22px; height:22px; padding:0 7px; border-radius:999px; display:inline-flex;
   align-items:center; justify-content:center; }
-.nav-subnav { display:flex; flex-direction:column; margin:2px 0 4px 17px; padding-left:16px;
+/* margin-left centers the connector line under the Dashboard icon: .nav-link's own 14px left
+   padding + half the 34px .nav-icon width = 31px to the icon's horizontal center, minus 1px for
+   the line's own 2px width (28 Jul request — was 17px, which sat under the "Dashboard" text
+   instead of the icon). */
+.nav-subnav { display:flex; flex-direction:column; margin:2px 0 4px 30px; padding-left:16px;
   border-left:2px solid var(--line); }
 .sidebar-nav .nav-sublink { display:block; padding:9px 14px; color:var(--ink); text-decoration:none;
   font-size:16px; font-weight:500; border-radius:var(--radius-md); }
@@ -354,7 +358,10 @@ input[type="checkbox"]:disabled { cursor:default; }
              tab strip) — see showView()'s subview handling. -->
         <div class="nav-subnav">
           <a href="#dashboard:need" class="nav-sublink" data-view="dashboard" data-subview="need">Need to Confirm</a>
-          <a href="#dashboard:own" class="nav-sublink" data-view="dashboard" data-subview="own">Own Repost</a>
+          <!-- Label set dynamically by updateOwnRepostLabel() — TAB's "Own Repost" is actually a
+               global view across every submitting dinas (TAB doesn't originate reposts itself),
+               so "Own Repost" reads wrong for that role (project owner request, 28 Jul). -->
+          <a href="#dashboard:own" class="nav-sublink" data-view="dashboard" data-subview="own" id="nav-own-repost">Own Repost</a>
         </div>
       </div>
       <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>Repost</a>
@@ -564,6 +571,20 @@ input[type="checkbox"]:disabled { cursor:default; }
         <div id="mp-legend"></div>
         <p class="alert alert-error hidden" id="my-status-err"></p>
 
+        <!-- Project owner request (28 Jul): show the pair's existing discussion BEFORE the
+             transaction list, so the confirming user has context before deciding Ya/Tidak per
+             row. Read-only here (posting/replying stays on Dashboard-Detailing, reached via the
+             link below) — only shown when the queue is filtered to one specific (initiator,
+             target) pair, since "Semua dinas" has no single thread to show. -->
+        <section class="card hidden" id="mp-thread-wrap">
+          <h2>Diskusi <span id="mp-thread-badge"></span></h2>
+          <div id="mp-thread"></div>
+          <p class="note" id="mp-thread-empty">Belum ada komentar pada pasangan dinas ini.</p>
+          <div class="actions">
+            <button class="btn-link" type="button" id="mp-thread-goto">Lihat &amp; balas di Dashboard-Detailing →</button>
+          </div>
+        </section>
+
         <div class="just-declined hidden" id="just-declined-wrap">
           <h3>Baru saja ditolak, balik ke pengaju</h3>
           <p class="note">Item ini dikembalikan ke dinas pengaju untuk ditindaklanjuti (Tanggung Sendiri / Ajukan ulang).</p>
@@ -725,6 +746,11 @@ function successModal(message) { return showModal(message || 'Selesai!', { check
 const VIEWS = ['dashboard', 'repost', 'confirmation', 'need-approval', 'dashboard-detail'];
 const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Repost', confirmation: 'Confirmation', 'need-approval': 'Need Approval', 'dashboard-detail': 'Dashboard' };
 let confirmationFilterDinas = null;
+// ?target (28 Jul bug fix): the REAL queue a "Need to Confirm" card sits under (TAB's own dinas,
+// or 'Corp'/'TA' — neither has a dedicated PIC, REQ-RDT-AUTH-04). Without this, the queue always
+// defaulted to the viewer's own dinas, so TA-targeted rows were reachable from the dashboard card
+// but never actually showed up to confirm. See buildNeedToConfirmProgress's target_dinas field.
+let confirmationFilterTargetDinas = null;
 
 function parseHash() {
   const raw = location.hash.replace('#', '');
@@ -752,7 +778,13 @@ function showView(view, param) {
     document.querySelectorAll('.nav-sublink[data-subview]').forEach((a) => a.classList.toggle('active', a.dataset.subview === subview));
     loadDashboard();
   }
-  else if (view === 'confirmation') { confirmationFilterDinas = param || null; loadMyStatus(); }
+  else if (view === 'confirmation') {
+    const [initiator, target] = (param || '').split(':');
+    confirmationFilterDinas = initiator || null;
+    confirmationFilterTargetDinas = target || null;
+    selectedConfirmTarget = confirmationFilterTargetDinas || selectedConfirmTarget;
+    loadMyStatus();
+  }
   else if (view === 'need-approval') loadExportBatches();
   else if (view === 'dashboard-detail') {
     const [initiator, target] = (param || '').split(':');
@@ -762,7 +794,7 @@ function showView(view, param) {
 
 function refreshCurrentView() { const h = parseHash(); showView(h.view, h.param); }
 
-function goToConfirmFrom(dinas) { location.hash = 'confirmation:' + dinas; }
+function goToConfirmFrom(dinas, targetDinas) { location.hash = 'confirmation:' + dinas + (targetDinas ? ':' + targetDinas : ''); }
 function goToDashboardDetail(initiatorDinas, targetDinas) { location.hash = 'dashboard-detail:' + initiatorDinas + ':' + targetDinas; }
 
 document.querySelectorAll('.nav-link[data-view]').forEach((a) => {
@@ -1066,8 +1098,11 @@ function pairCardHtml(d, title, onClickAttr) {
       <span class="pair-card-count">${d.total}</span>
     </div>
     <div class="pair-card-body">
+      <!-- Item 5's red/yellow/blue status coding was invisible at low/0% (the colored ARC has
+           ~zero length to render) — coloring the percent text too makes status legible
+           regardless of how much of the ring is actually filled in. -->
       <div class="dinas-circle" style="--pct:${d.percent};--ring-color:${ringColor(d.percent)}">
-        <span class="pct-label">${d.percent.toFixed(1)}%</span>
+        <span class="pct-label" style="color:${ringColor(d.percent)}">${d.percent.toFixed(1)}%</span>
       </div>
       <span class="pair-card-reply">${d.reply_count || 0} reply</span>
     </div>
@@ -1098,8 +1133,12 @@ function renderDashNeed(list) {
   if (!list.length) { listEl.innerHTML = '<p class="note">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>'; return; }
   const myDinas = (currentUser() || {}).dinas || '';
   listEl.innerHTML = list.map((d) => {
-    const title = `${esc(d.dinas)} → ${esc(myDinas)}`;
-    return pairCardHtml(d, title, ` onclick="goToConfirmFrom('${esc(d.dinas)}')"`);
+    // target_dinas (28 Jul bug fix): the REAL queue this pair sits under — may differ from
+    // myDinas for TAB (staffs 'Corp'/'TA' too, neither has a dedicated PIC). Falls back to
+    // myDinas for a plain PIC, where they're always the same.
+    const target = d.target_dinas || myDinas;
+    const title = `${esc(d.dinas)} → ${esc(target)}`;
+    return pairCardHtml(d, title, ` onclick="goToConfirmFrom('${esc(d.dinas)}','${esc(target)}')"`);
   }).join('');
 }
 
@@ -1127,6 +1166,7 @@ async function loadDashboardDetail(initiatorDinas, targetDinas) {
     $('dd-circle').style.setProperty('--pct', p.percent);
     $('dd-circle').style.setProperty('--ring-color', ringColor(p.percent));
     $('dd-pct-label').textContent = p.percent.toFixed(1) + '%';
+    $('dd-pct-label').style.color = ringColor(p.percent);
     $('dd-reply-count').textContent = `${j.comments.length} reply · ${p.total} transaksi`;
     renderDdThread(j.comments);
   } catch (err) {
@@ -1136,10 +1176,11 @@ async function loadDashboardDetail(initiatorDinas, targetDinas) {
 
 // Builds a parent/child tree from the flat comment list and renders it indented, forum-style
 // (REQ-RDT-COMMENT-02). Comments already arrive sorted oldest-first from the server.
-function renderDdThread(comments) {
-  const wrap = $('dd-thread');
-  $('dd-thread-empty').classList.toggle('hidden', comments.length > 0);
-  if (!comments.length) { wrap.innerHTML = ''; return; }
+// `replyable` (default true) controls whether each comment gets a "Balas" button — Confirmation's
+// read-only preview (loadMpThread, project owner request 28 Jul: "liatin dulu chatnya" before
+// deciding Ya/Tidak) reuses this without reply wiring; posting/replying stays on Dashboard-Detailing.
+function renderThreadHtml(comments, replyable) {
+  if (!comments.length) return '';
   const byParent = {};
   comments.forEach((c) => {
     const key = c.parent_comment_id || 'root';
@@ -1154,12 +1195,17 @@ function renderDdThread(comments) {
           <span class="thread-comment__name">${esc(c.author_display_name)}</span>
           <span class="thread-comment__meta">${new Date(c.created_at).toLocaleString('id-ID')}</span>
           <p class="thread-comment__text">${esc(c.body)}</p>
-          <button class="btn-link" type="button" onclick="setDdReplyTarget(${c.id}, '${esc(c.author_display_name)}')">Balas</button>
+          ${replyable ? `<button class="btn-link" type="button" onclick="setDdReplyTarget(${c.id}, '${esc(c.author_display_name)}')">Balas</button>` : ''}
         </div>
       </div>
       ${renderLevel(c.id, depth + 1)}`).join('');
   }
-  wrap.innerHTML = renderLevel('root', 0);
+  return renderLevel('root', 0);
+}
+
+function renderDdThread(comments) {
+  $('dd-thread-empty').classList.toggle('hidden', comments.length > 0);
+  $('dd-thread').innerHTML = renderThreadHtml(comments, true);
 }
 
 function setDdReplyTarget(commentId, authorName) {
@@ -1330,7 +1376,16 @@ function selectPlatform() {
   updateUserBadge();
   loadNotifCount();
   loadDashboardBadge();
+  updateOwnRepostLabel();
   refreshCurrentView();
+}
+
+// Project owner request (28 Jul): TAB's "Own Repost" sub-view is actually a global view across
+// every submitting dinas (TAB doesn't originate reposts itself, see renderDashOwn's isGlobalView
+// branch) — "Own Repost" reads wrong there, so the sidebar label itself changes for that role.
+function updateOwnRepostLabel() {
+  const user = currentUser();
+  $('nav-own-repost').textContent = (user && user.role === 'TAB') ? 'Repost Every PIC' : 'Own Repost';
 }
 
 function toggleUserMenu() {
@@ -1383,7 +1438,10 @@ let selectedConfirmTarget = null;
 
 function confirmTargetOptions(user) {
   if (!user) return [];
-  if (user.role === 'TAB') return [user.dinas, 'Corp'];
+  // 'TA' added 28 Jul alongside 'Corp' — TAB staffs both queues too (neither has a dedicated
+  // PIC, REQ-RDT-AUTH-04); see schema.sql's rdt.dinas seed comment for why 'TA' is a real,
+  // distinct dinas_target.
+  if (user.role === 'TAB') return [user.dinas, 'Corp', 'TA'];
   return [user.dinas];
 }
 
@@ -1402,10 +1460,33 @@ function updateConfirmationBadge() {
   const user = currentUser();
   const badge = $('confirming-user-badge');
   if (!user) { badge.textContent = 'Belum login'; return; }
-  const target = selectedConfirmTarget === 'Corp' ? 'Corp' : user.display_name;
+  // Show the raw target code (Corp/TA) unless we're looking at the viewer's OWN literal dinas
+  // queue, in which case their display name reads better than repeating their own code.
+  const target = selectedConfirmTarget === user.dinas ? user.display_name : selectedConfirmTarget;
   badge.textContent = confirmationFilterDinas
     ? `${confirmationFilterDinas} → ${target}`
     : `Semua dinas → ${target}`;
+}
+
+// Project owner request (28 Jul): show the pair's existing discussion ABOVE the transaction
+// list on Confirmation, read-only, so the confirming user has context before deciding Ya/Tidak
+// per row — reuses the same GET .../comments endpoint and renderer Dashboard-Detailing uses.
+// Only meaningful when the queue is filtered to ONE specific (initiator, target) pair — "Semua
+// dinas" has no single thread to show, so the section stays hidden then.
+async function loadMpThread() {
+  const wrap = $('mp-thread-wrap');
+  const user = currentUser();
+  if (!user || !confirmationFilterDinas || !selectedConfirmTarget) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  $('mp-thread-badge').textContent = `${confirmationFilterDinas} → ${selectedConfirmTarget}`;
+  $('mp-thread-goto').onclick = () => goToDashboardDetail(confirmationFilterDinas, selectedConfirmTarget);
+  try {
+    const res = await fetch(`/api/dashboard/detail/${encodeURIComponent(confirmationFilterDinas)}/${encodeURIComponent(selectedConfirmTarget)}/comments`, { headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Gagal memuat diskusi');
+    $('mp-thread-empty').classList.toggle('hidden', j.comments.length > 0);
+    $('mp-thread').innerHTML = renderThreadHtml(j.comments, false);
+  } catch (e) { /* best-effort — never block the confirmation flow over this */ }
 }
 
 async function loadMyStatus() {
@@ -1413,6 +1494,7 @@ async function loadMyStatus() {
   const user = currentUser();
   updateConfirmTargetPicker();
   updateConfirmationBadge();
+  loadMpThread();
   $('confirmation-empty-note').textContent = '';
   // Bug found via user report: only just-declined-wrap was reset here — just-redirected-wrap
   // stayed visible forever once shown once, leaking one user's "baru saja ditolak" content into

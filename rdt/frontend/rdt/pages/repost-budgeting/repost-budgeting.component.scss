@@ -26,8 +26,10 @@ $muted-050:  #eef1f4;
 
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-$radius-xl: 32px;
-$radius-lg: 16px;
+// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px/10px, not Figma's literal 16-32px — project
+// owner asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-xl/--radius-lg.
+$radius-xl: 12px;
+$radius-lg: 10px;
 $radius-md: 8px;
 
 // Page title/eyebrow now live in shell.component.html's shared topbar — this component

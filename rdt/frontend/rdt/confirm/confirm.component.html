@@ -23,6 +23,31 @@
 
   <p class="alert alert--error" *ngIf="statusError">{{ statusError }}</p>
 
+  <!-- Project owner request (28 Jul): show the pair's existing discussion BEFORE the
+       transaction list, so the confirming user has context before deciding Ya/Tidak per row.
+       Read-only (posting/replying stays on Dashboard-Detailing, reached via goToThreadDetail). -->
+  <section class="card" *ngIf="showThread">
+    <h2>Diskusi {{ filterFromDinas }} → {{ selectedTarget }}</h2>
+    <div>
+      <div
+        *ngFor="let row of threadRows"
+        class="thread-comment"
+        [style.marginLeft.px]="row.depth * 28"
+      >
+        <div class="thread-comment__avatar"></div>
+        <div class="thread-comment__body">
+          <span class="thread-comment__name">{{ row.comment.author_display_name }}</span>
+          <span class="thread-comment__meta">{{ row.comment.created_at | idDate }}</span>
+          <p class="thread-comment__text">{{ row.comment.body }}</p>
+        </div>
+      </div>
+    </div>
+    <p class="note" *ngIf="threadLoaded && !threadRows.length">Belum ada komentar pada pasangan dinas ini.</p>
+    <div class="card__actions">
+      <button class="btn btn--link" type="button" (click)="goToThreadDetail()">Lihat &amp; balas di Dashboard-Detailing →</button>
+    </div>
+  </section>
+
   <div class="just-declined" *ngIf="justDeclined.length">
     <h3 class="card__subtitle">Baru saja ditolak, balik ke pengaju ({{ justDeclined.length }})</h3>
     <p class="note">Item ini dikembalikan ke dinas pengaju untuk ditindaklanjuti (Tanggung Sendiri / Ajukan ulang).</p>

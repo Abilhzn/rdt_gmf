@@ -1,16 +1,23 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { ConfirmationService, PendingRow, ConfirmationClaim, DeclinedOutcomeRow, RedirectedOutcomeRow, triggerBlobDownload } from '../services/confirmation.service';
 import { ReassignmentService, DeclinedRow } from '../services/reassignment.service';
 import { DinasService, DinasEntry } from '../services/dinas.service';
 import { ModalService } from '../services/modal.service';
+import { DashboardDetailService } from '../services/dashboard-detail.service';
+import { Comment } from '../services/comment.model';
 
 interface PendingRowVm extends PendingRow {
   checked: boolean;
   /** '' = balik ke pengaju (default DECLINED flow); a dinas code = reject-and-redirect there
    * immediately (item 7). Only meaningful when checked=false. */
   redirectTo: string;
+}
+
+interface ThreadRow {
+  comment: Comment;
+  depth: number;
 }
 
 // REQ-RDT-NAV-04 — rebuilt to match the updated Figma (node 20:712, "Confirmation"):
@@ -37,6 +44,13 @@ export class ConfirmComponent implements OnInit {
    * special case). TAB gets a picker to switch between their own queue and Corp's. */
   selectedTarget = '';
   filterFromDinas: string | null = null;
+  /** ?target=<dinas> — set when navigating here from a "Need to Confirm" dashboard card, which
+   * now knows the REAL queue a submission sits in (TAB's own dinas, or 'Corp'/'TA' — neither has
+   * a dedicated PIC, REQ-RDT-AUTH-04). Without it, selectedTarget falls back to the user's own
+   * dinas as before. Bug fixed 28 Jul: TA-targeted rows used to be reachable from the dashboard
+   * card but the queue always defaulted to the user's own dinas regardless, so they never
+   * actually showed up to confirm. */
+  filterTargetDinas: string | null = null;
   pendingRows: PendingRowVm[] = [];
   declinedRows: DeclinedRow[] = [];
   dinasOptions: DinasEntry[] = [];
@@ -69,12 +83,21 @@ export class ConfirmComponent implements OnInit {
   pendingActionByRowId: Record<number, 'BORNE' | 'REASSIGN'> = {};
   batchNote = '';
 
+  // Project owner request (28 Jul): "liatin dulu chatnya" before deciding Ya/Tidak — read-only
+  // preview of the pair's existing discussion, shown above the transaction list. Only meaningful
+  // when filtered to ONE specific (initiator, target) pair (see showThread below); posting/
+  // replying stays on Dashboard-Detailing, reached via goToThreadDetail().
+  threadRows: ThreadRow[] = [];
+  threadLoaded = false;
+
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     public currentUser: CurrentUserService,
     private confirmation: ConfirmationService,
     private reassignment: ReassignmentService,
     private dinasService: DinasService,
+    private dashboardDetail: DashboardDetailService,
     private modal: ModalService,
   ) {}
 
@@ -83,6 +106,7 @@ export class ConfirmComponent implements OnInit {
     this.currentUser.user$.subscribe(() => this.resolveDinasAndLoad());
     this.route.queryParamMap.subscribe((params) => {
       this.filterFromDinas = params.get('from');
+      this.filterTargetDinas = params.get('target');
       this.resolveDinasAndLoad();
     });
   }
@@ -90,15 +114,14 @@ export class ConfirmComponent implements OnInit {
   private resolveDinasAndLoad(): void {
     const user = this.currentUser.current;
     this.dinas = user?.dinas || '';
-    // Reset to the user's own queue whenever the logged-in user changes (not on every reload),
-    // so switching accounts doesn't leave a stale Corp selection behind for a non-TAB user.
-    this.selectedTarget = this.dinas;
+    // ?target= overrides the default "my own dinas" queue — see filterTargetDinas's comment.
+    this.selectedTarget = this.filterTargetDinas || this.dinas;
     if (this.dinas) this.loadStatus();
   }
 
   get targetOptions(): string[] {
     const role = this.currentUser.current?.role;
-    if (role === 'TAB') return [this.dinas, 'Corp'];
+    if (role === 'TAB') return [this.dinas, 'Corp', 'TA'];
     return [this.dinas];
   }
 
@@ -110,7 +133,7 @@ export class ConfirmComponent implements OnInit {
     const user = this.currentUser.current;
     if (!user) return 'Belum login';
     const from = this.filterFromDinas || 'Semua dinas';
-    const target = this.selectedTarget === 'Corp' ? 'Corp' : user.display_name;
+    const target = this.selectedTarget === this.dinas ? user.display_name : this.selectedTarget;
     return `${from} → ${target}`;
   }
 
@@ -122,6 +145,7 @@ export class ConfirmComponent implements OnInit {
     this.justRedirected = [];
     this.confirmDescription = '';
     this.page = 1;
+    this.loadThread();
     if (!this.selectedTarget) return;
     this.confirmation.getPending(this.selectedTarget).subscribe({
       next: (rows) => {
@@ -138,6 +162,53 @@ export class ConfirmComponent implements OnInit {
       next: (rows) => { this.declinedRows = rows; this.maybeSetEmptyNote(); },
       error: (err) => { this.statusError = err?.message || 'Gagal memuat data declined'; },
     });
+  }
+
+  // Only meaningful filtered to ONE specific pair — "Semua dinas" (filterFromDinas unset) has no
+  // single thread to show.
+  get showThread(): boolean {
+    return !!this.filterFromDinas && !!this.selectedTarget;
+  }
+
+  private loadThread(): void {
+    this.threadRows = [];
+    this.threadLoaded = false;
+    if (!this.showThread) return;
+    this.dashboardDetail.getComments(this.filterFromDinas!, this.selectedTarget).subscribe({
+      next: (comments) => { this.threadRows = this.buildThreadRows(comments); this.threadLoaded = true; },
+      error: () => { this.threadLoaded = true; /* best-effort — never block the confirmation flow */ },
+    });
+  }
+
+  // Mirrors DashboardDetailComponent.buildThreadRows — flattens the parent/child comment tree
+  // into depth-annotated rows for straightforward *ngFor rendering.
+  private buildThreadRows(comments: Comment[]): ThreadRow[] {
+    const byParent = new Map<number | 'root', Comment[]>();
+    for (const c of comments) {
+      const key = c.parent_comment_id ?? 'root';
+      const list = byParent.get(key) || [];
+      list.push(c);
+      byParent.set(key, list);
+    }
+    const rows: ThreadRow[] = [];
+    const walk = (parentKey: number | 'root', depth: number) => {
+      for (const c of byParent.get(parentKey) || []) {
+        rows.push({ comment: c, depth });
+        walk(c.id, depth + 1);
+      }
+    };
+    walk('root', 0);
+    return rows;
+  }
+
+  // Route-object navigation, not '../../' string tokens (28 Jul bug fix — see
+  // HomeComponent.goToConfirmFrom's note; the same '../' hop-counting pattern threw NG04002 here
+  // too). Walk up to the shell's own route (this.route.parent = 'confirm', .parent.parent = the
+  // shell's '' route) and resolve 'dashboard/detail/...' relative to THAT.
+  goToThreadDetail(): void {
+    if (!this.filterFromDinas || !this.selectedTarget) return;
+    const shellRoute = this.route.parent?.parent || this.route;
+    this.router.navigate(['dashboard', 'detail', this.filterFromDinas, this.selectedTarget], { relativeTo: shellRoute });
   }
 
   private maybeSetEmptyNote(): void {

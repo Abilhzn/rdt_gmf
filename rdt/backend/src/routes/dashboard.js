@@ -81,10 +81,20 @@ async function fetchReplyCounts(client, transactionIds) {
   return map;
 }
 
-// groupBy: 'target' expands each transaction across every dinas it was EVER targeted at (its
-// current dinas_target plus every from_dinas in its reassignment chain) — used for the
-// personal as_initiator view. 'initiator' groups by dinas_inisiasi, which never changes on
-// reassignment, so no chain expansion is needed there — used for the TAB global view.
+// groupBy: 'target' groups each transaction under its ORIGINAL target dinas — the first dinas
+// it was ever sent to (chainMap[t.id][0], recorded chronologically by fetchReassignChainMap),
+// falling back to its current dinas_target if it was never redirected — used for the personal
+// as_initiator view. 'initiator' groups by dinas_inisiasi, which never changes on reassignment,
+// so no chain lookup is needed there — used for the TAB global view.
+//
+// UPDATE (28 Jul, bug report): this used to bump EVERY dinas in the chain (both the original
+// target AND every redirect target) as separate top-level card keys — reported live as "abis
+// TM reject-redirect ke TL, TL-nya malah jadi kartu sendiri, padahal maunya nempel di kartu TM
+// yang udah ada comment section-nya". Percent/resolved still reflect the transaction's CURRENT
+// status either way (so the original card still correctly reaches 100% once resolved at the new
+// target) — only the GROUPING key changed, from "every chain member" to "just the original".
+// getPairTransactions (Dashboard-Detailing) already resolves the full chain when queried by the
+// original target, so the comment thread was never actually fragmented — only the card list was.
 async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   const whereParts = ['dinas_target IS NOT NULL', 'status_konfirmasi = ANY($1)'];
   const params = [ACTIONABLE_STATUSES];
@@ -119,8 +129,9 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     const declinedPending = t.status_konfirmasi === 'DECLINED';
     const replyCount = replyCounts[t.id] || 0;
     if (groupBy === 'target') {
-      const chainDinas = new Set([t.dinas_target, ...(chainMap[t.id] || [])]);
-      for (const d of chainDinas) bump(d, resolved, declinedPending, replyCount);
+      const chain = chainMap[t.id] || [];
+      const originalTarget = chain.length > 0 ? chain[0] : t.dinas_target;
+      bump(originalTarget, resolved, declinedPending, replyCount);
     } else {
       bump(t.dinas_inisiasi, resolved, declinedPending, replyCount);
     }
@@ -140,13 +151,22 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
 }
 
 // "Need to Confirm" rich cards (28 Jul, Figma nodes 1:2/69:209): percent + reply count per
-// initiator dinas, not just the bare dinas-code list fetchNeedToConfirmDinas returns for the
-// sidebar badge. Same export-batch visibility rule as fetchNeedToConfirmDinas (stays listed
-// until TAB approves the batch, not just until PENDING hits zero) — grouped by INITIATOR dinas,
-// no chain expansion needed (dinas_inisiasi never changes on reassignment, unlike dinas_target).
+// pair, not just the bare dinas-code list fetchNeedToConfirmDinas returns for the sidebar badge.
+// Same export-batch visibility rule as fetchNeedToConfirmDinas (stays listed until TAB approves
+// the batch, not just until PENDING hits zero) — no chain expansion needed here (dinas_inisiasi
+// never changes on reassignment, unlike dinas_target).
+//
+// UPDATE (28 Jul, bug report): grouping by dinas_inisiasi ALONE loses which of TAB's several
+// queues (their own 'TAB', plus 'Corp'/'TA' which have no dedicated PIC — REQ-RDT-AUTH-04) a
+// submission actually sits in. That made TA/"Ask TA"-targeted rows (see excelParser.js's
+// sub-dinas/TA routing) show up merged into a generic "TJ" card with no indication of which
+// real queue held them, and the Confirmation page's queue picker had no way to auto-select the
+// right one — reported live as "muncul di dashboard tapi ga bisa di-confirm, defaultnya salah
+// antrian". Now grouped by (dinas_inisiasi, dinas_target) PAIR so every card names its real
+// target and the frontend can route straight to the correct queue.
 async function buildNeedToConfirmProgress(client, targetDinasCodes) {
   const txRes = await client.query(
-    `SELECT t.id, t.dinas_inisiasi, t.status_konfirmasi
+    `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi
      FROM rdt.transactions t
      LEFT JOIN rdt.export_batches b ON b.id = t.export_batch_id
      WHERE UPPER(t.dinas_target) = ANY($1)
@@ -159,16 +179,17 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes) {
 
   const agg = {};
   for (const t of transactions) {
-    const key = t.dinas_inisiasi;
-    if (!agg[key]) agg[key] = { total: 0, resolved: 0, reply_count: 0 };
+    const key = `${t.dinas_inisiasi} ${t.dinas_target}`;
+    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, reply_count: 0 };
     agg[key].total += 1;
     if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) agg[key].resolved += 1;
     agg[key].reply_count += replyCounts[t.id] || 0;
   }
-  return Object.keys(agg).sort().map((dinas) => {
-    const a = agg[dinas];
+  return Object.keys(agg).sort().map((key) => {
+    const a = agg[key];
     return {
-      dinas,
+      dinas: a.dinas,
+      target_dinas: a.target_dinas,
       total: a.total,
       resolved: a.resolved,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,

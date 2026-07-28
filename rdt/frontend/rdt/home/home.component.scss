@@ -9,7 +9,10 @@ $danger-600: #b3261e;
 $danger-050: #fdecea;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-$radius-xl: 32px;
+// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px, not Figma's literal 32px — project owner
+// asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-xl.
+$radius-xl: 12px;
+$radius-lg: 10px;
 $radius-md: 8px;
 
 .page-card {
@@ -50,63 +53,41 @@ $radius-md: 8px;
   &--error { background: $danger-050; color: $danger-600; }
 }
 
-// ---------- two-panel Dashboard (REQ-RDT-NAV-02) ----------
-.dashboard-grid {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
+// ---------- Dashboard sub-view panel (REQ-RDT-NAV-02/02a) ----------
+.dashboard-panel h3 { margin: 0 0 16px; font-size: 15px; color: $ink; font-weight: 700; }
 
-.dashboard-own { flex: 2 1 560px; min-width: 0; }
-.dashboard-need { flex: 1 1 260px; min-width: 220px; }
+// ---------- pair cards (Figma nodes 1:2 "Need to Confirm" / 69:209 "Own Repost", 28 Jul
+// design-detail pass) — full-width card per (initiator, target) pair, shared by both sub-views
+// via home.component.html's #pairCard ng-template. ----------
+.pair-card-list { display: flex; flex-direction: column; gap: 16px; }
 
-.dashboard-own h3, .dashboard-need h3 { margin: 0 0 16px; font-size: 15px; color: $ink; font-weight: 700; }
-
-.dinas-btn {
-  display: block;
-  width: 100%;
+.pair-card {
   background: #fff;
-  border: none;
-  border-radius: $radius-md;
-  padding: 16px;
-  margin-bottom: 12px;
-  font-size: 17px;
-  font-weight: 700;
-  color: $ink;
-  text-align: center;
-  cursor: pointer;
-  box-shadow: $shadow-sm;
-
-  &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
-}
-
-.home-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.dinas-card {
-  flex: 1 1 150px;
-  max-width: 190px;
-  text-align: center;
-  background: #fff;
-  border-radius: calc($radius-xl / 2);
-  padding: 16px 12px;
+  border-radius: $radius-lg;
   box-shadow: $shadow-lg;
+  padding: 20px 28px 24px;
 
-  // REQ-RDT-NAV-03: only the personal view's cards represent a real (initiator, target) pair —
-  // TAB's global view (grouped by initiator only) stays non-clickable, see HomeComponent.
   &--clickable {
     cursor: pointer;
     &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
   }
 
-  &__header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
-  &__label { font-weight: 700; font-size: 14px; color: $ink; }
-  &__count { background: #f2f2f2; border: 1px solid #000; border-radius: $radius-md; padding: 2px 8px; font-size: 12px; font-weight: 700; }
-  &__notif { margin-top: 6px; font-size: 12px; color: $danger-600; font-weight: 600; }
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid $line;
+  }
+
+  &__title { font-size: 18px; font-weight: 600; color: $ink; }
+  &__count { background: #f2f2f2; border: 1px solid #000; border-radius: $radius-md; padding: 5px 14px; font-size: 14px; font-weight: 700; flex: 0 0 auto; }
+
+  &__body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  &__reply { font-size: 14px; color: $ink-600; }
+  &__notif { margin-top: 12px; font-size: 12px; color: $danger-600; font-weight: 600; }
 }
 
 .dinas-circle {

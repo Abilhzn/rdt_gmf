@@ -1,6 +1,47 @@
+<!-- Shared pair-card template (Figma nodes 1:2 "Need to Confirm" / 69:209 "Own Repost", 28 Jul
+     design-detail pass) — both sub-views render the same rich card: title + count badge, ring +
+     percent, reply count, optional declined-notification line. -->
+<ng-template #pairCard let-d let-title="title" let-clickable="clickable" let-kind="kind">
+  <div class="pair-card" [class.pair-card--clickable]="clickable" (click)="clickable && onCardClick(kind, d)">
+    <div class="pair-card__header">
+      <span class="pair-card__title">{{ title }}</span>
+      <span class="pair-card__count">{{ d.total }}</span>
+    </div>
+    <div class="pair-card__body">
+      <!-- Item 5's red/yellow/blue status coding was invisible at low/0% (the colored ARC has
+           ~zero length to render) — coloring the percent text too makes status legible
+           regardless of how much of the ring is actually filled in. -->
+      <div class="dinas-circle" [ngStyle]="{'--pct': d.percent, '--ring-color': ringColor(d.percent)}">
+        <span class="pct-label" [style.color]="ringColor(d.percent)">{{ d.percent | number: '1.1-1' }}%</span>
+      </div>
+      <span class="pair-card__reply">{{ d.reply_count || 0 }} reply</span>
+    </div>
+    <div class="pair-card__notif" *ngIf="d.declined_pending_action">
+      {{ d.declined_pending_action }} transaksi ditolak, perlu tindak lanjut
+    </div>
+  </div>
+</ng-template>
+
 <div class="page-card">
-  <div class="dashboard-grid">
-    <div class="dashboard-own">
+  <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  <p class="note" *ngIf="!currentUser.current">Pilih "Login sebagai" dulu untuk memuat dashboard.</p>
+
+  <ng-container *ngIf="currentUser.current">
+    <!-- ============ Need to Confirm (default sub-view, REQ-RDT-NAV-02a) ============ -->
+    <div class="dashboard-panel" *ngIf="subview === 'need'">
+      <h3>Need to Confirm</h3>
+      <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
+        langsung meninjau pengajuan dinas tersebut.</p>
+      <p class="note" *ngIf="loaded && !needToConfirm.length">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>
+      <div class="pair-card-list">
+        <ng-container *ngFor="let d of needToConfirm">
+          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: d.dinas + ' → ' + (d.target_dinas || myDinas || ''), clickable: true, kind: 'need' }"></ng-container>
+        </ng-container>
+      </div>
+    </div>
+
+    <!-- ============ Own Repost ============ -->
+    <div class="dashboard-panel" *ngIf="subview === 'own'">
       <h3 *ngIf="!isGlobalView">Dashboard Pengajuan {{ (currentUser.user$ | async)?.display_name || '[User]' }}</h3>
       <h3 *ngIf="isGlobalView">Progres Semua Dinas</h3>
       <p class="note" *ngIf="!isGlobalView">
@@ -14,43 +55,16 @@
         bukan cuma pengajuan Anda sendiri (Anda login sebagai TAB, yang tidak mengajukan
         repost). Klik "Muat ulang" untuk menyegarkan.
       </p>
-      <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
-
-      <p class="note" *ngIf="!currentUser.current">Pilih "Login sebagai" dulu untuk memuat dashboard.</p>
-      <ng-container *ngIf="currentUser.current">
-        <p class="note" *ngIf="loaded && !asInitiator.length">
-          {{ isGlobalView ? 'Belum ada dinas yang mengajukan repost.' : 'Anda belum mengajukan repost apapun.' }}
-        </p>
-        <div class="home-grid">
-          <div
-            class="dinas-card"
-            [class.dinas-card--clickable]="!isGlobalView"
-            *ngFor="let d of asInitiator"
-            (click)="goToDetail(d.dinas)"
-          >
-            <div class="dinas-card__header">
-              <span class="dinas-card__label">{{ d.dinas }}</span>
-              <span class="dinas-card__count">{{ d.total }}</span>
-            </div>
-            <div class="dinas-circle" [ngStyle]="{'--pct': d.percent, '--ring-color': ringColor(d.percent)}">
-              <span class="pct-label">{{ d.percent | number: '1.1-1' }}%</span>
-            </div>
-            <div class="dinas-card__notif" *ngIf="d.declined_pending_action > 0">
-              {{ d.declined_pending_action }} transaksi ditolak, perlu tindak lanjut
-            </div>
-          </div>
-        </div>
-      </ng-container>
+      <p class="note" *ngIf="loaded && !asInitiator.length">
+        {{ isGlobalView ? 'Belum ada dinas yang mengajukan repost.' : 'Anda belum mengajukan repost apapun.' }}
+      </p>
+      <div class="pair-card-list">
+        <ng-container *ngFor="let d of asInitiator">
+          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: isGlobalView ? d.dinas : ((myDinas || '') + ' → ' + d.dinas), clickable: !isGlobalView, kind: 'own' }"></ng-container>
+        </ng-container>
+      </div>
     </div>
-
-    <div class="dashboard-need">
-      <h3>Need to Confirm</h3>
-      <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
-        langsung meninjau pengajuan dinas tersebut.</p>
-      <p class="note" *ngIf="loaded && !needToConfirm.length">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>
-      <button type="button" class="dinas-btn" *ngFor="let d of needToConfirm" (click)="goToConfirmFrom(d)">{{ d }}</button>
-    </div>
-  </div>
+  </ng-container>
 
   <div class="card__actions">
     <button class="btn btn--ghost" type="button" (click)="load()">Muat ulang</button>

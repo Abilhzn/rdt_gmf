@@ -11,7 +11,9 @@ $warn-700: #8a5b00; $warn-050: #fdf3dd;
 $muted-600: #5a6672; $muted-050: #eef1f4;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-$radius-xl: 32px;
+// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px, not Figma's literal 32px — project owner
+// asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-xl.
+$radius-xl: 12px;
 $radius-md: 8px;
 
 .page-card {

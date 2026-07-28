@@ -10,7 +10,7 @@
       <div class="dinas-circle-wrap">
         <div class="dinas-circle-header"><div class="dinas-circle-label">{{ targetDinas }}</div></div>
         <div class="dinas-circle" [ngStyle]="{'--pct': p.percent, '--ring-color': ringColor(p.percent)}">
-          <span class="pct-label">{{ p.percent | number: '1.1-1' }}%</span>
+          <span class="pct-label" [style.color]="ringColor(p.percent)">{{ p.percent | number: '1.1-1' }}%</span>
         </div>
         <div class="note">{{ replyCountLabel }}</div>
       </div>

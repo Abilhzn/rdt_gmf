@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { NotificationsService } from '../services/notifications.service';
 import { Notification } from '../services/notification.model';
+import { DashboardService } from '../services/dashboard.service';
 
 const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -31,9 +32,16 @@ export class ShellComponent implements OnInit {
   unreadCount = 0;
   notifications: Notification[] = [];
 
+  // REQ-RDT-NAV-02a: sidebar badge count + which Dashboard sub-link is active — 0/'need' until
+  // the first fetch resolves (ngOnInit) or until the user is on some other page (undefined stays
+  // 'need' as a harmless default, matching HomeComponent's own default).
+  needToConfirmCount = 0;
+  dashboardSubview: 'need' | 'own' = 'need';
+
   constructor(
     public currentUser: CurrentUserService,
     private notificationsSvc: NotificationsService,
+    private dashboardSvc: DashboardService,
     private router: Router,
     private route: ActivatedRoute,
     private elementRef: ElementRef<HTMLElement>,
@@ -61,8 +69,28 @@ export class ShellComponent implements OnInit {
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       const segment = this.route.firstChild?.snapshot.routeConfig?.path;
       this.pageTitle = (segment && PAGE_TITLES[segment]) || 'Dashboard';
+      // REQ-RDT-NAV-02a: which Dashboard sub-link reads bold — HomeComponent owns the ?sub=
+      // query param, read here too so the sidebar (a sibling, not an ancestor of HomeComponent)
+      // can reflect it. Also a natural opportunistic refresh point for the badge count, same
+      // idea as ui-demo.html's loadDashboard() re-rendering it on every Dashboard load.
+      if (segment === 'dashboard') {
+        const sub = this.route.firstChild?.firstChild?.snapshot.queryParamMap.get('sub');
+        this.dashboardSubview = sub === 'own' ? 'own' : 'need';
+        this.loadDashboardBadge();
+      }
     });
     this.loadNotifCount();
+    this.loadDashboardBadge();
+  }
+
+  // REQ-RDT-NAV-02a: lightweight count-only call (not getSummary()'s full aggregation) —
+  // guaranteed call is ngOnInit (shell mount = login), refreshed opportunistically above.
+  private loadDashboardBadge(): void {
+    if (!this.currentUser.current) { this.needToConfirmCount = 0; return; }
+    this.dashboardSvc.getNeedToConfirmCount().subscribe({
+      next: (count) => { this.needToConfirmCount = count; },
+      error: () => { /* purely informational — ignore */ },
+    });
   }
 
   // Need Approval is TAB-only (project owner correction, 24 Jul 2026 — SM_TA/GH_TA roles

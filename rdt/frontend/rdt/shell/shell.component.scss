@@ -12,7 +12,10 @@ $line: #cccccc;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
 $radius-md: 8px;
-$radius-lg: 16px;
+// REQ-RDT-UI-02 (28 Jul, override draf Figma): 10px, not Figma's literal 16px — project owner
+// asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-lg.
+$radius-lg: 10px;
+$danger-600: #b3261e;
 
 .app-shell {
   display: flex;
@@ -51,28 +54,37 @@ $radius-lg: 16px;
   &__nav {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
 }
 
+.nav-group { display: flex; flex-direction: column; }
+
+// Sizes bumped up a notch (28 Jul, project owner request) — nav-link/nav-icon/font-size all a
+// bit larger than the original Figma-literal values, sidebar buttons read as too small/cramped.
 .nav-icon {
-  display: inline-block;
-  width: 28px;
-  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
   border-radius: $radius-md;
   background: $accent;
-  margin-right: 12px;
+  color: #fff;
+  margin-right: 14px;
   flex: 0 0 auto;
+
+  svg { width: 20px; height: 20px; }
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  padding: 10px 12px;
+  padding: 13px 14px;
   border-radius: $radius-md;
   color: $ink;
   text-decoration: none;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 500;
   transition: background 120ms ease;
 
@@ -84,6 +96,51 @@ $radius-lg: 16px;
     cursor: default;
     &:hover { background: none; }
   }
+}
+
+// REQ-RDT-NAV-02a: sidebar badge on the "Dashboard" item itself, visible from any page (not
+// just while Dashboard is open) — count of initiator dinas with an actionable transaction
+// waiting on my confirmation. Absent entirely at 0 rather than showing "0" (see template *ngIf).
+.nav-badge {
+  margin-left: auto;
+  background: $danger-600;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// REQ-RDT-NAV-02a: "Need to Confirm" / "Own Repost" sub-links nested under the Dashboard item
+// (Figma nodes 1:2/69:209 show them as persistent sidebar sub-links, not a page-level tab strip).
+// margin-left centers the connector line under the Dashboard icon: .nav-link's own 14px left
+// padding + half the 34px .nav-icon width = 31px to the icon's horizontal center, minus 1px for
+// the line's own 2px width (28 Jul request — was 17px, which sat under the "Dashboard" text
+// instead of the icon).
+.nav-subnav {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 4px 30px;
+  padding-left: 16px;
+  border-left: 2px solid $line;
+}
+
+.nav-sublink {
+  display: block;
+  padding: 9px 14px;
+  color: $ink;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: $radius-md;
+
+  &:hover { background: rgba(0, 0, 0, 0.05); }
+  &.active { font-weight: 700; }
 }
 
 .main-area {
