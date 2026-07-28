@@ -309,7 +309,11 @@ input[type="checkbox"]:disabled { cursor:default; }
 @media (max-width:720px){ .main-area{padding:16px 12px 48px;} .counts{gap:14px;}
   .actions.spread{flex-direction:column-reverse; align-items:stretch;} }
 @media (prefers-reduced-motion:reduce){ .btn,.dropzone{transition:none;} }
-.hidden { display:none; }
+/* !important: pre-existing bug found 28 Jul while testing REQ-RDT-LEDGER-10's TAB-only nav item —
+   .sidebar-nav .nav-link's compound selector (specificity 0,2,0) beat plain .hidden (0,1,0), so
+   role-gated nav items (Need Approval, Investigation) never actually hid for non-TAB users
+   despite updateNavVisibility() correctly toggling the class. .hidden is meant to always win. */
+.hidden { display:none !important; }
 </style>
 </head>
 <body>
@@ -367,6 +371,10 @@ input[type="checkbox"]:disabled { cursor:default; }
       <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>Repost</a>
       <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></span>Confirmation</a>
       <a id="nav-need-approval" href="#need-approval" class="nav-link" data-view="need-approval"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>Need Approval</a>
+      <!-- REQ-RDT-LEDGER-10 (27 Jul): TAB-only queue for rows whose dinas signal was the literal
+           "Ask TA" — TAB must manually investigate (Ref.Doc/PO cross-check) and assign the real
+           dinas_target before the row can enter normal confirmation. -->
+      <a id="nav-investigation" href="#investigation" class="nav-link" data-view="investigation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>Investigation</a>
       <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>Guidance Application</span>
       <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Feedback Application</span>
     </nav>
@@ -642,6 +650,23 @@ input[type="checkbox"]:disabled { cursor:default; }
       </div>
     </div>
 
+    <!-- ============ Investigation — REQ-RDT-LEDGER-10, TAB-only "Ask TA" queue ============ -->
+    <div class="view hidden" id="view-investigation">
+      <div class="page-card">
+        <p class="note">Baris di bawah ini punya sinyal dinas "Ask TA" — bukan dinas sungguhan,
+          artinya kepemilikannya AMBIGU dan butuh investigasi manual (cek Ref.Doc/PO, tanya ke
+          dinas terkait) sebelum bisa ditentukan dinas target yang benar. Setelah di-assign, baris
+          masuk status PENDING dengan dinas target baru dan lanjut ke alur konfirmasi normal —
+          dinas barunya yang confirm/decline, BUKAN TAB. Hanya role TAB yang bisa bertindak di sini.</p>
+        <div class="actions">
+          <button class="btn btn-ghost" onclick="loadInvestigationQueue()">Muat ulang antrian</button>
+        </div>
+        <p class="alert alert-error hidden" id="investigation-err"></p>
+        <div id="investigation-list"></div>
+        <p class="note" id="investigation-empty-note"></p>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -745,8 +770,8 @@ function successModal(message) { return showModal(message || 'Selesai!', { check
 // param is now everything after the FIRST colon rejoined as-is (e.g. "#dashboard-detail:TB:TC"
 // -> param "TB:TC") — each view that needs more than one value splits its own param further,
 // rather than parseHash() hardcoding a fixed arity for every view.
-const VIEWS = ['dashboard', 'repost', 'confirmation', 'need-approval', 'dashboard-detail'];
-const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Repost', confirmation: 'Confirmation', 'need-approval': 'Need Approval', 'dashboard-detail': 'Dashboard' };
+const VIEWS = ['dashboard', 'repost', 'confirmation', 'need-approval', 'investigation', 'dashboard-detail'];
+const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Repost', confirmation: 'Confirmation', 'need-approval': 'Need Approval', investigation: 'Investigation', 'dashboard-detail': 'Dashboard' };
 let confirmationFilterDinas = null;
 // ?target (28 Jul bug fix): the REAL queue a "Need to Confirm" card sits under (TAB's own dinas,
 // or 'Corp'/'TA' — neither has a dedicated PIC, REQ-RDT-AUTH-04). Without this, the queue always
@@ -788,6 +813,7 @@ function showView(view, param) {
     loadMyStatus();
   }
   else if (view === 'need-approval') loadExportBatches();
+  else if (view === 'investigation') loadInvestigationQueue();
   else if (view === 'dashboard-detail') {
     const [initiator, target] = (param || '').split(':');
     if (initiator && target) loadDashboardDetail(initiator, target);
@@ -1833,6 +1859,71 @@ function submitExportBatch(id) { batchAction(id, '/submit'); }
 function approveExportBatch(id) { batchAction(id, '/approve'); }
 function exportExportBatch(id) { batchAction(id, '/export'); }
 
+// ---------- Investigation: REQ-RDT-LEDGER-10 TAB-only "Ask TA" queue ----------
+function showInvestigationErr(msg) { const e = $('investigation-err'); e.textContent = msg; e.classList.remove('hidden'); }
+function hideInvestigationErr() { $('investigation-err').classList.add('hidden'); }
+
+async function loadInvestigationQueue() {
+  hideInvestigationErr();
+  $('investigation-empty-note').textContent = '';
+  const user = currentUser();
+  if (!user) { showInvestigationErr('Pilih "Login sebagai" dulu.'); return; }
+  try {
+    const res = await fetch('/api/investigation', { headers: { 'X-Session-Token': user.token } });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'gagal memuat antrian investigasi');
+    await renderInvestigationQueue(j.rows || []);
+  } catch (err) { showInvestigationErr(err.message || String(err)); }
+}
+
+async function renderInvestigationQueue(rows) {
+  const list = $('investigation-list');
+  if (!rows.length) {
+    list.innerHTML = '';
+    $('investigation-empty-note').textContent = 'Tidak ada baris yang menunggu investigasi.';
+    return;
+  }
+  $('investigation-empty-note').textContent = '';
+  const dinasCodes = await getDinasCodes();
+  list.innerHTML = `<div class="tscroll"><table><thead><tr>
+      <th>Dinas Pengaju</th><th>Account</th><th>Ref.Doc</th><th class="num">Nominal</th>
+      <th>Remark</th><th>File Asal</th><th>Assign ke</th><th></th>
+    </tr></thead><tbody>` + rows.map((r) => {
+    const options = dinasCodes.filter((c) => String(c).toUpperCase() !== String(r.dinas_inisiasi || '').toUpperCase())
+      .map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    return `<tr>
+      <td>${esc(r.dinas_inisiasi || '')}</td>
+      <td>${esc(r.account || '')}</td>
+      <td>${esc(r.ref_doc || '')}</td>
+      <td class="num">${fmtNum.format(Number(r.nominal || 0))}</td>
+      <td class="remark" title="${esc(r.remark || '')}">${esc(r.remark || '')}</td>
+      <td>${esc(r.upload_filename || '')}</td>
+      <td><select id="investigation-target-${r.id}"><option value="">Pilih dinas...</option>${options}</select></td>
+      <td><button class="btn btn-primary" onclick="assignInvestigation(${r.id})">Assign</button></td>
+    </tr>`;
+  }).join('') + '</tbody></table></div>';
+}
+
+async function assignInvestigation(id) {
+  const user = currentUser();
+  if (!user) return;
+  const sel = document.getElementById('investigation-target-' + id);
+  const dinasTarget = sel ? sel.value : '';
+  if (!dinasTarget) { await alertModal('Pilih dinas target dulu.'); return; }
+  if (!(await confirmModal(`Assign baris ini ke dinas ${dinasTarget}? Baris akan masuk antrian konfirmasi normal dinas tersebut.`))) return;
+  try {
+    const res = await fetch(`/api/investigation/${id}/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token },
+      body: JSON.stringify({ dinas_target: dinasTarget }),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'assign gagal');
+    await successModal('Baris di-assign ke ' + j.dinas_target);
+    loadInvestigationQueue();
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const submitBtn = $('btn-submit-my-pending');
   if (submitBtn) submitBtn.addEventListener('click', async () => {
@@ -1988,10 +2079,17 @@ function esc(s){ return String(s).replace(/[&<>"']/g,
     const role = user ? user.role : null;
     const canSeeNeedApproval = role === 'TAB';
     $('nav-need-approval').classList.toggle('hidden', !canSeeNeedApproval);
+    // REQ-RDT-LEDGER-10: same TAB-only gate as Need Approval — Investigation is TAB's own queue,
+    // no other role should even see the nav item.
+    const canSeeInvestigation = role === 'TAB';
+    $('nav-investigation').classList.toggle('hidden', !canSeeInvestigation);
     // If the hidden view is currently active, bounce back to Dashboard rather than leaving a
     // role-inappropriate page open.
     const h = parseHash();
     if (h.view === 'need-approval' && !canSeeNeedApproval) {
+      location.hash = 'dashboard';
+    }
+    if (h.view === 'investigation' && !canSeeInvestigation) {
       location.hash = 'dashboard';
     }
   }

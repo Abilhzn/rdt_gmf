@@ -76,17 +76,21 @@ test('parser aggregates match SRS pivot numbers', async () => {
 // (unroutable, invisible to every dinas's confirmation queue forever) instead of being flagged
 // NEEDS_REVIEW like any other unresolvable destination.
 // UPDATE (28 Jul, project owner correction supersedes the 25 Jul SRS 3.1.2 "don't guess" call):
-// TA and "Ask TA" ARE dinas TA (real, distinct dinas_target — NOT 'TAB'; TAB is the admin
-// division and has deliberately no rdt.dinas row, so resolving to it violates
-// transactions_dinas_target_fkey on a real repost, confirmed live 28 Jul). "TA people being
-// staffed by TAB" is an AUTHORIZATION fact (role TAB can act on any dinas, and is the only role
-// staffing TA/Corp's queues since neither has a dedicated PIC — REQ-RDT-AUTH-04), not a reason to
-// rewrite the target value itself — see schema.sql's rdt.dinas seed comment. TMM is a SUB-DINAS
-// of TM, written as TM's own code plus a trailing letter with no separator — the project owner
-// confirmed this "code + suffix" convention is used GMF-wide for sub-dinas, not TJ-specific, so
-// it's implemented generically (resolveSubDinasCode, against the canonical roster in
-// dinas.codes.json) rather than as a one-off TMM->TM alias. No row should be silently unroutable
-// (PENDING with no dinas_target) either way.
+// TA IS dinas TA (real, distinct dinas_target — NOT 'TAB'; TAB is the admin division and has
+// deliberately no rdt.dinas row, so resolving to it violates transactions_dinas_target_fkey on a
+// real repost, confirmed live 28 Jul). "TA people being staffed by TAB" is an AUTHORIZATION fact
+// (role TAB can act on any dinas, and is the only role staffing TA/Corp's queues since neither
+// has a dedicated PIC — REQ-RDT-AUTH-04), not a reason to rewrite the target value itself — see
+// schema.sql's rdt.dinas seed comment. TMM is a SUB-DINAS of TM, written as TM's own code plus a
+// trailing letter with no separator — the project owner confirmed this "code + suffix"
+// convention is used GMF-wide for sub-dinas, not TJ-specific, so it's implemented generically
+// (resolveSubDinasCode, against the canonical roster in dinas.codes.json) rather than as a
+// one-off TMM->TM alias. No row should be silently unroutable (PENDING with no dinas_target)
+// either way.
+// UPDATE (27 Jul, REQ-RDT-LEDGER-10 — "Ask TA" meaning finding, superseding the 28 Jul "TA and
+// Ask TA both resolve to TA" merge): "Ask TA" is NOT dinas TA — it's a signal the row's
+// ownership is ambiguous and needs manual TAB investigation, so it now gets its own
+// NEEDS_INVESTIGATION status (see investigation.test.js) instead of folding into the TA bucket.
 test('parser skips the TJ-TE/TJ-TMM/TJ-Scrap reconciliation sheets and routes everything via the main sheet', async () => {
   const file = path.join(__dirname, '..', '..', 'contoh_input', '06. DT TJ JUN 2026 R1.xlsx');
   const results = await parseExcelFile(file, { uploaderDinas: 'TJ' });
@@ -102,18 +106,22 @@ test('parser skips the TJ-TE/TJ-TMM/TJ-Scrap reconciliation sheets and routes ev
   mainSheetRows.filter((r) => r.status_konfirmasi === 'PENDING').forEach((r) => {
     mainByTarget[r.dinas_target] = Math.round(((mainByTarget[r.dinas_target] || 0) + Number(r.nominal || 0)) * 100) / 100;
   });
-  // TE resolves directly; TA + "Ask TA" both resolve to TA (1653.24 + 40393.29 = 42046.53); TMM
-  // resolves to TM via the sub-dinas suffix rule. Every row now resolves — no NEEDS_REVIEW left.
-  expect(mainByTarget).toEqual({ TE: 84.36, TA: 42046.53, TM: 473933.51 });
+  // TE resolves directly; TA resolves to TA (1653.24 — the 3 ex-"Ask TA" rows, 40393.29, are now
+  // NEEDS_INVESTIGATION, not PENDING, so they're excluded from this PENDING-only aggregation);
+  // TMM resolves to TM via the sub-dinas suffix rule. No NEEDS_REVIEW left.
+  expect(mainByTarget).toEqual({ TE: 84.36, TA: 1653.24, TM: 473933.51 });
   const mainNeedsReview = mainSheetRows.filter((r) => r.status_konfirmasi === 'NEEDS_REVIEW');
   expect(mainNeedsReview.length).toBe(0);
+  const mainNeedsInvestigation = mainSheetRows.filter((r) => r.status_konfirmasi === 'NEEDS_INVESTIGATION');
+  expect(mainNeedsInvestigation.length).toBe(3);
 });
 
-// Task #15 (27 Jul) + 28 Jul dinas-routing correction (project owner confirmed): R1's main sheet
-// must parse to 490/490 DETAIL_ROW rows whose PENDING totals match contoh_input/06. DT TJ -
+// Task #15 (27 Jul) + 28 Jul dinas-routing correction (project owner confirmed) + REQ-RDT-
+// LEDGER-10 (27 Jul, "Ask TA" split out of the TA bucket): R1's main sheet must parse to 490/490
+// DETAIL_ROW rows whose PENDING+NEEDS_INVESTIGATION totals match contoh_input/06. DT TJ -
 // Jun 2026.xlsx's pivot-cache aggregates EXACTLY: TM=473933.51 (475 rows, ex-"TMM" sub-dinas
-// suffix), TA=42046.53 (14 rows: 11 ex-"TA" + 3 ex-"Ask TA"), TE=84.36 (1 row). Grouped by
-// dinas_target now that all four buckets resolve (see the un-guessing test above for why).
+// suffix), TA=1653.24 (11 rows, PENDING), "Ask TA"=40393.29 (3 rows, NEEDS_INVESTIGATION — see
+// investigation.test.js for the dedicated REQ-RDT-LEDGER-10 assertions), TE=84.36 (1 row).
 test('R1 main sheet: full 490-row detail total matches the pivot-cache aggregates exactly', async () => {
   const file = path.join(__dirname, '..', '..', 'contoh_input', '06. DT TJ JUN 2026 R1.xlsx');
   const results = await parseExcelFile(file, { uploaderDinas: 'TJ' });
@@ -134,13 +142,17 @@ test('R1 main sheet: full 490-row detail total matches the pivot-cache aggregate
   expect(round2(tmRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(473933.51, 2);
 
   // TA: 11 rows whose Remarks holds a free-text note ("Scrap. Mohon ditakeout", not a dinas
-  // prefix) fall back to Review TJ="TA" (a real, distinct dinas_target — not TAB), plus 3 rows
-  // whose Remarks is other free text fall back to Review TJ="Ask TA"->TA — together exactly
-  // reproduce the pivot's combined TA+"Ask TA" bucket.
+  // prefix) fall back to Review TJ="TA" (a real, distinct dinas_target — not TAB).
   const taRows = mainSheetRows.filter((r) => r.status_konfirmasi === 'PENDING' && r.dinas_target === 'TA');
-  expect(taRows.length).toBe(14);
-  expect(round2(taRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(42046.53, 2);
+  expect(taRows.length).toBe(11);
+  expect(round2(taRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(1653.24, 2);
 
-  // Nothing left unaccounted for: TE + TM + TA rows must be every row in the sheet.
-  expect(teRows.length + tmRows.length + taRows.length).toBe(490);
+  // "Ask TA": 3 rows whose Remarks falls back to Review TJ="Ask TA" — REQ-RDT-LEDGER-10, gets
+  // NEEDS_INVESTIGATION with no dinas_target, not folded into the TA bucket anymore.
+  const investigationRows = mainSheetRows.filter((r) => r.status_konfirmasi === 'NEEDS_INVESTIGATION');
+  expect(investigationRows.length).toBe(3);
+  expect(round2(investigationRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(40393.29, 2);
+
+  // Nothing left unaccounted for: TE + TM + TA + investigation rows must be every row in the sheet.
+  expect(teRows.length + tmRows.length + taRows.length + investigationRows.length).toBe(490);
 });

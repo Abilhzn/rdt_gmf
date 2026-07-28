@@ -163,8 +163,9 @@ Dua file contoh tambahan dari dinas TJ ternyata mengungkap variasi yang jauh leb
 
 **Kode dinas baru yang ditemukan, BELUM ada di `dinas_mapping`/`rdt.dinas`** — perlu keputusan bisnis sebelum di-hardcode:
 - `TA` — sebelumnya kita anggap sudah pensiun/gabung ke `TAB`, tapi muncul lagi di data nyata sebagai target terpisah.
-- `Ask TA` — ambigu, belum jelas apakah sama dengan `TA` atau kategori lain (kandidat exclusion, mirip `AUAK`/`PO`).
+- `Ask TA` — **SUDAH TERJAWAB 27 Jul**: ini BUKAN dinas, ini penanda "perlu investigasi TAB" — lihat REQ-RDT-LEDGER-10 untuk alur lengkapnya. Jangan dimasukkan ke `dinas_mapping` sebagai dinas biasa.
 - `TMM` — kode 3 huruf, di luar pola 2-huruf (`TB`–`TU`) yang selama ini diasumsikan sebagai roster 20 dinas.
+- `TZ` **(baru 27 Jul)** — muncul sebagai hasil investigasi kasus "Ask TA" (lihat contoh di REQ-RDT-LEDGER-10), kode 2 huruf tapi di luar rentang alfabet `TB`–`TU` yang diasumsikan sebelumnya. Sama seperti `TMM`, ini kode dinas asli yang masih perlu ditambahkan ke roster resmi.
 
 > **Untuk coding agent**: JANGAN menebak sendiri arti `TA`/`Ask TA`/`TMM` dan langsung menambahkannya ke `dinas_mapping`/`rdt.dinas` — ini pertanyaan bisnis yang masih menunggu jawaban pemilik proyek, bukan keputusan teknis. Untuk sementara, biarkan kode-kode ini masuk status `NEEDS_REVIEW` (REQ-RDT-EXT-01 sudah mendefinisikan status ini untuk prefix tak dikenal) alih-alih ditolak total atau ditebak mapping-nya.
 
@@ -192,6 +193,12 @@ Mesin status (state machine) double-entry: dinas target memvalidasi tagihan.
   > **Trade-off yang disetujui pemilik proyek**: karena file asli tidak dipisah per dinas, file yang diunduh berisi data SEMUA dinas dalam upload itu, bukan cuma bagian dinas pengunduh — lebih luas dari yang mereka lihat di dalam aplikasi (REQ-RDT-LEDGER-01). Ini diterima karena setara dengan proses email manual sebelumnya (file yang sama sudah biasa dikirim utuh ke banyak dinas sekaligus).
   > Kalau satu antrian konfirmasi mengacu ke lebih dari satu file upload (mis. dari bulan/periode berbeda): tampilkan beberapa tombol download sederhana (satu per upload, label nama file/tanggal), TIDAK perlu endpoint/UI pemilihan terpisah — cukup daftar tombol langsung di halaman.
   > Akses ke tombol download ini tunduk pada otorisasi yang sama dengan halaman Confirmation itu sendiri (REQ-RDT-LEDGER-06, REQ-RDT-AUTH-04/05) — bukan celah baru untuk role yang sudah dibatasi.
+- `REQ-RDT-LEDGER-10` **(baru 27 Jul, temuan makna "Ask TA")**: Kolom pivot `Ask TA` (lihat 3.1.2) BUKAN dinas target sungguhan — itu penanda transaksi yang kepemilikan dinas-nya AMBIGU dari data saja, butuh investigasi manual TAB (cross-check `Ref. Doc.`/PO, tanya ke dinas terkait) sebelum bisa ditentukan dinas_target yang benar. Ini beda dari `NEEDS_REVIEW` biasa (yang sekali dipetakan di mapping table beres selamanya) — "Ask TA" butuh keputusan kasus-per-kasus setiap muncul, gak bisa digeneralisasi jadi satu aturan mapping.
+  - Baris dengan sinyal dinas_target = `"Ask TA"` (dari kolom Remarks/Review-style manapun, lihat REQ-RDT-EXT-02/EXT-09) mendapat status baru **`NEEDS_INVESTIGATION`**, BUKAN `PENDING` dan BUKAN `NEEDS_REVIEW`.
+  - Baris berstatus `NEEDS_INVESTIGATION` masuk ke **antrian terpisah khusus role TAB** (bukan antrian konfirmasi dinas manapun) — PIC dinas lain TIDAK melihat baris ini sampai TAB menentukan arahnya.
+  - Aksi TAB atas baris ini BUKAN Confirm/Reject — tapi **assign dinas_target yang benar** (reuse mekanisme redirect/reassignment yang sudah ada di `reassignment.js`). Begitu di-assign, baris pindah jadi `PENDING` dengan `dinas_target` baru hasil investigasi, `reassigned_from` diisi `'Ask TA'`, lalu masuk alur konfirmasi NORMAL (dinas yang baru ditentukan itu yang confirm/decline, BUKAN TAB).
+  - Tercatat di audit log dengan action baru `INVESTIGATION_RESOLVED`.
+  - Contoh nyata dari pemilik proyek (dinas TJ, Jun 2026): satu baris "Ask TA" ternyata dari `Ref. Doc.` menunjukkan PO milik `TZ` (kode dinas baru, belum ada di roster — lihat 3.1.2). TAB konfirmasi ke TZ, TZ bilang "itu barangnya beli kami, tapi yang kerjain TJ" — TAB akhirnya assign baris itu ke `TZ`. Ini contoh kasus di mana jawaban investigasi TIDAK selalu jelas/satu jawaban tunggal (ada nuance "yang beli vs yang kerjain") — keputusan akhir tetap di tangan TAB sebagai manusia, sistem cuma memfasilitasi routing-nya, JANGAN dibuat otomatis menebak.
 
 ### 3.3 SAP Flattening Gatekeeper
 

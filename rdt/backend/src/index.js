@@ -23,6 +23,7 @@ const exportBatchesRouter = require('./routes/exportBatches');
 const dashboardRouter = require('./routes/dashboard');
 const uploadsRouter = require('./routes/uploads');
 const notificationsRouter = require('./routes/notifications');
+const investigationRouter = require('./routes/investigation');
 const { requireUser } = require('./middleware/auth');
 const { loadDirectory } = require('./dataUserClient');
 const { Client } = require('pg');
@@ -474,6 +475,7 @@ app.use('/api/export-batches', exportBatchesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/uploads', uploadsRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/investigation', investigationRouter);
 
 // Bug fix (live testing, 24 Jul): multer/busboy errors (e.g. MulterError on a field exceeding
 // its size limit) are thrown INSIDE the upload.single(...) middleware, before any route

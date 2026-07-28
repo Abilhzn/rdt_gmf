@@ -189,10 +189,16 @@ function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas,
       status = 'EXCLUDED';
     }
 
-    const mapped = mapping[rawPrefix] || mapping[rawPrefix.toLowerCase()] || mapping[rawPrefix.toUpperCase()];
+    // REQ-RDT-LEDGER-10: same "Ask TA" exact-string carve-out as buildDetailRow — this is the
+    // same literal pivot column that appears in the real file (see SRS 3.1.2), just reached via
+    // the jalur-2 pivot-only fallback instead of a live detail sheet's Remarks/Review columns.
+    const isAskTaInvestigation = rawPrefix.trim() === 'Ask TA';
+    const mapped = isAskTaInvestigation ? null : (mapping[rawPrefix] || mapping[rawPrefix.toLowerCase()] || mapping[rawPrefix.toUpperCase()]);
     let dinasTarget = null;
     let reason_if_invalid = null;
-    if (mapped) {
+    if (isAskTaInvestigation) {
+      if (status === 'PENDING') status = 'NEEDS_INVESTIGATION';
+    } else if (mapped) {
       dinasTarget = mapped;
     } else {
       const rp = rawPrefix.toUpperCase();
@@ -237,9 +243,19 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
   // can't change TB's (or any Remarks-routed dinas's) already-verified behavior.
   const prefixFromReview = !rawPrefix && !!reviewRaw;
   if (prefixFromReview) rawPrefix = String(reviewRaw).trim();
+  // REQ-RDT-LEDGER-10 (27 Jul): the exact string "Ask TA" is NOT a dinas — it's a signal the
+  // row's ownership is ambiguous and needs manual TAB investigation (see
+  // routes/investigation.js), a different concept from NEEDS_REVIEW's "unmapped code, decide the
+  // mapping once and it's fixed forever". Checked on the raw prefix exactly as-is (whichever
+  // source it came from — Remarks or the Review-column fallback, buildDetailRow doesn't care),
+  // BEFORE mapping/allowedCodes/sub-dinas resolution runs, so it never gets routed like a normal
+  // dinas. Do NOT generalize this to other "Ask <code>" values without project owner
+  // confirmation — see rdt/docs/SRS.md REQ-RDT-LEDGER-10.
+  const isAskTaInvestigation = !!rawPrefix && rawPrefix.trim() === 'Ask TA';
+
   let dinasTarget = null;
   let mapped = null;
-  if (rawPrefix) {
+  if (!isAskTaInvestigation && rawPrefix) {
     mapped = mapping[rawPrefix] || mapping[rawPrefix.toLowerCase()] || mapping[rawPrefix.toUpperCase()];
     if (mapped) dinasTarget = mapped;
   }
@@ -258,7 +274,11 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
   }
 
   let reason_if_invalid = null;
-  if (rawPrefix && !mapped) {
+  if (isAskTaInvestigation) {
+    // Only overrides the default PENDING — EXCLUDED (self-repost/exclusion-list) and INVALID
+    // (bad nominal) above still win, same precedence as every other status branch here.
+    if (status === 'PENDING') status = 'NEEDS_INVESTIGATION';
+  } else if (rawPrefix && !mapped) {
     const rp = rawPrefix.toUpperCase();
     const subDinasBase = resolveSubDinasCode(rp, dinasCodes);
     if (allowedCodes.has(rp)) {
@@ -272,21 +292,29 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
       // Remarks-derived value didn't resolve — before giving up, retry via the "Review <dinas>"
       // column if present. Still never overrides a Remarks value that DID resolve.
       const reviewFallbackRaw = !prefixFromReview && reviewRaw ? String(reviewRaw).trim() : null;
-      let resolvedFromReview = null;
-      if (reviewFallbackRaw) {
-        const reviewMapped = mapping[reviewFallbackRaw] || mapping[reviewFallbackRaw.toLowerCase()] || mapping[reviewFallbackRaw.toUpperCase()];
-        const reviewUpper = reviewFallbackRaw.toUpperCase();
-        resolvedFromReview = reviewMapped
-          || (allowedCodes.has(reviewUpper) ? reviewUpper : null)
-          || resolveSubDinasCode(reviewUpper, dinasCodes);
-      }
-      if (resolvedFromReview) {
-        dinasTarget = resolvedFromReview;
+      // REQ-RDT-LEDGER-10: the exact same "Ask TA" carve-out applies here — a row whose Remarks
+      // is unrelated free text (so it fails the mapping/allowedCodes/sub-dinas checks above) but
+      // whose Review-column fallback is literally "Ask TA" is still an investigation signal, not
+      // an unmapped-code NEEDS_REVIEW case.
+      if (reviewFallbackRaw === 'Ask TA') {
+        status = 'NEEDS_INVESTIGATION';
       } else {
-        status = 'NEEDS_REVIEW';
-        reason_if_invalid = prefixFromReview
-          ? `Unknown Review value: ${rawPrefix}`
-          : `Unknown prefix: ${rawPrefix}`;
+        let resolvedFromReview = null;
+        if (reviewFallbackRaw) {
+          const reviewMapped = mapping[reviewFallbackRaw] || mapping[reviewFallbackRaw.toLowerCase()] || mapping[reviewFallbackRaw.toUpperCase()];
+          const reviewUpper = reviewFallbackRaw.toUpperCase();
+          resolvedFromReview = reviewMapped
+            || (allowedCodes.has(reviewUpper) ? reviewUpper : null)
+            || resolveSubDinasCode(reviewUpper, dinasCodes);
+        }
+        if (resolvedFromReview) {
+          dinasTarget = resolvedFromReview;
+        } else {
+          status = 'NEEDS_REVIEW';
+          reason_if_invalid = prefixFromReview
+            ? `Unknown Review value: ${rawPrefix}`
+            : `Unknown prefix: ${rawPrefix}`;
+        }
       }
     }
   } else if (!rawPrefix && status !== 'INVALID') {
