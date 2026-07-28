@@ -39,7 +39,7 @@ $danger-600: #b3261e;
   padding: 20px 14px;
   box-sizing: border-box;
 
-  &__logo { max-width: 100%; height: auto; margin: 0 0 6px; display: block; }
+  &__logo { max-width: 100%; height: auto; margin: 0 0 18px; display: block; }
 
   &__subtitle {
     color: $accent;
@@ -185,6 +185,9 @@ $danger-600: #b3261e;
   border: none;
   cursor: pointer;
   font-family: inherit;
+
+  // Lucide bell icon (28 Jul, replaces the 🔔 emoji), blue like the rest of the icon set.
+  .notif-bell-icon { width: 20px; height: 20px; flex: 0 0 auto; color: $accent; }
 
   &::before {
     content: '';

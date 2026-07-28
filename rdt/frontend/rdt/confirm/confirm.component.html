@@ -10,23 +10,14 @@
     <button class="btn btn--primary" type="button" (click)="submitDecisions()" *ngIf="pendingRows.length">Submit</button>
   </div>
 
-  <div class="checkbox-legend" *ngIf="pendingRows.length">
-    <span><input type="checkbox" checked disabled /> Confirm</span>
-    <span><input type="checkbox" disabled /> Reject</span>
-  </div>
-
-  <label class="batch-note-label" *ngIf="pendingRows.length">
-    Deskripsi (opsional)
-    <textarea class="batch-note" [(ngModel)]="confirmDescription" rows="2"
-      placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"></textarea>
-  </label>
-
   <p class="alert alert--error" *ngIf="statusError">{{ statusError }}</p>
 
-  <!-- Project owner request (28 Jul): show the pair's existing discussion BEFORE the
-       transaction list, so the confirming user has context before deciding Ya/Tidak per row.
-       Read-only (posting/replying stays on Dashboard-Detailing, reached via goToThreadDetail). -->
-  <section class="card" *ngIf="showThread">
+  <!-- Project owner request (28 Jul, reordered 28 Jul per follow-up feedback — thread ABOVE the
+       Deskripsi box, not below): show the pair's existing discussion before the Deskripsi
+       textarea AND the transaction list, so the confirming user has context before deciding
+       Ya/Tidak per row. Read-only (posting/replying stays on Dashboard-Detailing, reached via
+       goToThreadDetail). -->
+  <section class="card thread-card" *ngIf="showThread">
     <h2>Diskusi {{ filterFromDinas }} → {{ selectedTarget }}</h2>
     <div>
       <div
@@ -47,6 +38,17 @@
       <button class="btn btn--link" type="button" (click)="goToThreadDetail()">Lihat &amp; balas di Dashboard-Detailing →</button>
     </div>
   </section>
+
+  <div class="checkbox-legend" *ngIf="pendingRows.length">
+    <span><input type="checkbox" checked disabled /> Confirm</span>
+    <span><input type="checkbox" disabled /> Reject</span>
+  </div>
+
+  <label class="batch-note-label" *ngIf="pendingRows.length">
+    Deskripsi (opsional)
+    <textarea class="batch-note" [(ngModel)]="confirmDescription" rows="2"
+      placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"></textarea>
+  </label>
 
   <div class="just-declined" *ngIf="justDeclined.length">
     <h3 class="card__subtitle">Baru saja ditolak, balik ke pengaju ({{ justDeclined.length }})</h3>

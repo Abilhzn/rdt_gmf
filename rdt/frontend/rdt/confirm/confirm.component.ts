@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { combineLatest } from 'rxjs';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { ConfirmationService, PendingRow, ConfirmationClaim, DeclinedOutcomeRow, RedirectedOutcomeRow, triggerBlobDownload } from '../services/confirmation.service';
 import { ReassignmentService, DeclinedRow } from '../services/reassignment.service';
@@ -101,10 +102,19 @@ export class ConfirmComponent implements OnInit {
     private modal: ModalService,
   ) {}
 
+  // BUG FIX (28 Jul, found while verifying the thread-reorder change): user$ and queryParamMap
+  // used to be two SEPARATE subscriptions, each independently calling resolveDinasAndLoad() on
+  // init. Since user$ (a BehaviorSubject) fires synchronously the moment it's subscribed —
+  // BEFORE the queryParamMap subscription two lines down even exists yet — that first call
+  // always ran with filterFromDinas/filterTargetDinas still at their unset defaults, firing an
+  // HTTP request for the WRONG queue (the viewer's own dinas, not the one linked to). Whichever
+  // of the two requests happened to resolve LAST won, so the pending table was empty or wrong
+  // roughly half the time depending on network timing — exactly the intermittent "no rows" bug
+  // reported live. combineLatest fires once per actual change with BOTH inputs already current,
+  // so there's only ever one load in flight for a given (user, params) combination.
   ngOnInit(): void {
     this.dinasService.getActiveDinas().subscribe((d) => (this.dinasOptions = d));
-    this.currentUser.user$.subscribe(() => this.resolveDinasAndLoad());
-    this.route.queryParamMap.subscribe((params) => {
+    combineLatest([this.currentUser.user$, this.route.queryParamMap]).subscribe(([, params]) => {
       this.filterFromDinas = params.get('from');
       this.filterTargetDinas = params.get('target');
       this.resolveDinasAndLoad();

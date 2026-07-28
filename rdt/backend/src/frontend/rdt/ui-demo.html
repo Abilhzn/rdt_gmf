@@ -154,7 +154,7 @@ details.settings textarea { width:100%; font:12px/1.5 Consolas,monospace;
    flex-basis as a percentage, not a fixed px, bounded so it stays usable at any viewport width. */
 .sidebar { flex:0 0 23.4%; min-width:220px; max-width:420px; background:var(--page-bg); min-height:100vh;
   display:flex; flex-direction:column; padding:20px 14px; box-sizing:border-box; }
-.sidebar-logo { max-width:100%; height:auto; margin:0 0 6px; display:block; }
+.sidebar-logo { max-width:100%; height:auto; margin:0 0 18px; display:block; }
 .sidebar-subtitle { color:var(--accent); font-size:11px; font-weight:700; letter-spacing:.1em;
   text-transform:uppercase; text-align:center; margin:0 0 22px; }
 /* Sizes bumped up a notch (28 Jul, project owner request) — nav-link/nav-icon/font-size all a
@@ -377,7 +377,7 @@ input[type="checkbox"]:disabled { cursor:default; }
       <h1 class="page-title" id="page-title">Dashboard</h1>
       <div class="topbar-user">
         <div class="user-menu-wrap">
-          <button class="user-badge" id="notif-bell" type="button" onclick="toggleNotifMenu()">🔔 <span id="notif-count"></span></button>
+          <button class="user-badge" id="notif-bell" type="button" onclick="toggleNotifMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;flex:0 0 auto"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg> <span id="notif-count"></span></button>
           <div class="user-menu hidden" id="notif-menu" style="min-width:320px">
             <div id="notif-list"></div>
             <p class="note" id="notif-empty">Tidak ada notifikasi.</p>
@@ -568,15 +568,14 @@ input[type="checkbox"]:disabled { cursor:default; }
           </label>
           <button class="btn btn-primary" id="btn-submit-my-pending">Submit</button>
         </div>
-        <div id="mp-legend"></div>
-        <p class="alert alert-error hidden" id="my-status-err"></p>
-
-        <!-- Project owner request (28 Jul): show the pair's existing discussion BEFORE the
-             transaction list, so the confirming user has context before deciding Ya/Tidak per
-             row. Read-only here (posting/replying stays on Dashboard-Detailing, reached via the
-             link below) — only shown when the queue is filtered to one specific (initiator,
-             target) pair, since "Semua dinas" has no single thread to show. -->
-        <section class="card hidden" id="mp-thread-wrap">
+        <!-- Project owner request (28 Jul, reordered 28 Jul per follow-up feedback — thread
+             ABOVE the Deskripsi box, not below): show the pair's existing discussion before the
+             Deskripsi textarea AND the transaction list, so the confirming user has context
+             before deciding Ya/Tidak per row. Read-only here (posting/replying stays on
+             Dashboard-Detailing, reached via the link below) — only shown when the queue is
+             filtered to one specific (initiator, target) pair, since "Semua dinas" has no single
+             thread to show. -->
+        <section class="card hidden" id="mp-thread-wrap" style="margin-bottom:20px">
           <h2>Diskusi <span id="mp-thread-badge"></span></h2>
           <div id="mp-thread"></div>
           <p class="note" id="mp-thread-empty">Belum ada komentar pada pasangan dinas ini.</p>
@@ -584,6 +583,9 @@ input[type="checkbox"]:disabled { cursor:default; }
             <button class="btn-link" type="button" id="mp-thread-goto">Lihat &amp; balas di Dashboard-Detailing →</button>
           </div>
         </section>
+
+        <div id="mp-legend"></div>
+        <p class="alert alert-error hidden" id="my-status-err"></p>
 
         <div class="just-declined hidden" id="just-declined-wrap">
           <h3>Baru saja ditolak, balik ke pengaju</h3>

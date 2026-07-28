@@ -89,6 +89,10 @@ $radius-md: 8px;
   h2 { margin: 0 0 14px; font-size: 16px; font-weight: 700; color: $ink; }
 }
 
+// Extra breathing room now that the thread sits directly above the Confirm/Reject legend +
+// Deskripsi box (reordered 28 Jul per follow-up feedback).
+.thread-card { margin-bottom: 20px; }
+
 .card__actions { margin-top: 14px; display: flex; gap: 10px; }
 
 .thread-comment {
