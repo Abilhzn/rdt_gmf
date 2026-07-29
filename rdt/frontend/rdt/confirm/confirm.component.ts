@@ -8,6 +8,7 @@ import { DinasService, DinasEntry } from '../services/dinas.service';
 import { ModalService } from '../services/modal.service';
 import { DashboardDetailService } from '../services/dashboard-detail.service';
 import { Comment } from '../services/comment.model';
+import { InvestigationService, InvestigationRow } from '../services/investigation.service';
 
 interface PendingRowVm extends PendingRow {
   checked: boolean;
@@ -91,6 +92,15 @@ export class ConfirmComponent implements OnInit {
   threadRows: ThreadRow[] = [];
   threadLoaded = false;
 
+  // REQ-RDT-LEDGER-10 restructure (29 Jul, project owner request): Investigation/Ask TA folded
+  // into Confirmation as a third TAB-only sub-tab (was a standalone InvestigationComponent/route
+  // before) — same "swap the whole normal-queue section for a differently-shaped queue" approach
+  // as ui-demo.html's ground truth. selectedTarget === 'INVESTIGATION' is the sentinel (not a
+  // real dinas code, driven by the shell sidebar's sub-nav via ?target=INVESTIGATION).
+  isInvestigation = false;
+  investigationRows: InvestigationRow[] = [];
+  investigationTargetByRowId: Record<number, string> = {};
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -99,6 +109,7 @@ export class ConfirmComponent implements OnInit {
     private reassignment: ReassignmentService,
     private dinasService: DinasService,
     private dashboardDetail: DashboardDetailService,
+    private investigation: InvestigationService,
     private modal: ModalService,
   ) {}
 
@@ -124,24 +135,22 @@ export class ConfirmComponent implements OnInit {
   private resolveDinasAndLoad(): void {
     const user = this.currentUser.current;
     this.dinas = user?.dinas || '';
-    // ?target= overrides the default "my own dinas" queue — see filterTargetDinas's comment.
-    this.selectedTarget = this.filterTargetDinas || this.dinas;
+    // ?target= overrides the default queue — set by the shell sidebar's TA/Corp/Investigation
+    // sub-nav (TAB-only). Without it: TAB defaults to the 'TA' sub-tab (dinas_target can never
+    // literally be 'TAB' — see schema.sql's rdt.dinas seed comment — so falling back to
+    // this.dinas would always show an empty queue for TAB); a plain PIC defaults to their own.
+    if (this.filterTargetDinas) {
+      this.selectedTarget = this.filterTargetDinas;
+    } else if (user) {
+      this.selectedTarget = user.role === 'TAB' ? 'TA' : this.dinas;
+    }
     if (this.dinas) this.loadStatus();
-  }
-
-  get targetOptions(): string[] {
-    const role = this.currentUser.current?.role;
-    if (role === 'TAB') return [this.dinas, 'Corp', 'TA'];
-    return [this.dinas];
-  }
-
-  onTargetChange(): void {
-    this.loadStatus();
   }
 
   get badgeText(): string {
     const user = this.currentUser.current;
     if (!user) return 'Belum login';
+    if (this.isInvestigation) return 'Investigation / Ask TA';
     const from = this.filterFromDinas || 'Semua dinas';
     const target = this.selectedTarget === this.dinas ? user.display_name : this.selectedTarget;
     return `${from} → ${target}`;
@@ -155,6 +164,13 @@ export class ConfirmComponent implements OnInit {
     this.justRedirected = [];
     this.confirmDescription = '';
     this.page = 1;
+
+    this.isInvestigation = this.selectedTarget === 'INVESTIGATION';
+    if (this.isInvestigation) {
+      this.loadInvestigation();
+      return;
+    }
+
     this.loadThread();
     if (!this.selectedTarget) return;
     this.confirmation.getPending(this.selectedTarget).subscribe({
@@ -171,6 +187,32 @@ export class ConfirmComponent implements OnInit {
     this.reassignment.getDeclined(this.dinas).subscribe({
       next: (rows) => { this.declinedRows = rows; this.maybeSetEmptyNote(); },
       error: (err) => { this.statusError = err?.message || 'Gagal memuat data declined'; },
+    });
+  }
+
+  // ---------- Investigation/Ask TA sub-tab (REQ-RDT-LEDGER-10) ----------
+  loadInvestigation(): void {
+    this.investigation.list().subscribe({
+      next: (rows) => { this.investigationRows = rows; },
+      error: (err) => { this.statusError = err?.message || 'Gagal memuat antrian investigasi'; },
+    });
+  }
+
+  investigationDinasOptionsFor(row: InvestigationRow): DinasEntry[] {
+    return this.dinasOptions.filter((d) => d.code.toUpperCase() !== String(row.dinas_inisiasi || '').toUpperCase());
+  }
+
+  async assignInvestigation(row: InvestigationRow): Promise<void> {
+    const target = this.investigationTargetByRowId[row.id];
+    if (!target) { await this.modal.alert('Pilih dinas target dulu.'); return; }
+    const ok = await this.modal.confirm(`Assign baris ini ke dinas ${target}? Baris akan masuk antrian konfirmasi normal dinas tersebut.`);
+    if (!ok) return;
+    this.investigation.assign(row.id, target).subscribe({
+      next: async (dinasTarget) => {
+        await this.modal.success('Baris di-assign ke ' + dinasTarget);
+        this.loadInvestigation();
+      },
+      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
     });
   }
 

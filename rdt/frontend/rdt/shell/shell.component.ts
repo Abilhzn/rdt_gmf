@@ -11,7 +11,6 @@ const PAGE_TITLES: Record<string, string> = {
   repost: 'Repost',
   confirm: 'Confirmation',
   'need-approval': 'Need Approval',
-  investigation: 'Investigation',
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
@@ -38,6 +37,9 @@ export class ShellComponent implements OnInit {
   // 'need' as a harmless default, matching HomeComponent's own default).
   needToConfirmCount = 0;
   dashboardSubview: 'need' | 'own' = 'need';
+  // REQ-RDT-LEDGER-10 restructure (29 Jul): Confirmation's TAB-only sub-nav (TA/Corp/
+  // Investigation), same pattern as dashboardSubview above.
+  confirmSubTarget: 'TA' | 'Corp' | 'INVESTIGATION' = 'TA';
 
   constructor(
     public currentUser: CurrentUserService,
@@ -78,6 +80,9 @@ export class ShellComponent implements OnInit {
         const sub = this.route.firstChild?.firstChild?.snapshot.queryParamMap.get('sub');
         this.dashboardSubview = sub === 'own' ? 'own' : 'need';
         this.loadDashboardBadge();
+      } else if (segment === 'confirm') {
+        const target = this.route.firstChild?.firstChild?.snapshot.queryParamMap.get('target');
+        this.confirmSubTarget = target === 'Corp' || target === 'INVESTIGATION' ? target : 'TA';
       }
     });
     this.loadNotifCount();
@@ -102,10 +107,11 @@ export class ShellComponent implements OnInit {
     return this.currentUser.current?.role === 'TAB';
   }
 
-  // REQ-RDT-LEDGER-10 — same TAB-only gate as Need Approval: Investigation is TAB's own "Ask TA"
-  // queue, no other role should see the nav item (backend's requireRole('TAB') is the real
+  // REQ-RDT-LEDGER-10 restructure (29 Jul): TA/Corp/Investigation sub-nav under Confirmation is
+  // TAB-only, same gate Need Approval already used — a plain PIC only ever has their own single
+  // queue, no sub-nav needed (backend's requireRole('TAB') on /api/investigation is the real
   // enforcement either way, this is just UI-level nav visibility).
-  get canSeeInvestigation(): boolean {
+  get canSeeConfirmSubnav(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 

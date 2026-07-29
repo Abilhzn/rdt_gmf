@@ -369,12 +369,20 @@ input[type="checkbox"]:disabled { cursor:default; }
         </div>
       </div>
       <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>Repost</a>
-      <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></span>Confirmation</a>
+      <div class="nav-group">
+        <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></span>Confirmation</a>
+        <!-- REQ-RDT-LEDGER-10 restructure (29 Jul, project owner request): TAB-only sub-nav,
+             styled like Dashboard's Need-to-Confirm/Own-Repost — TA/Corp are TAB's two no-PIC
+             queues (REQ-RDT-AUTH-04), and Investigation/Ask TA (formerly its own top-level nav
+             item) is folded in here too, to save sidebar space. Hidden by default, shown only for
+             role TAB (see updateNavVisibility()). -->
+        <div class="nav-subnav hidden" id="confirm-subnav">
+          <a href="#confirmation::TA" class="nav-sublink" data-confirm-target="TA">TA</a>
+          <a href="#confirmation::Corp" class="nav-sublink" data-confirm-target="Corp">Corp</a>
+          <a href="#confirmation::INVESTIGATION" class="nav-sublink" data-confirm-target="INVESTIGATION">Investigation/Ask TA</a>
+        </div>
+      </div>
       <a id="nav-need-approval" href="#need-approval" class="nav-link" data-view="need-approval"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>Need Approval</a>
-      <!-- REQ-RDT-LEDGER-10 (27 Jul): TAB-only queue for rows whose dinas signal was the literal
-           "Ask TA" — TAB must manually investigate (Ref.Doc/PO cross-check) and assign the real
-           dinas_target before the row can enter normal confirmation. -->
-      <a id="nav-investigation" href="#investigation" class="nav-link" data-view="investigation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>Investigation</a>
       <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>Guidance Application</span>
       <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Feedback Application</span>
     </nav>
@@ -571,60 +579,78 @@ input[type="checkbox"]:disabled { cursor:default; }
       <div class="page-card">
         <div class="view-header-row">
           <div class="context-badge" id="confirming-user-badge">Belum login</div>
-          <label class="target-picker hidden" id="confirm-target-picker">Antrian
-            <select id="confirm-target-select"></select>
-          </label>
           <button class="btn btn-primary" id="btn-submit-my-pending">Submit</button>
         </div>
-        <!-- Project owner request (28 Jul, reordered 28 Jul per follow-up feedback — thread
-             ABOVE the Deskripsi box, not below): show the pair's existing discussion before the
-             Deskripsi textarea AND the transaction list, so the confirming user has context
-             before deciding Ya/Tidak per row. Read-only here (posting/replying stays on
-             Dashboard-Detailing, reached via the link below) — only shown when the queue is
-             filtered to one specific (initiator, target) pair, since "Semua dinas" has no single
-             thread to show. -->
-        <section class="card hidden" id="mp-thread-wrap" style="margin-bottom:20px">
-          <h2>Diskusi <span id="mp-thread-badge"></span></h2>
-          <div id="mp-thread"></div>
-          <p class="note" id="mp-thread-empty">Belum ada komentar pada pasangan dinas ini.</p>
+
+        <div id="confirm-normal-wrap">
+          <!-- Project owner request (28 Jul, reordered 28 Jul per follow-up feedback — thread
+               ABOVE the Deskripsi box, not below): show the pair's existing discussion before the
+               Deskripsi textarea AND the transaction list, so the confirming user has context
+               before deciding Ya/Tidak per row. Read-only here (posting/replying stays on
+               Dashboard-Detailing, reached via the link below) — only shown when the queue is
+               filtered to one specific (initiator, target) pair, since "Semua dinas" has no single
+               thread to show. -->
+          <section class="card hidden" id="mp-thread-wrap" style="margin-bottom:20px">
+            <h2>Diskusi <span id="mp-thread-badge"></span></h2>
+            <div id="mp-thread"></div>
+            <p class="note" id="mp-thread-empty">Belum ada komentar pada pasangan dinas ini.</p>
+            <div class="actions">
+              <button class="btn-link" type="button" id="mp-thread-goto">Lihat &amp; balas di Dashboard-Detailing →</button>
+            </div>
+          </section>
+
+          <div id="mp-legend"></div>
+          <p class="alert alert-error hidden" id="my-status-err"></p>
+
+          <div class="just-declined hidden" id="just-declined-wrap">
+            <h3>Baru saja ditolak, balik ke pengaju</h3>
+            <p class="note">Item ini dikembalikan ke dinas pengaju untuk ditindaklanjuti (Tanggung Sendiri / Ajukan ulang).</p>
+            <ul class="just-declined__list" id="just-declined-list"></ul>
+          </div>
+
+          <div class="just-declined hidden" id="just-redirected-wrap">
+            <h3>Baru saja ditolak, langsung diarahkan</h3>
+            <ul class="just-declined__list" id="just-redirected-list"></ul>
+          </div>
+
+          <div id="my-pending-wrap" class="hidden">
+            <!-- REQ-RDT-LEDGER-09: one button per source upload — filled in by renderMpPage(). -->
+            <div class="original-file-downloads" id="mp-downloads"></div>
+            <div id="my-pending-list"></div>
+            <div class="pager" id="mp-pager"></div>
+          </div>
+
+          <section class="hidden" id="my-declined-wrap" style="margin-top:20px">
+            <h3>Perlu keputusan Anda (DECLINED oleh dinas target)</h3>
+            <p class="note">Tentukan tujuan tiap baris dulu, lalu klik "Confirm All" untuk menyelesaikan
+              semuanya sekaligus — atau pakai tombol per-baris untuk menyelesaikan satu per satu.</p>
+            <div id="my-declined-list"></div>
+            <div class="batch-resolve-footer">
+              <label class="batch-note-label">Keterangan (opsional)
+                <textarea class="batch-note" id="batch-resolve-note" rows="2" placeholder="Catatan tambahan untuk keputusan ini..."></textarea>
+              </label>
+              <button class="btn btn-primary" id="btn-confirm-all-declined">Confirm All</button>
+            </div>
+          </section>
+        </div>
+
+        <!-- REQ-RDT-LEDGER-10 restructure (29 Jul): Investigation/Ask TA sub-tab content, was a
+             standalone view (view-investigation) before — folded into Confirmation as a third
+             TAB-only sub-nav choice alongside TA/Corp. Toggled by loadMyStatus() when
+             selectedConfirmTarget === 'INVESTIGATION'. -->
+        <div class="hidden" id="confirm-investigation-wrap">
+          <p class="note">Baris di bawah ini punya sinyal dinas "Ask TA" — bukan dinas sungguhan,
+            artinya kepemilikannya AMBIGU dan butuh investigasi manual (cek Ref.Doc/PO, tanya ke
+            dinas terkait) sebelum bisa ditentukan dinas target yang benar. Setelah di-assign, baris
+            masuk status PENDING dengan dinas target baru dan lanjut ke alur konfirmasi normal —
+            dinas barunya yang confirm/decline, BUKAN TAB. Hanya role TAB yang bisa bertindak di sini.</p>
           <div class="actions">
-            <button class="btn-link" type="button" id="mp-thread-goto">Lihat &amp; balas di Dashboard-Detailing →</button>
+            <button class="btn btn-ghost" onclick="loadInvestigationQueue()">Muat ulang antrian</button>
           </div>
-        </section>
-
-        <div id="mp-legend"></div>
-        <p class="alert alert-error hidden" id="my-status-err"></p>
-
-        <div class="just-declined hidden" id="just-declined-wrap">
-          <h3>Baru saja ditolak, balik ke pengaju</h3>
-          <p class="note">Item ini dikembalikan ke dinas pengaju untuk ditindaklanjuti (Tanggung Sendiri / Ajukan ulang).</p>
-          <ul class="just-declined__list" id="just-declined-list"></ul>
+          <p class="alert alert-error hidden" id="investigation-err"></p>
+          <div id="investigation-list"></div>
+          <p class="note" id="investigation-empty-note"></p>
         </div>
-
-        <div class="just-declined hidden" id="just-redirected-wrap">
-          <h3>Baru saja ditolak, langsung diarahkan</h3>
-          <ul class="just-declined__list" id="just-redirected-list"></ul>
-        </div>
-
-        <div id="my-pending-wrap" class="hidden">
-          <!-- REQ-RDT-LEDGER-09: one button per source upload — filled in by renderMpPage(). -->
-          <div class="original-file-downloads" id="mp-downloads"></div>
-          <div id="my-pending-list"></div>
-          <div class="pager" id="mp-pager"></div>
-        </div>
-
-        <section class="hidden" id="my-declined-wrap" style="margin-top:20px">
-          <h3>Perlu keputusan Anda (DECLINED oleh dinas target)</h3>
-          <p class="note">Tentukan tujuan tiap baris dulu, lalu klik "Confirm All" untuk menyelesaikan
-            semuanya sekaligus — atau pakai tombol per-baris untuk menyelesaikan satu per satu.</p>
-          <div id="my-declined-list"></div>
-          <div class="batch-resolve-footer">
-            <label class="batch-note-label">Keterangan (opsional)
-              <textarea class="batch-note" id="batch-resolve-note" rows="2" placeholder="Catatan tambahan untuk keputusan ini..."></textarea>
-            </label>
-            <button class="btn btn-primary" id="btn-confirm-all-declined">Confirm All</button>
-          </div>
-        </section>
 
         <p class="note" id="confirmation-empty-note" style="margin-top:12px"></p>
       </div>
@@ -647,23 +673,6 @@ input[type="checkbox"]:disabled { cursor:default; }
         </div>
         <p class="alert alert-error hidden" id="export-batches-err"></p>
         <div id="export-batches-list"></div>
-      </div>
-    </div>
-
-    <!-- ============ Investigation — REQ-RDT-LEDGER-10, TAB-only "Ask TA" queue ============ -->
-    <div class="view hidden" id="view-investigation">
-      <div class="page-card">
-        <p class="note">Baris di bawah ini punya sinyal dinas "Ask TA" — bukan dinas sungguhan,
-          artinya kepemilikannya AMBIGU dan butuh investigasi manual (cek Ref.Doc/PO, tanya ke
-          dinas terkait) sebelum bisa ditentukan dinas target yang benar. Setelah di-assign, baris
-          masuk status PENDING dengan dinas target baru dan lanjut ke alur konfirmasi normal —
-          dinas barunya yang confirm/decline, BUKAN TAB. Hanya role TAB yang bisa bertindak di sini.</p>
-        <div class="actions">
-          <button class="btn btn-ghost" onclick="loadInvestigationQueue()">Muat ulang antrian</button>
-        </div>
-        <p class="alert alert-error hidden" id="investigation-err"></p>
-        <div id="investigation-list"></div>
-        <p class="note" id="investigation-empty-note"></p>
       </div>
     </div>
 
@@ -770,8 +779,8 @@ function successModal(message) { return showModal(message || 'Selesai!', { check
 // param is now everything after the FIRST colon rejoined as-is (e.g. "#dashboard-detail:TB:TC"
 // -> param "TB:TC") — each view that needs more than one value splits its own param further,
 // rather than parseHash() hardcoding a fixed arity for every view.
-const VIEWS = ['dashboard', 'repost', 'confirmation', 'need-approval', 'investigation', 'dashboard-detail'];
-const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Repost', confirmation: 'Confirmation', 'need-approval': 'Need Approval', investigation: 'Investigation', 'dashboard-detail': 'Dashboard' };
+const VIEWS = ['dashboard', 'repost', 'confirmation', 'need-approval', 'dashboard-detail'];
+const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Repost', confirmation: 'Confirmation', 'need-approval': 'Need Approval', 'dashboard-detail': 'Dashboard' };
 let confirmationFilterDinas = null;
 // ?target (28 Jul bug fix): the REAL queue a "Need to Confirm" card sits under (TAB's own dinas,
 // or 'Corp'/'TA' — neither has a dedicated PIC, REQ-RDT-AUTH-04). Without this, the queue always
@@ -809,11 +818,21 @@ function showView(view, param) {
     const [initiator, target] = (param || '').split(':');
     confirmationFilterDinas = initiator || null;
     confirmationFilterTargetDinas = target || null;
-    selectedConfirmTarget = confirmationFilterTargetDinas || selectedConfirmTarget;
+    // REQ-RDT-LEDGER-10 restructure (29 Jul): no more dropdown — the sidebar sub-nav (TA/Corp/
+    // Investigation, TAB-only) drives selectedConfirmTarget via an explicit target param
+    // (e.g. "#confirmation::TA"). A plain PIC never gets a target param at all, so they default
+    // to their own dinas; a bare "#confirmation" for TAB defaults to the first sub-tab (TA),
+    // matching Dashboard's "Need to Confirm" default-tab pattern.
+    const user = currentUser();
+    if (confirmationFilterTargetDinas) {
+      selectedConfirmTarget = confirmationFilterTargetDinas;
+    } else if (user) {
+      selectedConfirmTarget = user.role === 'TAB' ? 'TA' : user.dinas;
+    }
+    document.querySelectorAll('#confirm-subnav .nav-sublink').forEach((a) => a.classList.toggle('active', a.dataset.confirmTarget === selectedConfirmTarget));
     loadMyStatus();
   }
   else if (view === 'need-approval') loadExportBatches();
-  else if (view === 'investigation') loadInvestigationQueue();
   else if (view === 'dashboard-detail') {
     const [initiator, target] = (param || '').split(':');
     if (initiator && target) loadDashboardDetail(initiator, target);
@@ -1464,30 +1483,11 @@ function hideMyStatusErr() { $('my-status-err').classList.add('hidden'); }
 // their own dinas.
 let selectedConfirmTarget = null;
 
-function confirmTargetOptions(user) {
-  if (!user) return [];
-  // 'TA' added 28 Jul alongside 'Corp' — TAB staffs both queues too (neither has a dedicated
-  // PIC, REQ-RDT-AUTH-04); see schema.sql's rdt.dinas seed comment for why 'TA' is a real,
-  // distinct dinas_target.
-  if (user.role === 'TAB') return [user.dinas, 'Corp', 'TA'];
-  return [user.dinas];
-}
-
-function updateConfirmTargetPicker() {
-  const user = currentUser();
-  const picker = $('confirm-target-picker');
-  const sel = $('confirm-target-select');
-  const opts = confirmTargetOptions(user);
-  if (!user || opts.length < 2) { picker.classList.add('hidden'); selectedConfirmTarget = user ? user.dinas : null; return; }
-  picker.classList.remove('hidden');
-  if (!selectedConfirmTarget || !opts.includes(selectedConfirmTarget)) selectedConfirmTarget = user.dinas;
-  sel.innerHTML = opts.map((o) => `<option value="${esc(o)}"${o === selectedConfirmTarget ? ' selected' : ''}>${esc(o)}</option>`).join('');
-}
-
 function updateConfirmationBadge() {
   const user = currentUser();
   const badge = $('confirming-user-badge');
   if (!user) { badge.textContent = 'Belum login'; return; }
+  if (selectedConfirmTarget === 'INVESTIGATION') { badge.textContent = 'Investigation / Ask TA'; return; }
   // Show the raw target code (Corp/TA) unless we're looking at the viewer's OWN literal dinas
   // queue, in which case their display name reads better than repeating their own code.
   const target = selectedConfirmTarget === user.dinas ? user.display_name : selectedConfirmTarget;
@@ -1520,10 +1520,19 @@ async function loadMpThread() {
 async function loadMyStatus() {
   hideMyStatusErr();
   const user = currentUser();
-  updateConfirmTargetPicker();
   updateConfirmationBadge();
-  loadMpThread();
   $('confirmation-empty-note').textContent = '';
+
+  // REQ-RDT-LEDGER-10 restructure (29 Jul): the Investigation/Ask TA sub-tab shares this view but
+  // has a completely different shape (assign-a-dinas, not Ya/Tidak) — swap the whole normal-queue
+  // section out for the investigation queue instead of trying to unify the two data shapes.
+  const isInvestigation = selectedConfirmTarget === 'INVESTIGATION';
+  $('confirm-investigation-wrap').classList.toggle('hidden', !isInvestigation);
+  $('confirm-normal-wrap').classList.toggle('hidden', isInvestigation);
+  $('btn-submit-my-pending').classList.toggle('hidden', isInvestigation);
+  if (isInvestigation) { loadInvestigationQueue(); return; }
+
+  loadMpThread();
   // Bug found via user report: only just-declined-wrap was reset here — just-redirected-wrap
   // stayed visible forever once shown once, leaking one user's "baru saja ditolak" content into
   // whichever other user/dinas loaded the Confirmation view next (e.g. after switching "Login
@@ -1558,12 +1567,6 @@ async function loadMyStatus() {
     showMyStatusErr(err.message || String(err));
   }
 }
-
-$('confirm-target-select').addEventListener('change', (e) => {
-  selectedConfirmTarget = e.target.value;
-  updateConfirmationBadge();
-  loadMyStatus();
-});
 
 // Single checkbox per row (checked = Confirm, unchecked = Reject) + Select All, per the
 // updated Figma. Every visible row gets submitted on Submit (checked->YA, unchecked->TIDAK)
@@ -2079,17 +2082,14 @@ function esc(s){ return String(s).replace(/[&<>"']/g,
     const role = user ? user.role : null;
     const canSeeNeedApproval = role === 'TAB';
     $('nav-need-approval').classList.toggle('hidden', !canSeeNeedApproval);
-    // REQ-RDT-LEDGER-10: same TAB-only gate as Need Approval — Investigation is TAB's own queue,
-    // no other role should even see the nav item.
-    const canSeeInvestigation = role === 'TAB';
-    $('nav-investigation').classList.toggle('hidden', !canSeeInvestigation);
+    // REQ-RDT-LEDGER-10 restructure (29 Jul): TA/Corp/Investigation sub-nav under Confirmation is
+    // TAB-only, same gate Need Approval already used — a plain PIC only ever has their own single
+    // queue, no sub-nav needed.
+    $('confirm-subnav').classList.toggle('hidden', role !== 'TAB');
     // If the hidden view is currently active, bounce back to Dashboard rather than leaving a
     // role-inappropriate page open.
     const h = parseHash();
     if (h.view === 'need-approval' && !canSeeNeedApproval) {
-      location.hash = 'dashboard';
-    }
-    if (h.view === 'investigation' && !canSeeInvestigation) {
       location.hash = 'dashboard';
     }
   }

@@ -30,7 +30,6 @@ const routes: Routes = [
       { path: 'repost', component: RepostBudgetingComponent },
       { path: 'confirm', loadChildren: () => import('./confirm/confirm.module').then(m => m.ConfirmModule) },
       { path: 'need-approval', loadChildren: () => import('./need-approval/need-approval.module').then(m => m.NeedApprovalModule) },
-      { path: 'investigation', loadChildren: () => import('./investigation/investigation.module').then(m => m.InvestigationModule) },
       { path: 'admin', loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule) },
     ],
   },
