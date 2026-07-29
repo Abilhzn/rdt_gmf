@@ -247,6 +247,12 @@ CREATE INDEX IF NOT EXISTS idx_audit_user ON rdt.audit_log (user_id);
 -- transaction targeting one of the other 14 would have failed on the dinas_target FK the
 -- moment it was inserted. Every dinas below has (or will have) its own PIC login except TA/Corp,
 -- the two target values with no dedicated PIC (handled by role TAB, see auth.js comment).
+-- NOTE (29 Jul 2026): the codes/names below are the ORIGINAL synthetic placeholder roster
+-- (literally "T" + each letter A-U sequentially, guessed before the real org structure was
+-- available) — left as-is here per this file's own "don't edit retroactively" rule (see header).
+-- The real roster (correct codes + GH names, from struktur-dinas-gmf.png) is applied on top by
+-- sql/migrations/005_real_dinas_roster.sql — that migration, not this block, is the current
+-- source of truth for what rdt.dinas actually contains.
 INSERT INTO rdt.dinas (code, name) VALUES
   ('TA','Dinas TA'),
   ('TB','Dinas TB'), ('TC','Dinas TC'), ('TD','Dinas TD'), ('TE','Dinas TE'),
