@@ -35,7 +35,7 @@
       <p class="note" *ngIf="loaded && !needToConfirm.length">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>
       <div class="pair-card-list">
         <ng-container *ngFor="let d of needToConfirm">
-          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: d.dinas + ' → ' + (d.target_dinas || myDinas || ''), clickable: true, kind: 'need' }"></ng-container>
+          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('need', d), clickable: true, kind: 'need' }"></ng-container>
         </ng-container>
       </div>
     </div>
@@ -53,14 +53,15 @@
       <p class="note" *ngIf="isGlobalView">
         Progress pengajuan dari SETIAP dinas yang pernah repost, lintas seluruh sistem —
         bukan cuma pengajuan Anda sendiri (Anda login sebagai TAB, yang tidak mengajukan
-        repost). Klik "Muat ulang" untuk menyegarkan.
+        repost). Klik salah satu kartu untuk melihat siapa yang belum konfirmasi / urusannya
+        belum selesai.
       </p>
       <p class="note" *ngIf="loaded && !asInitiator.length">
         {{ isGlobalView ? 'Belum ada dinas yang mengajukan repost.' : 'Anda belum mengajukan repost apapun.' }}
       </p>
       <div class="pair-card-list">
         <ng-container *ngFor="let d of asInitiator">
-          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: isGlobalView ? d.dinas : ((myDinas || '') + ' → ' + d.dinas), clickable: !isGlobalView, kind: 'own' }"></ng-container>
+          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('own', d), clickable: true, kind: 'own' }"></ng-container>
         </ng-container>
       </div>
     </div>

@@ -200,13 +200,38 @@ Mesin status (state machine) double-entry: dinas target memvalidasi tagihan.
   - Tercatat di audit log dengan action baru `INVESTIGATION_RESOLVED`.
   - Contoh nyata dari pemilik proyek (dinas TJ, Jun 2026): satu baris "Ask TA" ternyata dari `Ref. Doc.` menunjukkan PO milik `TZ` (kode dinas baru, belum ada di roster — lihat 3.1.2). TAB konfirmasi ke TZ, TZ bilang "itu barangnya beli kami, tapi yang kerjain TJ" — TAB akhirnya assign baris itu ke `TZ`. Ini contoh kasus di mana jawaban investigasi TIDAK selalu jelas/satu jawaban tunggal (ada nuance "yang beli vs yang kerjain") — keputusan akhir tetap di tangan TAB sebagai manusia, sistem cuma memfasilitasi routing-nya, JANGAN dibuat otomatis menebak.
 
-### 3.3 SAP Flattening Gatekeeper
+### 3.3 SAP Flattening Gatekeeper / Need Approval
 
 **Priority:** High
 
 Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjadi matriks SAP.
 
-> **UPDATE 20 Jul** — sebelum export, data final harus melewati **approval berjenjang dinas TA**: Senior Manager lalu Group Head (level batch, tabel `rdt.export_batches`: DRAFT → WAITING_SM → WAITING_GH → APPROVED → EXPORTED). Export hanya bisa dieksekusi pada batch berstatus APPROVED.
+> **UPDATE 24 Jul** — approval berjenjang SM→GH sudah **dihapus** (role-nya sendiri udah
+> gak ada, lihat REQ-RDT-AUTH-05). Implementasi SEKARANG (`routes/exportBatches.js`,
+> sudah jalan & di-test): satu batch GLOBAL dibuat TAB, gate submit-nya "tidak ada
+> transaksi PENDING/DECLINED/NEEDS_REVIEW **di seluruh sistem**" (bukan per dinas),
+> nyantol SEMUA transaksi CONFIRMED/BORNE_BY_INITIATOR yang belum ke-batch, approve
+> sekali oleh TAB, lalu export (masih STUB — belum ada template kolom SAP asli).
+>
+> **DRAFT BARU 27 Jul (BELUM FINAL, deskripsi pemilik proyek masih akan diperjelas
+> lebih lanjut)** — pemilik proyek ingin model ini direvisi jadi **per pasangan
+> dinas** (dinas pengaju × dinas diaju), BUKAN satu batch global:
+> - Setiap pasangan yang SEMUA transaksinya sudah CONFIRMED (100%, tidak ada
+>   PENDING/DECLINED tersisa untuk pasangan itu) di-acc TAB SECARA TERPISAH per
+>   pasangan — bukan digabung nunggu SEMUA pasangan di seluruh sistem selesai
+>   dulu seperti gate global sekarang.
+> - Output: **satu file Excel per pasangan** (mis. TJ mengajukan ke TM dan ke TC
+>   secara terpisah → dua file keluar: `TJ-TM` dan `TJ-TC`), bukan satu file
+>   gabungan semua pasangan.
+> - Format file: **belum ditentukan** — sementara pakai bentuk tabel detail ala
+>   pivot table (baris = transaksi, kolom = kontrak data), TAPI cuma yang sudah
+>   CONFIRMED yang masuk (bukan semua transaksi di pasangan itu).
+> - **Ini masih draft** — pemilik proyek eksplisit bilang deskripsi ini belum
+>   lengkap dan akan diperjelas lebih lanjut. JANGAN implementasi penuh dari draft
+>   ini dulu tanpa konfirmasi ulang — terutama soal: apakah readiness gate
+>   per-pasangan ini menggantikan gate global yang sekarang, atau jalan berdampingan;
+>   apa yang terjadi kalau satu dinas pengaju punya BANYAK pasangan (batch otomatis
+>   per pasangan begitu 100%, atau tetap manual TAB yang trigger satu-satu?).
 
 **Functional Requirements**
 - `REQ-RDT-SAP-01`: Sistem harus menjalankan pengecekan status (`COUNT(*) WHERE status = 'PENDING'`) sebelum mengizinkan ekspor.

@@ -78,6 +78,13 @@ export class DashboardDetailComponent implements OnInit {
     });
   }
 
+  // REQ-RDT-LEDGER-10 (29 Jul): the 'INVESTIGATION' sentinel (see dashboard.js's
+  // fetchInvestigationCounts) shouldn't leak its raw code into the UI — same label the
+  // Confirmation sub-nav and Dashboard pair cards already use.
+  get targetLabel(): string {
+    return this.targetDinas === 'INVESTIGATION' ? 'Investigation/Ask TA' : this.targetDinas;
+  }
+
   get replyCountLabel(): string {
     const total = this.progress?.total ?? 0;
     return `${this.threadRows.length} reply · ${total} transaksi`;

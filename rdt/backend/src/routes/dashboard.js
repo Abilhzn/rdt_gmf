@@ -81,11 +81,52 @@ async function fetchReplyCounts(client, transactionIds) {
   return map;
 }
 
+// REQ-RDT-LEDGER-10 dashboard visibility (29 Jul, project owner request): NEEDS_INVESTIGATION
+// rows have dinas_target=NULL, so they never appear in any of the pair-grouped queries above —
+// invisible everywhere until now. Surfaced as a synthetic pseudo-card with the sentinel
+// target_dinas='INVESTIGATION' (never a real dinas code, so it can't collide) wherever a real
+// dinas's own submissions would otherwise show, so (a) the uploading dinas can verify the
+// backend actually recognized their "Ask TA" rows (via Own Repost -> Dashboard-Detailing), and
+// (b) TAB sees it needs action (via Need to Confirm). percent is always 0 — by definition
+// nothing is "resolved" while still awaiting investigation.
+async function fetchInvestigationCounts(client, initiatorDinas) {
+  const whereParts = [`status_konfirmasi = 'NEEDS_INVESTIGATION'`];
+  const params = [];
+  if (initiatorDinas) {
+    whereParts.push(`dinas_inisiasi = $${params.length + 1}`);
+    params.push(initiatorDinas);
+  }
+  const res = await client.query(
+    `SELECT id, dinas_inisiasi FROM rdt.transactions WHERE ${whereParts.join(' AND ')}`,
+    params
+  );
+  const replyCounts = await fetchReplyCounts(client, res.rows.map((r) => r.id));
+  const byDinas = {};
+  for (const row of res.rows) {
+    if (!byDinas[row.dinas_inisiasi]) byDinas[row.dinas_inisiasi] = { total: 0, reply_count: 0 };
+    byDinas[row.dinas_inisiasi].total += 1;
+    byDinas[row.dinas_inisiasi].reply_count += replyCounts[row.id] || 0;
+  }
+  return Object.keys(byDinas).sort().map((dinas) => ({
+    dinas,
+    target_dinas: 'INVESTIGATION',
+    total: byDinas[dinas].total,
+    resolved: 0,
+    percent: 0,
+    declined_pending_action: 0,
+    reply_count: byDinas[dinas].reply_count,
+  }));
+}
+
 // groupBy: 'target' groups each transaction under its ORIGINAL target dinas — the first dinas
 // it was ever sent to (chainMap[t.id][0], recorded chronologically by fetchReassignChainMap),
 // falling back to its current dinas_target if it was never redirected — used for the personal
-// as_initiator view. 'initiator' groups by dinas_inisiasi, which never changes on reassignment,
-// so no chain lookup is needed there — used for the TAB global view.
+// as_initiator view (one fixed initiatorDinas, so grouping by target alone already means "one
+// card per pair"). 'pair' groups by (dinas_inisiasi, original target) instead — used for TAB's
+// global as_initiator view (29 Jul restructure, replacing the old 'initiator'-only grouping that
+// deliberately blocked drill-down — see HomeComponent.goToDetail's old "scope cut, not an
+// oversight" note, now lifted): TAB has many initiators, so collapsing by initiator alone hid
+// which specific target dinas within each initiator's submissions was still outstanding.
 //
 // UPDATE (28 Jul, bug report): this used to bump EVERY dinas in the chain (both the original
 // target AND every redirect target) as separate top-level card keys — reported live as "abis
@@ -109,16 +150,13 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   );
   const transactions = txRes.rows;
 
-  let chainMap = {}; // transaction id -> [dinas codes it passed through before its current target]
-  if (groupBy === 'target') {
-    const reassignedIds = transactions.filter((t) => t.reassign_count > 0).map((t) => t.id);
-    chainMap = await fetchReassignChainMap(client, reassignedIds);
-  }
+  const reassignedIds = transactions.filter((t) => t.reassign_count > 0).map((t) => t.id);
+  const chainMap = await fetchReassignChainMap(client, reassignedIds);
   const replyCounts = await fetchReplyCounts(client, transactions.map((t) => t.id));
 
-  const agg = {}; // dinas code -> { total, resolved, declined_pending_action, reply_count }
-  const bump = (key, resolved, declinedPending, replyCount) => {
-    if (!agg[key]) agg[key] = { total: 0, resolved: 0, declined_pending_action: 0, reply_count: 0 };
+  const agg = {}; // key -> { dinasInisiasi, target, total, resolved, declined_pending_action, reply_count }
+  const bump = (key, dinasInisiasi, target, resolved, declinedPending, replyCount) => {
+    if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, declined_pending_action: 0, reply_count: 0 };
     agg[key].total += 1;
     if (resolved) agg[key].resolved += 1;
     if (declinedPending) agg[key].declined_pending_action += 1;
@@ -128,26 +166,35 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     const resolved = RESOLVED_STATUSES.includes(t.status_konfirmasi);
     const declinedPending = t.status_konfirmasi === 'DECLINED';
     const replyCount = replyCounts[t.id] || 0;
-    if (groupBy === 'target') {
-      const chain = chainMap[t.id] || [];
-      const originalTarget = chain.length > 0 ? chain[0] : t.dinas_target;
-      bump(originalTarget, resolved, declinedPending, replyCount);
-    } else {
-      bump(t.dinas_inisiasi, resolved, declinedPending, replyCount);
-    }
+    const chain = chainMap[t.id] || [];
+    const originalTarget = chain.length > 0 ? chain[0] : t.dinas_target;
+    const key = groupBy === 'pair' ? `${t.dinas_inisiasi} ${originalTarget}` : originalTarget;
+    bump(key, t.dinas_inisiasi, originalTarget, resolved, declinedPending, replyCount);
   }
 
-  return Object.keys(agg).sort().map((dinas) => {
-    const a = agg[dinas];
-    return {
-      dinas,
+  const rows = Object.keys(agg).sort().map((key) => {
+    const a = agg[key];
+    const base = {
       total: a.total,
       resolved: a.resolved,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       declined_pending_action: a.declined_pending_action,
       reply_count: a.reply_count,
     };
+    return groupBy === 'pair'
+      ? { dinas: a.dinasInisiasi, target_dinas: a.target, ...base }
+      : { dinas: a.target, ...base };
   });
+
+  // See fetchInvestigationCounts's header comment.
+  const investigationRows = await fetchInvestigationCounts(client, groupBy === 'pair' ? null : initiatorDinas);
+  if (groupBy === 'pair') {
+    rows.push(...investigationRows);
+  } else if (investigationRows.length) {
+    const r = investigationRows[0];
+    rows.push({ dinas: 'INVESTIGATION', total: r.total, resolved: 0, percent: 0, declined_pending_action: 0, reply_count: r.reply_count });
+  }
+  return rows;
 }
 
 // "Need to Confirm" rich cards (28 Jul, Figma nodes 1:2/69:209): percent + reply count per
@@ -164,7 +211,12 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
 // right one — reported live as "muncul di dashboard tapi ga bisa di-confirm, defaultnya salah
 // antrian". Now grouped by (dinas_inisiasi, dinas_target) PAIR so every card names its real
 // target and the frontend can route straight to the correct queue.
-async function buildNeedToConfirmProgress(client, targetDinasCodes) {
+// includeInvestigation (29 Jul, project owner request): NEEDS_INVESTIGATION rows need TAB
+// action too ("itu bagian yang harus dikonfirmasi") — appended as pseudo-cards via
+// fetchInvestigationCounts, same sentinel target_dinas='INVESTIGATION' used everywhere else on
+// this page. Only ever true for the TAB call site (see /summary below) — a plain PIC's
+// Need-to-Confirm view has nothing to do with investigation, that's TAB's queue alone.
+async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInvestigation) {
   const txRes = await client.query(
     `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi
      FROM rdt.transactions t
@@ -185,7 +237,7 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes) {
     if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) agg[key].resolved += 1;
     agg[key].reply_count += replyCounts[t.id] || 0;
   }
-  return Object.keys(agg).sort().map((key) => {
+  const rows = Object.keys(agg).sort().map((key) => {
     const a = agg[key];
     return {
       dinas: a.dinas,
@@ -196,6 +248,8 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes) {
       reply_count: a.reply_count,
     };
   });
+  if (includeInvestigation) rows.push(...(await fetchInvestigationCounts(client, null)));
+  return rows;
 }
 
 // REQ-RDT-NAV-03 (Dashboard-Detailing): every transaction initiated by `initiatorDinas` whose
@@ -203,6 +257,18 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes) {
 // `targetDinas` — same "once you're in the chain, you stay counted" rule buildChainAwareProgress
 // uses for the pair's own progress numbers, so the transaction list and the percent agree.
 async function getPairTransactions(client, initiatorDinas, targetDinas) {
+  // REQ-RDT-LEDGER-10 (29 Jul): the sentinel target 'INVESTIGATION' has no real dinas_target to
+  // chain-resolve (these rows are dinas_target IS NULL by definition, awaiting TAB's assign) —
+  // a plain status filter instead of the chain logic below, so the uploading dinas (and TAB) can
+  // see them in Dashboard-Detailing before they're ever routed anywhere real.
+  if (String(targetDinas).toUpperCase() === 'INVESTIGATION') {
+    const invRes = await client.query(
+      `SELECT id, account, nominal, status_konfirmasi, ref_doc, remark, dinas_target, reassign_count
+       FROM rdt.transactions WHERE dinas_inisiasi=$1 AND status_konfirmasi='NEEDS_INVESTIGATION'`,
+      [initiatorDinas]
+    );
+    return invRes.rows;
+  }
   const txRes = await client.query(
     `SELECT id, account, nominal, status_konfirmasi, ref_doc, remark, dinas_target, reassign_count
      FROM rdt.transactions WHERE dinas_inisiasi=$1 AND dinas_target IS NOT NULL AND status_konfirmasi = ANY($2)`,
@@ -378,7 +444,7 @@ function needToConfirmTargetCodes(myDinas, isTabStaff) {
 // /need-to-confirm-count (REQ-RDT-NAV-02a's sidebar badge, called on every page load) so that
 // route stays a single cheap DISTINCT query instead of paying for buildNeedToConfirmProgress's
 // per-transaction reply-count join just to get a count.
-async function fetchNeedToConfirmDinas(client, targetDinasCodes) {
+async function fetchNeedToConfirmDinas(client, targetDinasCodes, includeInvestigation) {
   const res = await client.query(
     `SELECT DISTINCT t.dinas_inisiasi AS dinas
      FROM rdt.transactions t
@@ -389,7 +455,14 @@ async function fetchNeedToConfirmDinas(client, targetDinasCodes) {
      ORDER BY dinas`,
     [targetDinasCodes, ACTIONABLE_STATUSES]
   );
-  return res.rows.map((r) => r.dinas);
+  const dinasList = res.rows.map((r) => r.dinas);
+  // Same badge-count parity as buildNeedToConfirmProgress's includeInvestigation — counts as one
+  // more "needs my attention" entry for TAB if there's at least one row awaiting investigation.
+  if (includeInvestigation) {
+    const invRes = await client.query(`SELECT 1 FROM rdt.transactions WHERE status_konfirmasi='NEEDS_INVESTIGATION' LIMIT 1`);
+    if (invRes.rows.length) dinasList.push('INVESTIGATION');
+  }
+  return dinasList;
 }
 
 router.get('/summary', async (req, res) => {
@@ -401,11 +474,11 @@ router.get('/summary', async (req, res) => {
     await client.connect();
 
     const asInitiator = isTabStaff
-      ? await buildChainAwareProgress(client, { initiatorDinas: null, groupBy: 'initiator' })
+      ? await buildChainAwareProgress(client, { initiatorDinas: null, groupBy: 'pair' })
       : await buildChainAwareProgress(client, { initiatorDinas: myDinas, groupBy: 'target' });
     // Rich per-pair cards (percent + reply count), not just the bare dinas-code list — see
     // buildNeedToConfirmProgress's header comment (Figma nodes 1:2/69:209, 28 Jul).
-    const needToConfirm = await buildNeedToConfirmProgress(client, needToConfirmTargetCodes(myDinas, isTabStaff));
+    const needToConfirm = await buildNeedToConfirmProgress(client, needToConfirmTargetCodes(myDinas, isTabStaff), isTabStaff);
 
     res.json({ ok: true, own_dinas: myDinas, as_initiator: asInitiator, need_to_confirm: needToConfirm, is_global_view: isTabStaff });
   } catch (err) {
@@ -427,7 +500,7 @@ router.get('/need-to-confirm-count', async (req, res) => {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    const needToConfirm = await fetchNeedToConfirmDinas(client, needToConfirmTargetCodes(myDinas, isTabStaff));
+    const needToConfirm = await fetchNeedToConfirmDinas(client, needToConfirmTargetCodes(myDinas, isTabStaff), isTabStaff);
     res.json({ ok: true, count: needToConfirm.length });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });

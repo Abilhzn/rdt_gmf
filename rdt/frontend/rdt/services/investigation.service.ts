@@ -37,16 +37,32 @@ export class InvestigationService {
       }));
   }
 
-  assign(transactionId: number, dinasTarget: string): Observable<string> {
+  assign(transactionId: number, dinasTarget: string, description?: string): Observable<string> {
     return this.http
       .post<{ ok: boolean; dinas_target: string; error?: string }>(
         `${this.base}/${transactionId}/assign`,
-        { dinas_target: dinasTarget },
+        { dinas_target: dinasTarget, description },
         { headers: this.currentUser.authHeaders() },
       )
       .pipe(map((res) => {
         if (!res.ok) throw new Error(res.error || 'assign gagal');
         return res.dinas_target;
+      }));
+  }
+
+  // REQ-RDT-LEDGER-10 batch action (29 Jul, project owner request) — same "assign one-by-one or
+  // all at once" shape as Confirmation's declined-row batch resolve. The backend independently
+  // enforces the all-or-nothing rule (every item must already have a target) — see
+  // routes/investigation.js's assign-all header comment — this isn't just a UI nicety.
+  assignAll(items: { transaction_id: number; dinas_target: string }[], description?: string): Observable<void> {
+    return this.http
+      .post<{ ok: boolean; error?: string }>(
+        `${this.base}/assign-all`,
+        { items, description },
+        { headers: this.currentUser.authHeaders() },
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'assign all gagal');
       }));
   }
 }

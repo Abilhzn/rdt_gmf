@@ -169,39 +169,55 @@
       <button class="btn btn--ghost" type="button" (click)="loadInvestigation()">Muat ulang antrian</button>
     </div>
     <p class="note" *ngIf="!investigationRows.length">Tidak ada baris yang menunggu investigasi.</p>
-    <div class="table-scroll" *ngIf="investigationRows.length">
-      <table class="rows">
-        <thead>
-          <tr>
-            <th>Dinas Pengaju</th>
-            <th>Account</th>
-            <th>Ref.Doc</th>
-            <th class="rows__num">Nominal</th>
-            <th>Remark</th>
-            <th>File Asal</th>
-            <th>Assign ke</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let r of investigationRows">
-            <td>{{ r.dinas_inisiasi }}</td>
-            <td>{{ r.account }}</td>
-            <td>{{ r.ref_doc }}</td>
-            <td class="rows__num">{{ r.nominal | number: '1.2-2' }}</td>
-            <td class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
-            <td>{{ r.upload_filename }}</td>
-            <td>
-              <select [(ngModel)]="investigationTargetByRowId[r.id]">
-                <option value="">Pilih dinas...</option>
-                <option *ngFor="let d of investigationDinasOptionsFor(r)" [value]="d.code">{{ d.code }}</option>
-              </select>
-            </td>
-            <td><button class="btn btn--primary" type="button" (click)="assignInvestigation(r)">Assign</button></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <ng-container *ngIf="investigationRows.length">
+      <label class="batch-note-label">
+        Keterangan (opsional)
+        <textarea class="batch-note" [(ngModel)]="investigationDescription" rows="2"
+          placeholder="Kenapa baris ini di-assign ke dinas yang dipilih... akan muncul sebagai komentar di Dashboard-Detailing pasangan dinas tersebut"></textarea>
+      </label>
+      <div class="table-scroll">
+        <table class="rows">
+          <thead>
+            <tr>
+              <th>Dinas Pengaju</th>
+              <th>Account</th>
+              <th>Ref.Doc</th>
+              <th class="rows__num">Nominal</th>
+              <th>Remark</th>
+              <th>File Asal</th>
+              <th>Assign ke</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of investigationRows">
+              <td>{{ r.dinas_inisiasi }}</td>
+              <td>{{ r.account }}</td>
+              <td>{{ r.ref_doc }}</td>
+              <td class="rows__num">{{ r.nominal | number: '1.2-2' }}</td>
+              <td class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
+              <td>{{ r.upload_filename }}</td>
+              <td>
+                <select [(ngModel)]="investigationTargetByRowId[r.id]">
+                  <option value="">Pilih dinas...</option>
+                  <option *ngFor="let d of investigationDinasOptionsFor(r)" [value]="d.code">{{ d.code }}</option>
+                </select>
+              </td>
+              <td><button class="btn btn--primary" type="button" (click)="assignInvestigation(r)">Assign</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="batch-resolve-footer">
+        <button
+          class="btn btn--primary"
+          type="button"
+          [disabled]="!canAssignAllInvestigation()"
+          [title]="canAssignAllInvestigation() ? '' : 'Pilih dinas target untuk setiap baris dulu'"
+          (click)="assignAllInvestigation()"
+        >Assign All ({{ investigationRows.length }})</button>
+      </div>
+    </ng-container>
   </ng-container>
 
   <p class="note" *ngIf="emptyNote && !isInvestigation">{{ emptyNote }}</p>

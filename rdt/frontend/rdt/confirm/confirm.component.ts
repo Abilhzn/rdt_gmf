@@ -100,6 +100,10 @@ export class ConfirmComponent implements OnInit {
   isInvestigation = false;
   investigationRows: InvestigationRow[] = [];
   investigationTargetByRowId: Record<number, string> = {};
+  /** Optional note explaining why each row went to its chosen dinas — same comment system as
+   * Repost, posted on the newly-assigned pair's Dashboard-Detailing thread (see
+   * routes/investigation.js's postPairComment). */
+  investigationDescription = '';
 
   constructor(
     private route: ActivatedRoute,
@@ -192,6 +196,7 @@ export class ConfirmComponent implements OnInit {
 
   // ---------- Investigation/Ask TA sub-tab (REQ-RDT-LEDGER-10) ----------
   loadInvestigation(): void {
+    this.investigationDescription = '';
     this.investigation.list().subscribe({
       next: (rows) => { this.investigationRows = rows; },
       error: (err) => { this.statusError = err?.message || 'Gagal memuat antrian investigasi'; },
@@ -207,9 +212,32 @@ export class ConfirmComponent implements OnInit {
     if (!target) { await this.modal.alert('Pilih dinas target dulu.'); return; }
     const ok = await this.modal.confirm(`Assign baris ini ke dinas ${target}? Baris akan masuk antrian konfirmasi normal dinas tersebut.`);
     if (!ok) return;
-    this.investigation.assign(row.id, target).subscribe({
+    const description = this.investigationDescription.trim() || undefined;
+    this.investigation.assign(row.id, target, description).subscribe({
       next: async (dinasTarget) => {
         await this.modal.success('Baris di-assign ke ' + dinasTarget);
+        this.loadInvestigation();
+      },
+      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+    });
+  }
+
+  // Same "must decide EVERY row before you can batch" gate the backend independently enforces
+  // (routes/investigation.js's assign-all) — project owner: "kalo ada yang belum ditentukan mau
+  // di-assign kemana itu ga bisa langsung assign semuanya".
+  canAssignAllInvestigation(): boolean {
+    return this.investigationRows.length > 0 && this.investigationRows.every((r) => !!this.investigationTargetByRowId[r.id]);
+  }
+
+  async assignAllInvestigation(): Promise<void> {
+    if (!this.canAssignAllInvestigation()) return;
+    const ok = await this.modal.confirm(`Assign ${this.investigationRows.length} baris sekaligus ke dinas yang sudah dipilih masing-masing?`);
+    if (!ok) return;
+    const items = this.investigationRows.map((r) => ({ transaction_id: r.id, dinas_target: this.investigationTargetByRowId[r.id] }));
+    const description = this.investigationDescription.trim() || undefined;
+    this.investigation.assignAll(items, description).subscribe({
+      next: async () => {
+        await this.modal.success('Semua baris sudah di-assign');
         this.loadInvestigation();
       },
       error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },

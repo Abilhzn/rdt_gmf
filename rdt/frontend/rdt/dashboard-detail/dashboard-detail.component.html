@@ -1,6 +1,6 @@
 <div class="page-card">
   <div class="view-header-row">
-    <div class="context-badge">{{ initiatorDinas }} → {{ targetDinas }}</div>
+    <div class="context-badge">{{ initiatorDinas }} → {{ targetLabel }}</div>
     <button class="btn btn--ghost" type="button" (click)="backToDashboard()">‹ Kembali ke Dashboard</button>
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
@@ -8,7 +8,7 @@
   <div class="dashboard-grid" *ngIf="progress as p">
     <div class="home-grid">
       <div class="dinas-circle-wrap">
-        <div class="dinas-circle-header"><div class="dinas-circle-label">{{ targetDinas }}</div></div>
+        <div class="dinas-circle-header"><div class="dinas-circle-label">{{ targetLabel }}</div></div>
         <div class="dinas-circle" [ngStyle]="{'--pct': p.percent, '--ring-color': ringColor(p.percent)}">
           <span class="pct-label" [style.color]="ringColor(p.percent)">{{ p.percent | number: '1.1-1' }}%</span>
         </div>

@@ -648,7 +648,14 @@ input[type="checkbox"]:disabled { cursor:default; }
             <button class="btn btn-ghost" onclick="loadInvestigationQueue()">Muat ulang antrian</button>
           </div>
           <p class="alert alert-error hidden" id="investigation-err"></p>
+          <label class="batch-note-label hidden" id="investigation-desc-wrap">Keterangan (opsional)
+            <textarea class="batch-note" id="investigation-desc" rows="2"
+              placeholder="Kenapa baris ini di-assign ke dinas yang dipilih... akan muncul sebagai komentar di Dashboard-Detailing pasangan dinas tersebut"></textarea>
+          </label>
           <div id="investigation-list"></div>
+          <div class="batch-resolve-footer hidden" id="investigation-assign-all-wrap">
+            <button class="btn btn-primary" type="button" id="btn-investigation-assign-all" onclick="assignAllInvestigation()">Assign All</button>
+          </div>
           <p class="note" id="investigation-empty-note"></p>
         </div>
 
@@ -1112,7 +1119,7 @@ async function loadDashboard() {
     // submissions — TAB doesn't originate reposts itself.
     if (j.is_global_view) {
       $('dash-own-title').innerHTML = 'Progres Semua Dinas';
-      $('dash-own-note').textContent = 'Progress pengajuan dari SETIAP dinas yang pernah repost, lintas seluruh sistem — bukan cuma pengajuan Anda sendiri (Anda login sebagai TAB, yang tidak mengajukan repost). Klik "Muat ulang" untuk menyegarkan.';
+      $('dash-own-note').textContent = 'Progress pengajuan dari SETIAP dinas yang pernah repost, lintas seluruh sistem — bukan cuma pengajuan Anda sendiri (Anda login sebagai TAB, yang tidak mengajukan repost). Klik salah satu kartu untuk melihat siapa yang belum konfirmasi / urusannya belum selesai.';
     } else {
       $('dash-own-title').innerHTML = 'Dashboard Pengajuan <span id="dash-own-user">' + esc(user.display_name) + '</span>';
       $('dash-own-note').textContent = 'Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda belum mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah circle muncul jika dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu tindak lanjut (Tanggung Sendiri / Ajukan ulang).';
@@ -1157,20 +1164,28 @@ function pairCardHtml(d, title, onClickAttr) {
   </div>`;
 }
 
+// REQ-RDT-LEDGER-10 (29 Jul): the 'INVESTIGATION' sentinel (dashboard.js's
+// fetchInvestigationCounts) shouldn't leak its raw code into the UI — same label the
+// Confirmation sub-nav already uses.
+function dinasLabel(code) { return code === 'INVESTIGATION' ? 'Investigation/Ask TA' : code; }
+
 function renderDashOwn(list, isGlobalView) {
   const grid = $('dash-own-grid');
   if (!list.length) {
     grid.innerHTML = '<p class="note">' + (isGlobalView ? 'Belum ada dinas yang mengajukan repost.' : 'Anda belum mengajukan repost apapun.') + '</p>';
     return;
   }
-  // REQ-RDT-NAV-03: drill-down only makes sense for a real (initiator, target) PAIR. The
-  // personal view's cards ARE exactly that (myDinas -> d.dinas), so they're clickable. TAB's
-  // global view groups by INITIATOR only across every target — a card there doesn't represent
-  // one pair, so it deliberately stays non-clickable this round (scope cut, not an oversight).
-  const myDinas = isGlobalView ? null : (currentUser() || {}).dinas;
+  // REQ-RDT-NAV-03/LEDGER-10 restructure (29 Jul, project owner request): TAB's global view is
+  // NOW pair-shaped too (dashboard.js's buildChainAwareProgress groupBy:'pair' — d.dinas is the
+  // INITIATOR, d.target_dinas the target), replacing the old initiator-only aggregate that
+  // deliberately blocked this click ("scope cut, not an oversight") — TAB can now drill in from
+  // "Repost Every PIC" to see which target dinas per initiator is still outstanding.
+  const myDinas = (currentUser() || {}).dinas;
   grid.innerHTML = list.map((d) => {
-    const title = myDinas ? `${esc(myDinas)} → ${esc(d.dinas)}` : esc(d.dinas);
-    const clickAttr = myDinas ? ` onclick="goToDashboardDetail('${esc(myDinas)}','${esc(d.dinas)}')"` : '';
+    const initiator = isGlobalView ? d.dinas : myDinas;
+    const target = isGlobalView ? d.target_dinas : d.dinas;
+    const title = `${esc(initiator || '')} → ${esc(dinasLabel(target))}`;
+    const clickAttr = (initiator && target) ? ` onclick="goToDashboardDetail('${esc(initiator)}','${esc(target)}')"` : '';
     return pairCardHtml(d, title, clickAttr);
   }).join('');
 }
@@ -1184,8 +1199,14 @@ function renderDashNeed(list) {
     // myDinas for TAB (staffs 'Corp'/'TA' too, neither has a dedicated PIC). Falls back to
     // myDinas for a plain PIC, where they're always the same.
     const target = d.target_dinas || myDinas;
-    const title = `${esc(d.dinas)} → ${esc(target)}`;
-    return pairCardHtml(d, title, ` onclick="goToConfirmFrom('${esc(d.dinas)}','${esc(target)}')"`);
+    const title = `${esc(d.dinas)} → ${esc(dinasLabel(target))}`;
+    // REQ-RDT-LEDGER-10: the Investigation/Ask TA pseudo-card goes straight to Confirmation's
+    // Investigation sub-tab — it isn't a real (initiator, target) pair, so goToConfirmFrom's
+    // ?from= filter doesn't apply.
+    const clickAttr = target === 'INVESTIGATION'
+      ? ` onclick="location.hash='confirmation::INVESTIGATION'"`
+      : ` onclick="goToConfirmFrom('${esc(d.dinas)}','${esc(target)}')"`;
+    return pairCardHtml(d, title, clickAttr);
   }).join('');
 }
 
@@ -1199,8 +1220,8 @@ async function loadDashboardDetail(initiatorDinas, targetDinas) {
   hideDdErr();
   ddInitiator = initiatorDinas; ddTarget = targetDinas; ddReplyTo = null;
   $('dd-reply-context-wrap').style.display = 'none';
-  $('dd-badge').textContent = `${initiatorDinas} → ${targetDinas}`;
-  $('dd-target-label').textContent = targetDinas;
+  $('dd-badge').textContent = `${initiatorDinas} → ${dinasLabel(targetDinas)}`;
+  $('dd-target-label').textContent = dinasLabel(targetDinas);
   const user = currentUser();
   if (!user) { showDdErr('Pilih "Login sebagai" dulu.'); return; }
   try {
@@ -1879,14 +1900,21 @@ async function loadInvestigationQueue() {
   } catch (err) { showInvestigationErr(err.message || String(err)); }
 }
 
+let investigationRowIds = [];
+
 async function renderInvestigationQueue(rows) {
   const list = $('investigation-list');
+  investigationRowIds = rows.map((r) => r.id);
   if (!rows.length) {
     list.innerHTML = '';
     $('investigation-empty-note').textContent = 'Tidak ada baris yang menunggu investigasi.';
+    $('investigation-desc-wrap').classList.add('hidden');
+    $('investigation-assign-all-wrap').classList.add('hidden');
     return;
   }
   $('investigation-empty-note').textContent = '';
+  $('investigation-desc-wrap').classList.remove('hidden');
+  $('investigation-assign-all-wrap').classList.remove('hidden');
   const dinasCodes = await getDinasCodes();
   list.innerHTML = `<div class="tscroll"><table><thead><tr>
       <th>Dinas Pengaju</th><th>Account</th><th>Ref.Doc</th><th class="num">Nominal</th>
@@ -1901,10 +1929,23 @@ async function renderInvestigationQueue(rows) {
       <td class="num">${fmtNum.format(Number(r.nominal || 0))}</td>
       <td class="remark" title="${esc(r.remark || '')}">${esc(r.remark || '')}</td>
       <td>${esc(r.upload_filename || '')}</td>
-      <td><select id="investigation-target-${r.id}"><option value="">Pilih dinas...</option>${options}</select></td>
+      <td><select id="investigation-target-${r.id}" onchange="updateInvestigationAssignAllState()"><option value="">Pilih dinas...</option>${options}</select></td>
       <td><button class="btn btn-primary" onclick="assignInvestigation(${r.id})">Assign</button></td>
     </tr>`;
   }).join('') + '</tbody></table></div>';
+  updateInvestigationAssignAllState();
+}
+
+// project owner (29 Jul): "kalo ada yang belum ditentukan mau di-assign kemana itu ga bisa
+// langsung assign semuanya" — Assign All only enables once EVERY visible row has a chosen
+// target, mirrored independently by the backend (routes/investigation.js's assign-all route).
+function updateInvestigationAssignAllState() {
+  const allSet = investigationRowIds.length > 0 && investigationRowIds.every((id) => {
+    const sel = document.getElementById('investigation-target-' + id);
+    return sel && sel.value;
+  });
+  $('btn-investigation-assign-all').disabled = !allSet;
+  $('btn-investigation-assign-all').textContent = `Assign All (${investigationRowIds.length})`;
 }
 
 async function assignInvestigation(id) {
@@ -1914,15 +1955,38 @@ async function assignInvestigation(id) {
   const dinasTarget = sel ? sel.value : '';
   if (!dinasTarget) { await alertModal('Pilih dinas target dulu.'); return; }
   if (!(await confirmModal(`Assign baris ini ke dinas ${dinasTarget}? Baris akan masuk antrian konfirmasi normal dinas tersebut.`))) return;
+  const description = ($('investigation-desc').value || '').trim();
   try {
     const res = await fetch(`/api/investigation/${id}/assign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token },
-      body: JSON.stringify({ dinas_target: dinasTarget }),
+      body: JSON.stringify({ dinas_target: dinasTarget, description: description || undefined }),
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'assign gagal');
     await successModal('Baris di-assign ke ' + j.dinas_target);
+    loadInvestigationQueue();
+  } catch (err) { await alertModal('Error: ' + err.message); }
+}
+
+async function assignAllInvestigation() {
+  const user = currentUser();
+  if (!user || $('btn-investigation-assign-all').disabled) return;
+  const items = investigationRowIds.map((id) => ({
+    transaction_id: id,
+    dinas_target: document.getElementById('investigation-target-' + id).value,
+  }));
+  if (!(await confirmModal(`Assign ${items.length} baris sekaligus ke dinas yang sudah dipilih masing-masing?`))) return;
+  const description = ($('investigation-desc').value || '').trim();
+  try {
+    const res = await fetch('/api/investigation/assign-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Token': user.token },
+      body: JSON.stringify({ items, description: description || undefined }),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'assign all gagal');
+    await successModal('Semua baris sudah di-assign');
     loadInvestigationQueue();
   } catch (err) { await alertModal('Error: ' + err.message); }
 }
