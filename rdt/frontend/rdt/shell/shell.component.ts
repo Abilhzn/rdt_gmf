@@ -11,6 +11,7 @@ const PAGE_TITLES: Record<string, string> = {
   repost: 'Repost',
   confirm: 'Confirmation',
   'need-approval': 'Need Approval',
+  investigation: 'Investigation',
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
@@ -98,6 +99,13 @@ export class ShellComponent implements OnInit {
   // including Corp's). Repost has no role gate at all now — every remaining role (PIC, TAB)
   // was already allowed.
   get canSeeNeedApproval(): boolean {
+    return this.currentUser.current?.role === 'TAB';
+  }
+
+  // REQ-RDT-LEDGER-10 — same TAB-only gate as Need Approval: Investigation is TAB's own "Ask TA"
+  // queue, no other role should see the nav item (backend's requireRole('TAB') is the real
+  // enforcement either way, this is just UI-level nav visibility).
+  get canSeeInvestigation(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 
