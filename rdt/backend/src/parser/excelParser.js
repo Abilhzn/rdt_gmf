@@ -687,4 +687,7 @@ async function parseExcelFile(filePath, options = {}) {
 
 module.exports = {
   parseExcelFile,
+  // REQ-RDT-SAP-06 (29 Jul): routes/exportBatches.js's full-53-column per-pair export reuses this
+  // for real contract header labels (Account, Cost Ctr, ...) instead of guessing/retyping them.
+  CONTRACT_FIELDS,
 };

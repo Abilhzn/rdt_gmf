@@ -199,6 +199,8 @@ Mesin status (state machine) double-entry: dinas target memvalidasi tagihan.
   - Aksi TAB atas baris ini BUKAN Confirm/Reject — tapi **assign dinas_target yang benar** (reuse mekanisme redirect/reassignment yang sudah ada di `reassignment.js`). Begitu di-assign, baris pindah jadi `PENDING` dengan `dinas_target` baru hasil investigasi, `reassigned_from` diisi `'Ask TA'`, lalu masuk alur konfirmasi NORMAL (dinas yang baru ditentukan itu yang confirm/decline, BUKAN TAB).
   - Tercatat di audit log dengan action baru `INVESTIGATION_RESOLVED`.
   - Contoh nyata dari pemilik proyek (dinas TJ, Jun 2026): satu baris "Ask TA" ternyata dari `Ref. Doc.` menunjukkan PO milik `TZ` (kode dinas baru, belum ada di roster — lihat 3.1.2). TAB konfirmasi ke TZ, TZ bilang "itu barangnya beli kami, tapi yang kerjain TJ" — TAB akhirnya assign baris itu ke `TZ`. Ini contoh kasus di mana jawaban investigasi TIDAK selalu jelas/satu jawaban tunggal (ada nuance "yang beli vs yang kerjain") — keputusan akhir tetap di tangan TAB sebagai manusia, sistem cuma memfasilitasi routing-nya, JANGAN dibuat otomatis menebak.
+  - **Tambahan 30 Jul (bulk assign)**: TAB harus bisa **pilih banyak baris investigasi sekaligus** (checkbox + "Select All") dan assign semuanya ke SATU dinas_target yang sama dalam satu aksi — berguna kalau ada beberapa baris "Ask TA" yang sudah jelas jawabannya sama (mis. semua ternyata punya TZ). Assign satu-per-satu tetap harus tersedia untuk kasus yang beda jawaban.
+  - **Catatan penting (dikonfirmasi TAB, 30 Jul)**: dinas hasil investigasi (mis. `TZ` di contoh atas) TETAP HARUS melalui alur konfirmasi normal (Ya/Tidak) walau TAB sudah "memutuskan" dari sisi komunikasi informal — assign oleh TAB itu cuma ROUTING, bukan otomatis meng-CONFIRMED-kan transaksi. Ini supaya ada jejak dokumentasi resmi di sistem, bukan cuma kesepakatan lisan/WA.
 
 ### 3.3 SAP Flattening Gatekeeper / Need Approval
 
@@ -206,32 +208,85 @@ Mesin status (state machine) double-entry: dinas target memvalidasi tagihan.
 
 Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjadi matriks SAP.
 
-> **UPDATE 24 Jul** — approval berjenjang SM→GH sudah **dihapus** (role-nya sendiri udah
-> gak ada, lihat REQ-RDT-AUTH-05). Implementasi SEKARANG (`routes/exportBatches.js`,
-> sudah jalan & di-test): satu batch GLOBAL dibuat TAB, gate submit-nya "tidak ada
-> transaksi PENDING/DECLINED/NEEDS_REVIEW **di seluruh sistem**" (bukan per dinas),
-> nyantol SEMUA transaksi CONFIRMED/BORNE_BY_INITIATOR yang belum ke-batch, approve
-> sekali oleh TAB, lalu export (masih STUB — belum ada template kolom SAP asli).
+> **SUPERSEDED 30 Jul — model per PASANGAN (dinas pengaju × dinas target) + eksekusi
+> paralel, menggantikan model per-dinas-pengaju 29 Jul yang TERNYATA SALAH.**
+> Sumber: rapat langsung tim TAB (transkrip lengkap, 30 Jul). Ini koreksi penting:
 >
-> **DRAFT BARU 27 Jul (BELUM FINAL, deskripsi pemilik proyek masih akan diperjelas
-> lebih lanjut)** — pemilik proyek ingin model ini direvisi jadi **per pasangan
-> dinas** (dinas pengaju × dinas diaju), BUKAN satu batch global:
-> - Setiap pasangan yang SEMUA transaksinya sudah CONFIRMED (100%, tidak ada
->   PENDING/DECLINED tersisa untuk pasangan itu) di-acc TAB SECARA TERPISAH per
->   pasangan — bukan digabung nunggu SEMUA pasangan di seluruh sistem selesai
->   dulu seperti gate global sekarang.
-> - Output: **satu file Excel per pasangan** (mis. TJ mengajukan ke TM dan ke TC
->   secara terpisah → dua file keluar: `TJ-TM` dan `TJ-TC`), bukan satu file
->   gabungan semua pasangan.
-> - Format file: **belum ditentukan** — sementara pakai bentuk tabel detail ala
->   pivot table (baris = transaksi, kolom = kontrak data), TAPI cuma yang sudah
->   CONFIRMED yang masuk (bukan semua transaksi di pasangan itu).
-> - **Ini masih draft** — pemilik proyek eksplisit bilang deskripsi ini belum
->   lengkap dan akan diperjelas lebih lanjut. JANGAN implementasi penuh dari draft
->   ini dulu tanpa konfirmasi ulang — terutama soal: apakah readiness gate
->   per-pasangan ini menggantikan gate global yang sekarang, atau jalan berdampingan;
->   apa yang terjadi kalau satu dinas pengaju punya BANYAK pasangan (batch otomatis
->   per pasangan begitu 100%, atau tetap manual TAB yang trigger satu-satu?).
+> **Kenapa model 29 Jul salah**: waktu itu diasumsikan TAB harus nunggu SEMUA
+> pasangan dari SATU dinas pengaju selesai baru bisa diproses sekaligus. Tim TAB
+> sendiri awalnya mikir gitu, tapi LANGSUNG mengoreksi diri sendiri di rapat:
+> kalau TJ mengajukan ke TE, TL, TM sekaligus dan TE telat konfirmasi, TAB harus
+> tetap bisa proses TJ→TL dan TJ→TM lebih dulu tanpa nunggu TE — supaya TJ tidak
+> dirugikan oleh keterlambatan pihak lain. **Unit approval yang benar adalah PER
+> PASANGAN, diproses paralel/asinkron, BUKAN digabung per dinas pengaju.**
+>
+> `REQ-RDT-SAP-03` **(revisi 30 Jul)**: Satu entri antrian Need Approval muncul PER
+> PASANGAN (dinas_inisiasi, dinas_target), begitu SEMUA transaksi pasangan itu
+> spesifik berstatus resolved (CONFIRMED/BORNE_BY_INITIATOR, tidak ada PENDING/
+> DECLINED/NEEDS_REVIEW tersisa UNTUK PASANGAN ITU). Pasangan lain dari dinas
+> pengaju yang sama TIDAK menghalangi — tiap pasangan berjalan independen begitu
+> siap, kapanpun itu terjadi.
+>
+> `REQ-RDT-SAP-04`: TAB harus bisa membuka **tampilan transparansi penuh** untuk
+> satu entri (pasangan) — seluruh detail transaksi pasangan itu, termasuk yang
+> CONFIRMED maupun yang sempat DECLINED/di-reassign (audit trail lengkap,
+> termasuk riwayat redirect antar dinas kalau ada, mis. "TJ→TE→TL"), sebelum
+> memutuskan approve.
+>
+> `REQ-RDT-SAP-05`: Aksi TAB **"Confirm"** berlaku untuk SATU pasangan itu saja.
+> Aksi ini mensyaratkan TAB mengisi **deskripsi penutup** (teks bebas, WAJIB
+> diisi) yang tersimpan sebagai bagian dari record approval. Status berubah dari
+> `WAITING_TO_REPOST` → lihat REQ-RDT-SAP-07 untuk state machine lengkap.
+>
+> `REQ-RDT-SAP-06`: Setelah TAB confirm, TAB memasukkan **nomor referensi SAP
+> (subdoc)** untuk merampungkan pasangan itu. Export/download tersedia dengan
+> **53 kolom kontrak penuh** (Account s/d Value Date, lihat 3.1.1) untuk transaksi
+> CONFIRMED pasangan itu. Dinas TIDAK butuh rekap fancy dari sistem — sumber
+> (transkrip rapat) menegaskan yang mereka cari cuma nomor **refdoc/subdoc**
+> untuk cross-check ke rekapan internal mereka sendiri, jadi UI harus menonjolkan
+> subdoc, bukan menyembunyikannya di balik file export.
+>
+> `REQ-RDT-SAP-07` **(baru 30 Jul, state label dinamis)**: Selain `status_konfirmasi`
+> teknis yang sudah ada, sistem butuh **label status tampilan** yang menunjukkan
+> siapa yang sedang "pegang bola" — dihitung/diturunkan dari status_konfirmasi +
+> tahap repost, BUKAN kolom status baru yang menggantikan yang lama:
+> - **`Waiting for confirmation [Role]`** — transaksi masih PENDING di satu atau
+>   lebih dinas target; `[Role]` diisi kode dinas yang belum konfirmasi.
+> - **`Waiting to repost`** — pasangan sudah resolved semua (CONFIRMED/BORNE_BY_
+>   INITIATOR), bola sudah pindah ke TAB, menunggu TAB confirm+repost.
+> - **`Reposted by TAB with subdoc [nomor]`** — TAB sudah confirm & memasukkan
+>   subdoc. Bisa lebih dari satu nomor (lihat REQ-RDT-SAP-08).
+>
+> `REQ-RDT-SAP-08` **(baru 30 Jul, subdoc one-to-many)**: SATU pasangan bisa
+> menghasilkan **LEBIH DARI SATU nomor subdoc** — SAP membatasi maksimum ~300
+> line item per dokumen, jadi kalau transaksi dalam satu pasangan banyak, TAB
+> memecah repost jadi beberapa subdoc. Skema database butuh relasi one-to-many
+> (tabel baru, bukan kolom tunggal `subdoc` di `export_batches`/pasangan) — satu
+> pasangan/batch bisa punya banyak baris subdoc, masing-masing bisa (opsional)
+> menunjuk subset transaksi spesifik yang tercakup nomor itu.
+>
+> `REQ-RDT-SAP-09` **(baru 30 Jul, auto-archive)**: Begitu status pasangan jadi
+> `Reposted by TAB with subdoc [...]`, baris itu HARUS otomatis hilang dari
+> dashboard/antrian utama (Need Approval, Need to Confirm, Own Repost) dan
+> pindah ke tampilan **Arsip/Riwayat** terpisah — supaya dashboard utama tetap
+> ringan dan tidak numpuk data yang sudah selesai.
+>
+> `REQ-RDT-SAP-10` **(baru 30 Jul, section "Riwayat Repost TAB")**: Sebagai
+> pengganti notifikasi email (yang butuh infra SMTP terpisah, DITUNDA untuk
+> sekarang), buat section/halaman baru — nama & lokasi menyusul, isinya log
+> semua aksi repost TAB (pasangan, dinas terkait, subdoc, deskripsi penutup,
+> timestamp), bisa difilter per periode. Section ini SEKALIGUS jadi tujuan
+> auto-archive di REQ-RDT-SAP-09 — satu fitur menjawab dua kebutuhan (arsip +
+> log "kiriman" TAB yang bisa dicek dinas kapan saja), bukan dua fitur terpisah.
+> PIC dinas terkait tetap dapat notifikasi in-app + komentar (REQ-RDT-COMMENT-03,
+> sudah ada) saat pasangan mereka di-repost — section ini pelengkap yang bisa
+> di-browse, bukan pengganti notifikasi yang sudah ada.
+>
+> **Migrasi**: model per-dinas-pengaju (29 Jul) dan model batch global (24 Jul)
+> **DIGANTI TOTAL** oleh model per-pasangan ini. Kalau ada kode yang sudah
+> mengikuti model 29 Jul (gate nunggu semua pasangan satu dinas), itu HARUS
+> direvisi sebelum dipakai — jangan dijalankan berdampingan, itu bakal
+> membingungkan TAB soal antrian mana yang beneran real.
 
 **Functional Requirements**
 - `REQ-RDT-SAP-01`: Sistem harus menjalankan pengecekan status (`COUNT(*) WHERE status = 'PENDING'`) sebelum mengizinkan ekspor.

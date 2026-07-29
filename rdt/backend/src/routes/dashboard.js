@@ -34,6 +34,7 @@ const { Client } = require('pg');
 const { requireUser } = require('../middleware/auth');
 const { resolveMentionedUserIds } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
+const { deriveStateLabel } = require('../rules/stateLabel');
 
 const router = express.Router();
 router.use(requireUser);
@@ -199,9 +200,11 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
 
 // "Need to Confirm" rich cards (28 Jul, Figma nodes 1:2/69:209): percent + reply count per
 // pair, not just the bare dinas-code list fetchNeedToConfirmDinas returns for the sidebar badge.
-// Same export-batch visibility rule as fetchNeedToConfirmDinas (stays listed until TAB approves
-// the batch, not just until PENDING hits zero) — no chain expansion needed here (dinas_inisiasi
-// never changes on reassignment, unlike dinas_target).
+// Same export-batch visibility rule as fetchNeedToConfirmDinas (stays listed until TAB confirms
+// the whole dinas via POST /api/export-batches/confirm — REQ-RDT-SAP-05, 29 Jul — not just until
+// PENDING hits zero: export_batch_id is only ever set at that confirm step, see
+// exportBatches.js) — no chain expansion needed here (dinas_inisiasi never changes on
+// reassignment, unlike dinas_target).
 //
 // UPDATE (28 Jul, bug report): grouping by dinas_inisiasi ALONE loses which of TAB's several
 // queues (their own 'TAB', plus 'Corp'/'TA' which have no dedicated PIC — REQ-RDT-AUTH-04) a
@@ -220,10 +223,9 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
   const txRes = await client.query(
     `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi
      FROM rdt.transactions t
-     LEFT JOIN rdt.export_batches b ON b.id = t.export_batch_id
      WHERE UPPER(t.dinas_target) = ANY($1)
        AND t.status_konfirmasi = ANY($2)
-       AND (t.export_batch_id IS NULL OR b.status NOT IN ('APPROVED','EXPORTED'))`,
+       AND t.export_batch_id IS NULL`,
     [targetDinasCodes, ACTIONABLE_STATUSES]
   );
   const transactions = txRes.rows;
@@ -232,11 +234,17 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
   const agg = {};
   for (const t of transactions) {
     const key = `${t.dinas_inisiasi} ${t.dinas_target}`;
-    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, reply_count: 0 };
+    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, pending: 0, reply_count: 0 };
     agg[key].total += 1;
     if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) agg[key].resolved += 1;
+    if (t.status_konfirmasi === 'PENDING') agg[key].pending += 1;
     agg[key].reply_count += replyCounts[t.id] || 0;
   }
+  // REQ-RDT-SAP-07 state label: this query is already scoped to export_batch_id IS NULL and keyed
+  // by the CURRENT dinas_target (no chain-collapsing like buildChainAwareProgress does), so it's
+  // safe to derive directly here — once TAB confirms a pair, export_batch_id gets set and the row
+  // falls out of this query entirely (existing 25 Jul behavior), so "Reposted with subdoc" never
+  // needs to appear on this endpoint.
   const rows = Object.keys(agg).sort().map((key) => {
     const a = agg[key];
     return {
@@ -246,6 +254,7 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
       resolved: a.resolved,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       reply_count: a.reply_count,
+      state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target_dinas }),
     };
   });
   if (includeInvestigation) rows.push(...(await fetchInvestigationCounts(client, null)));
@@ -426,10 +435,11 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
 // Need to Confirm (project owner correction, 25 Jul): an initiator dinas must NOT drop out of
 // this list the instant its PENDING rows targeting me hit zero — other target dinas from the
 // same initiator's submission may still be mid-confirmation, and even once every row here is
-// CONFIRMED/BORNE, the pair should stay visible until TAB has actually approved the export
-// batch that swept it up (see exportBatches.js's DRAFT->WAITING_APPROVAL->APPROVED flow) —
-// "jangan ilang sebelum di-confirm oleh TAB". So: keep any dinas_inisiasi with an ACTIONABLE
-// row targeting me that hasn't yet landed in an APPROVED/EXPORTED batch, not just PENDING ones.
+// CONFIRMED/BORNE, the pair should stay visible until TAB has actually confirmed that whole
+// dinas pengaju (REQ-RDT-SAP-05, 29 Jul — see exportBatches.js's POST /confirm, which is the
+// only place export_batch_id ever gets set now) — "jangan ilang sebelum di-confirm oleh TAB".
+// So: keep any dinas_inisiasi with an ACTIONABLE row targeting me that hasn't yet been swept
+// into a confirmed batch, not just PENDING ones.
 //
 // TAB also staffs dinas "Corp"'s AND "TA"'s queues (neither has a dedicated PIC,
 // REQ-RDT-AUTH-04) — their dinas_target rows never showed up under myDinas='TAB' before this
@@ -448,10 +458,9 @@ async function fetchNeedToConfirmDinas(client, targetDinasCodes, includeInvestig
   const res = await client.query(
     `SELECT DISTINCT t.dinas_inisiasi AS dinas
      FROM rdt.transactions t
-     LEFT JOIN rdt.export_batches b ON b.id = t.export_batch_id
      WHERE UPPER(t.dinas_target) = ANY($1)
        AND t.status_konfirmasi = ANY($2)
-       AND (t.export_batch_id IS NULL OR b.status NOT IN ('APPROVED','EXPORTED'))
+       AND t.export_batch_id IS NULL
      ORDER BY dinas`,
     [targetDinasCodes, ACTIONABLE_STATUSES]
   );

@@ -179,6 +179,10 @@
         <table class="rows">
           <thead>
             <tr>
+              <th>
+                <input type="checkbox" [checked]="allInvestigationSelected"
+                  (change)="toggleSelectAllInvestigation($any($event.target).checked)" title="Select All" />
+              </th>
               <th>Dinas Pengaju</th>
               <th>Account</th>
               <th>Ref.Doc</th>
@@ -191,6 +195,10 @@
           </thead>
           <tbody>
             <tr *ngFor="let r of investigationRows">
+              <td>
+                <input type="checkbox" [checked]="isInvestigationSelected(r.id)"
+                  (change)="toggleInvestigationSelection(r.id, $any($event.target).checked)" />
+              </td>
               <td>{{ r.dinas_inisiasi }}</td>
               <td>{{ r.account }}</td>
               <td>{{ r.ref_doc }}</td>
@@ -208,6 +216,24 @@
           </tbody>
         </table>
       </div>
+
+      <!-- 30 Jul addition: bulk-select via checkbox + Select All, one shared target for all
+           selected rows at once — lighter than "Assign All" below, which needs every row's own
+           target chosen first. Both call the same backend batch endpoint. -->
+      <div class="batch-resolve-footer">
+        <select [(ngModel)]="bulkTargetDinas">
+          <option value="">Pilih dinas tujuan untuk baris terpilih...</option>
+          <option *ngFor="let d of bulkDinasOptions" [value]="d.code">{{ d.code }}</option>
+        </select>
+        <button
+          class="btn btn--primary"
+          type="button"
+          [disabled]="!canBulkAssignSelected()"
+          [title]="canBulkAssignSelected() ? '' : 'Pilih minimal satu baris dan satu dinas tujuan'"
+          (click)="bulkAssignSelected()"
+        >Assign Terpilih ({{ selectedInvestigationIds.size }}) ke dinas ini</button>
+      </div>
+
       <div class="batch-resolve-footer">
         <button
           class="btn btn--primary"

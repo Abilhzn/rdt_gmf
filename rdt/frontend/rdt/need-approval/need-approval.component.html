@@ -1,27 +1,97 @@
 <div class="page-card">
   <p class="note">
-    Approval sebelum export: DRAFT → submit (gate: tidak ada
-    PENDING/DECLINED/NEEDS_REVIEW) → WAITING_APPROVAL → APPROVED → EXPORTED.
-    <strong>Generate file export saat ini masih placeholder</strong> — belum ada template
-    kolom impor SAP yang nyata. Hanya role TAB yang bisa bertindak di sini.
+    Antrian per pasangan (dinas pengaju → dinas tujuan) — sebuah entri muncul begitu SEMUA
+    transaksi pasangan ITU selesai (CONFIRMED/BORNE_BY_INITIATOR, tidak ada PENDING/DECLINED/
+    NEEDS_REVIEW tersisa). Pasangan lain dari dinas pengaju yang sama TIDAK saling menunggu — tiap
+    pasangan diproses begitu siap. Buka transparansi untuk melihat detail lengkap pasangan itu
+    sebelum confirm — aksi Confirm berlaku untuk pasangan ini saja dan butuh deskripsi penutup.
+    Setelah confirmed, file Excel (53 kolom kontrak penuh) langsung bisa diunduh. Hanya role TAB
+    yang bisa bertindak di sini.
   </p>
   <div class="card__actions">
-    <input type="text" [(ngModel)]="newBatchPeriod" placeholder="Label periode, mis. 2026-06" />
-    <button class="btn btn--ghost" type="button" (click)="createBatch()">Buat batch baru</button>
-    <button class="btn btn--ghost" type="button" (click)="load()">Muat daftar batch</button>
+    <button class="btn btn--ghost" type="button" (click)="load()">Muat ulang</button>
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
-  <p class="note" *ngIf="!batches.length">Belum ada batch export.</p>
-  <div class="batch-row" *ngFor="let b of batches">
-    <div class="batch-row__id">#{{ b.id }}</div>
-    <div class="batch-row__period">{{ b.period }}</div>
-    <span class="chip" [class]="'chip--' + b.status.toLowerCase()">{{ b.status }}</span>
-    <div class="batch-row__action">
-      <button *ngIf="b.status === 'DRAFT'" class="btn btn--primary" type="button" (click)="batchAction(b, 'submit')">Submit ke Approval</button>
-      <button *ngIf="b.status === 'WAITING_APPROVAL'" class="btn btn--primary" type="button" (click)="batchAction(b, 'approve')">Approve</button>
-      <button *ngIf="b.status === 'APPROVED'" class="btn btn--primary" type="button" (click)="batchAction(b, 'export')">Export (stub)</button>
-      <span *ngIf="b.status === 'EXPORTED'" class="note">File: {{ b.export_filename }}</span>
+  <h3 class="card__subtitle">Menunggu Confirm</h3>
+  <p class="note" *ngIf="!waiting.length">Belum ada pasangan yang siap di-confirm.</p>
+  <ng-container *ngFor="let w of waiting">
+    <div class="batch-row">
+      <div class="batch-row__id">{{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</div>
+      <div class="batch-row__period">{{ w.total }} transaksi <span class="state-label">{{ w.state_label }}</span></div>
+      <div class="batch-row__action">
+        <button class="btn btn--ghost" type="button" (click)="openTransparency(w.dinas_inisiasi, w.dinas_target)">
+          {{ expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target) ? 'Tutup transparansi' : 'Lihat transparansi' }}
+        </button>
+      </div>
     </div>
-  </div>
+
+    <div class="transparency-panel" *ngIf="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)">
+      <p class="alert alert--error" *ngIf="transparencyError">{{ transparencyError }}</p>
+      <div class="table-scroll" *ngIf="transparencyRows.length">
+        <table class="rows">
+          <thead>
+            <tr>
+              <th>Account</th><th>Ref.Doc</th><th class="rows__num">Nominal</th>
+              <th>Remark</th><th>Status</th><th>Reassign</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let t of transparencyRows">
+              <td>{{ t.account }}</td>
+              <td>{{ t.ref_doc }}</td>
+              <td class="rows__num">{{ t.nominal | number: '1.2-2' }}</td>
+              <td class="rows__remark" [title]="t.remark || ''">{{ t.remark }}</td>
+              <td>{{ t.status_konfirmasi }}</td>
+              <td>{{ t.reassign_count > 0 ? (t.reassigned_from + ' → ' + w.dinas_target) : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <label class="batch-note-label">
+        Deskripsi penutup (wajib)
+        <textarea class="batch-note" [(ngModel)]="closingDescription" rows="2"
+          placeholder="mis. repost sudah beres, terima kasih ke semua dinas terkait"></textarea>
+      </label>
+      <div class="card__actions">
+        <button
+          class="btn btn--primary"
+          type="button"
+          [disabled]="!canConfirm() || confirming"
+          [title]="canConfirm() ? '' : 'Deskripsi penutup wajib diisi'"
+          (click)="confirmPair(w.dinas_inisiasi, w.dinas_target)"
+        >Confirm {{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</button>
+      </div>
+    </div>
+  </ng-container>
+
+  <hr />
+  <h3 class="card__subtitle">Sudah Confirmed</h3>
+  <p class="note" *ngIf="!confirmed.length">Belum ada pasangan yang confirmed.</p>
+  <ng-container *ngFor="let b of confirmed">
+    <div class="batch-row">
+      <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
+      <div class="batch-row__period">{{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span></div>
+      <div class="batch-row__action">
+        <button class="btn btn--ghost" type="button" (click)="download(b)">&#8659; Download</button>
+      </div>
+    </div>
+    <div class="note" style="margin-bottom:10px">{{ b.closing_description }}</div>
+
+    <div class="subdoc-row">
+      <input
+        class="subdoc-input"
+        type="text"
+        [(ngModel)]="subdocInputByBatchId[b.id]"
+        placeholder="Nomor subdoc SAP"
+      />
+      <button
+        class="btn btn--ghost"
+        type="button"
+        [disabled]="!subdocInputByBatchId[b.id]?.trim() || addingSubdocBatchId === b.id"
+        (click)="addSubdoc(b)"
+      >+ Tambah subdoc</button>
+    </div>
+  </ng-container>
 </div>

@@ -1,0 +1,35 @@
+<div class="page-card">
+  <p class="note">
+    Log semua pasangan yang sudah di-repost TAB dengan nomor subdoc SAP — begitu pasangan dapat
+    subdoc pertamanya, otomatis pindah ke sini dari Need Approval (arsip, REQ-RDT-SAP-09). Cari
+    nomor refdoc/subdoc di sini untuk cross-check ke rekapan internal dinas.
+  </p>
+
+  <div class="card__actions">
+    <label class="filter-label">
+      Dari
+      <input class="filter-input" type="date" [(ngModel)]="from" />
+    </label>
+    <label class="filter-label">
+      Sampai
+      <input class="filter-input" type="date" [(ngModel)]="to" />
+    </label>
+    <button class="btn btn--primary" type="button" (click)="load()">Terapkan filter</button>
+    <button class="btn btn--ghost" type="button" (click)="clearFilter()">Reset</button>
+  </div>
+  <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <hr />
+  <p class="note" *ngIf="!batches.length">Belum ada pasangan yang di-repost dengan subdoc.</p>
+  <ng-container *ngFor="let b of batches">
+    <div class="batch-row">
+      <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
+      <div class="batch-row__period">{{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span></div>
+      <div class="batch-row__action">
+        <button class="btn btn--ghost" type="button" (click)="download(b)">&#8659; Download</button>
+      </div>
+    </div>
+    <div class="note" style="margin-bottom:2px">{{ b.closing_description }}</div>
+    <div class="note subdoc-list">Subdoc: {{ b.subdoc_numbers.join(', ') }}</div>
+  </ng-container>
+</div>

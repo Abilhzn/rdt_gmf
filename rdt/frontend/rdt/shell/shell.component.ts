@@ -11,6 +11,7 @@ const PAGE_TITLES: Record<string, string> = {
   repost: 'Repost',
   confirm: 'Confirmation',
   'need-approval': 'Need Approval',
+  'repost-history': 'Riwayat Repost TAB',
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
@@ -104,6 +105,12 @@ export class ShellComponent implements OnInit {
   // including Corp's). Repost has no role gate at all now — every remaining role (PIC, TAB)
   // was already allowed.
   get canSeeNeedApproval(): boolean {
+    return this.currentUser.current?.role === 'TAB';
+  }
+
+  // REQ-RDT-SAP-10 (30 Jul): same TAB-only gate as Need Approval — this page is that queue's
+  // archive, not a separately-permissioned feature.
+  get canSeeRepostHistory(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 

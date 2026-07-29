@@ -105,6 +105,15 @@ export class ConfirmComponent implements OnInit {
    * routes/investigation.js's postPairComment). */
   investigationDescription = '';
 
+  // REQ-RDT-LEDGER-10 addition (30 Jul, TAB meeting): checkbox + Select All bulk-select, assigned
+  // to ONE shared dinas_target in one action — a lighter alternative to "Assign All" above (which
+  // requires every row to already have its OWN per-row target chosen first). Both call the same
+  // backend endpoint (routes/investigation.js's assign-all already accepts any subset of items,
+  // no backend change needed) — single-row Assign stays available for rows with a different
+  // answer than the rest, per project owner: "assign satu-per-satu tetap harus tersedia".
+  selectedInvestigationIds = new Set<number>();
+  bulkTargetDinas = '';
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -197,6 +206,8 @@ export class ConfirmComponent implements OnInit {
   // ---------- Investigation/Ask TA sub-tab (REQ-RDT-LEDGER-10) ----------
   loadInvestigation(): void {
     this.investigationDescription = '';
+    this.selectedInvestigationIds.clear();
+    this.bulkTargetDinas = '';
     this.investigation.list().subscribe({
       next: (rows) => { this.investigationRows = rows; },
       error: (err) => { this.statusError = err?.message || 'Gagal memuat antrian investigasi'; },
@@ -238,6 +249,59 @@ export class ConfirmComponent implements OnInit {
     this.investigation.assignAll(items, description).subscribe({
       next: async () => {
         await this.modal.success('Semua baris sudah di-assign');
+        this.loadInvestigation();
+      },
+      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+    });
+  }
+
+  // ---------- checkbox + Select All bulk-assign to one shared target (30 Jul addition) ----------
+  isInvestigationSelected(rowId: number): boolean {
+    return this.selectedInvestigationIds.has(rowId);
+  }
+
+  toggleInvestigationSelection(rowId: number, checked: boolean): void {
+    if (checked) this.selectedInvestigationIds.add(rowId);
+    else this.selectedInvestigationIds.delete(rowId);
+  }
+
+  get allInvestigationSelected(): boolean {
+    return this.investigationRows.length > 0 && this.investigationRows.every((r) => this.selectedInvestigationIds.has(r.id));
+  }
+
+  toggleSelectAllInvestigation(checked: boolean): void {
+    if (checked) this.investigationRows.forEach((r) => this.selectedInvestigationIds.add(r.id));
+    else this.selectedInvestigationIds.clear();
+  }
+
+  // Dinas options valid for EVERY currently-selected row at once — excludes a dinas the moment
+  // it's some selected row's own dinas_inisiasi (validateReassignTarget rejects target===inisiasi
+  // server-side too), so the shared dropdown never offers a choice that would fail for part of
+  // the selection.
+  get bulkDinasOptions(): DinasEntry[] {
+    const selectedInitiators = new Set(
+      this.investigationRows.filter((r) => this.selectedInvestigationIds.has(r.id)).map((r) => String(r.dinas_inisiasi).toUpperCase())
+    );
+    return this.dinasOptions.filter((d) => !selectedInitiators.has(d.code.toUpperCase()));
+  }
+
+  canBulkAssignSelected(): boolean {
+    return this.selectedInvestigationIds.size > 0 && !!this.bulkTargetDinas;
+  }
+
+  async bulkAssignSelected(): Promise<void> {
+    if (!this.canBulkAssignSelected()) return;
+    const count = this.selectedInvestigationIds.size;
+    const target = this.bulkTargetDinas;
+    const ok = await this.modal.confirm(`Assign ${count} baris terpilih ke dinas ${target}?`);
+    if (!ok) return;
+    const items = this.investigationRows
+      .filter((r) => this.selectedInvestigationIds.has(r.id))
+      .map((r) => ({ transaction_id: r.id, dinas_target: target }));
+    const description = this.investigationDescription.trim() || undefined;
+    this.investigation.assignAll(items, description).subscribe({
+      next: async () => {
+        await this.modal.success(`${count} baris sudah di-assign ke ${target}`);
         this.loadInvestigation();
       },
       error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },

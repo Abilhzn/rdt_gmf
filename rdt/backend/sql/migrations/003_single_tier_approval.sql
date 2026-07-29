@@ -23,9 +23,20 @@ END $$;
 ALTER TABLE rdt.export_batches DROP COLUMN IF EXISTS gh_approved_by_user_id;
 ALTER TABLE rdt.export_batches DROP COLUMN IF EXISTS gh_approved_at;
 
-UPDATE rdt.export_batches SET status = 'WAITING_APPROVAL' WHERE status IN ('WAITING_SM', 'WAITING_GH');
-
-ALTER TABLE rdt.export_batches DROP CONSTRAINT IF EXISTS export_batches_status_check;
-ALTER TABLE rdt.export_batches
-  ADD CONSTRAINT export_batches_status_check
-  CHECK (status IN ('DRAFT', 'WAITING_APPROVAL', 'APPROVED', 'EXPORTED', 'CANCELLED'));
+-- NOTE (29 Jul, added by 006_export_batches_per_dinas.sql): the status column this block
+-- operates on was later dropped entirely (WAITING/CONFIRMED became a computed state, not a
+-- stored one — see 006's header comment). Guarded on the column still existing so this migration
+-- stays a harmless no-op on every server start from here on, instead of erroring once 006 has run.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'rdt' AND table_name = 'export_batches' AND column_name = 'status'
+  ) THEN
+    UPDATE rdt.export_batches SET status = 'WAITING_APPROVAL' WHERE status IN ('WAITING_SM', 'WAITING_GH');
+    ALTER TABLE rdt.export_batches DROP CONSTRAINT IF EXISTS export_batches_status_check;
+    ALTER TABLE rdt.export_batches
+      ADD CONSTRAINT export_batches_status_check
+      CHECK (status IN ('DRAFT', 'WAITING_APPROVAL', 'APPROVED', 'EXPORTED', 'CANCELLED'));
+  END IF;
+END $$;
