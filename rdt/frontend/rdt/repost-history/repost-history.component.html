@@ -3,6 +3,7 @@
     Log semua pasangan yang sudah di-repost TAB dengan nomor subdoc SAP — begitu pasangan dapat
     subdoc pertamanya, otomatis pindah ke sini dari Need Approval (arsip, REQ-RDT-SAP-09). Cari
     nomor refdoc/subdoc di sini untuk cross-check ke rekapan internal dinas.
+    <ng-container *ngIf="!isTab">Menampilkan pasangan yang dinas Anda mulai saja.</ng-container>
   </p>
 
   <div class="card__actions">
@@ -19,17 +20,42 @@
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
+  <!-- REQ-RDT-NAV-09: paste banyak nomor subdoc sekaligus untuk cross-check cepat. -->
+  <rdt-multi-value-filter
+    *ngIf="batches.length"
+    placeholder="Tempel banyak nomor subdoc sekaligus (satu per baris/koma)..."
+    (valuesChange)="onSubdocFilterChange($event)"
+  ></rdt-multi-value-filter>
+
   <hr />
   <p class="note" *ngIf="!batches.length">Belum ada pasangan yang di-repost dengan subdoc.</p>
-  <ng-container *ngFor="let b of batches">
+  <p class="note" *ngIf="batches.length && !filteredBatches.length">Tidak ada pasangan yang cocok dengan filter subdoc.</p>
+  <ng-container *ngFor="let b of filteredBatches">
     <div class="batch-row">
       <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
       <div class="batch-row__period">{{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span></div>
-      <div class="batch-row__action">
+      <div class="batch-row__action" *ngIf="isTab">
         <button class="btn btn--ghost" type="button" (click)="download(b)">&#8659; Download</button>
       </div>
     </div>
     <div class="note" style="margin-bottom:2px">{{ b.closing_description }}</div>
-    <div class="note subdoc-list">Subdoc: {{ b.subdoc_numbers.join(', ') }}</div>
+    <ul class="subdoc-list">
+      <li *ngFor="let s of b.subdocs">{{ s.subdoc_number }} — {{ s.transaction_ids.length }} baris</li>
+    </ul>
+
+    <div class="subdoc-row" *ngIf="isTab">
+      <input
+        class="subdoc-input"
+        type="text"
+        [(ngModel)]="subdocInputByBatchId[b.id]"
+        placeholder="Nomor subdoc SAP tambahan"
+      />
+      <button
+        class="btn btn--ghost"
+        type="button"
+        [disabled]="!subdocInputByBatchId[b.id]?.trim() || addingSubdocBatchId === b.id"
+        (click)="addSubdoc(b)"
+      >+ Tambah subdoc</button>
+    </div>
   </ng-container>
 </div>

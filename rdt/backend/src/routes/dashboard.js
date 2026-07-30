@@ -145,7 +145,7 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     params.push(initiatorDinas);
   }
   const txRes = await client.query(
-    `SELECT id, dinas_inisiasi, dinas_target, status_konfirmasi, reassign_count
+    `SELECT id, dinas_inisiasi, dinas_target, status_konfirmasi, reassign_count, export_batch_id
      FROM rdt.transactions WHERE ${whereParts.join(' AND ')}`,
     params
   );
@@ -155,32 +155,61 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   const chainMap = await fetchReassignChainMap(client, reassignedIds);
   const replyCounts = await fetchReplyCounts(client, transactions.map((t) => t.id));
 
-  const agg = {}; // key -> { dinasInisiasi, target, total, resolved, declined_pending_action, reply_count }
-  const bump = (key, dinasInisiasi, target, resolved, declinedPending, replyCount) => {
-    if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, declined_pending_action: 0, reply_count: 0 };
-    agg[key].total += 1;
-    if (resolved) agg[key].resolved += 1;
-    if (declinedPending) agg[key].declined_pending_action += 1;
-    agg[key].reply_count += replyCount;
+  // REQ-RDT-SAP-12 (31 Jul, gap found in code review): as_initiator cards are keyed by the
+  // ORIGINAL target (pre-redirect), but export_batches rows are keyed by a pair's CURRENT target
+  // — a card can in principle span more than one batch if some of its transactions took
+  // different redirect paths. Tracked per card below (batchIds, pending count, whether any
+  // resolved transaction is still unbatched) so the label reflects the true combined state
+  // instead of guessing off a single mismatched key.
+  const agg = {}; // key -> { dinasInisiasi, target, total, resolved, pending, declined_pending_action, reply_count, batchIds, hasUnbatchedResolved }
+  const bump = (key, dinasInisiasi, target, status, replyCount, exportBatchId) => {
+    if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, pending: 0, declined_pending_action: 0, reply_count: 0, batchIds: new Set(), hasUnbatchedResolved: false };
+    const a = agg[key];
+    const resolved = RESOLVED_STATUSES.includes(status);
+    a.total += 1;
+    if (resolved) a.resolved += 1;
+    if (status === 'PENDING') a.pending += 1;
+    if (status === 'DECLINED') a.declined_pending_action += 1;
+    a.reply_count += replyCount;
+    if (resolved) {
+      if (exportBatchId) a.batchIds.add(exportBatchId);
+      else a.hasUnbatchedResolved = true;
+    }
   };
   for (const t of transactions) {
-    const resolved = RESOLVED_STATUSES.includes(t.status_konfirmasi);
-    const declinedPending = t.status_konfirmasi === 'DECLINED';
     const replyCount = replyCounts[t.id] || 0;
     const chain = chainMap[t.id] || [];
     const originalTarget = chain.length > 0 ? chain[0] : t.dinas_target;
     const key = groupBy === 'pair' ? `${t.dinas_inisiasi} ${originalTarget}` : originalTarget;
-    bump(key, t.dinas_inisiasi, originalTarget, resolved, declinedPending, replyCount);
+    bump(key, t.dinas_inisiasi, originalTarget, t.status_konfirmasi, replyCount, t.export_batch_id);
+  }
+
+  // One batched lookup for every card's contributing batches' subdoc numbers, same shape as
+  // exportBatches.js's GET /history — a card whose transactions landed in more than one batch
+  // (the redirect-split edge case above) shows the UNION of subdoc numbers across all of them.
+  const allBatchIds = Array.from(new Set(Object.values(agg).flatMap((a) => Array.from(a.batchIds))));
+  const subdocsByBatch = {};
+  if (allBatchIds.length) {
+    const subdocsRes = await client.query(
+      `SELECT batch_id, subdoc_number FROM rdt.export_subdocs WHERE batch_id = ANY($1) ORDER BY created_at ASC, id ASC`,
+      [allBatchIds]
+    );
+    for (const s of subdocsRes.rows) {
+      if (!subdocsByBatch[s.batch_id]) subdocsByBatch[s.batch_id] = [];
+      subdocsByBatch[s.batch_id].push(s.subdoc_number);
+    }
   }
 
   const rows = Object.keys(agg).sort().map((key) => {
     const a = agg[key];
+    const subdocNumbers = a.hasUnbatchedResolved ? [] : Array.from(a.batchIds).flatMap((id) => subdocsByBatch[id] || []);
     const base = {
       total: a.total,
       resolved: a.resolved,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       declined_pending_action: a.declined_pending_action,
       reply_count: a.reply_count,
+      state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target, subdocNumbers }),
     };
     return groupBy === 'pair'
       ? { dinas: a.dinasInisiasi, target_dinas: a.target, ...base }
@@ -496,6 +525,12 @@ router.get('/summary', async (req, res) => {
     try { await client.end(); } catch (e) {}
   }
 });
+
+// REQ-RDT-SAP-12 (31 Jul, expanded per project owner idea): read-only repost/subdoc status for
+// pairs a dinas initiated now lives at GET /api/export-batches/history (auto-scoped to the
+// caller's own dinas_inisiasi for non-TAB users) rather than a second endpoint here — same table,
+// same query, two viewpoints, not two implementations. Pre-confirm progress is still /summary's
+// as_initiator cards (state_label-enriched, see buildChainAwareProgress above).
 
 // REQ-RDT-NAV-02a: lightweight count-only endpoint for the sidebar "Dashboard" badge, visible
 // from any page — called once at shell load (see selectPlatform() in ui-demo.html), not the

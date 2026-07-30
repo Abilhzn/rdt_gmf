@@ -9,6 +9,7 @@ import { ModalService } from '../services/modal.service';
 import { DashboardDetailService } from '../services/dashboard-detail.service';
 import { Comment } from '../services/comment.model';
 import { InvestigationService, InvestigationRow } from '../services/investigation.service';
+import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
 
 interface PendingRowVm extends PendingRow {
   checked: boolean;
@@ -65,6 +66,8 @@ export class ConfirmComponent implements OnInit {
   // the shared pager (100 rows/page) also used by Repost's review table.
   page = 1;
   readonly pageSize = 100;
+  // REQ-RDT-NAV-09: paste-many-values filter on Account, ala SAP.
+  pendingAccountFilterValues: string[] = [];
 
   // Item 7: right after a submit, show exactly which rows were declined vs redirected (from
   // the submit response, no refetch needed) as immediate feedback for the confirming user —
@@ -113,6 +116,18 @@ export class ConfirmComponent implements OnInit {
   // answer than the rest, per project owner: "assign satu-per-satu tetap harus tersedia".
   selectedInvestigationIds = new Set<number>();
   bulkTargetDinas = '';
+  // REQ-RDT-NAV-09: paste-many-values filter on Account — narrows what's shown/selectable, but
+  // NOT what "Assign All" targets (that stays literally every awaiting-investigation row, its
+  // pre-existing meaning).
+  investigationAccountFilterValues: string[] = [];
+
+  get filteredInvestigationRows(): InvestigationRow[] {
+    return this.investigationRows.filter((r) => matchesAnyFilterValue(r.account, this.investigationAccountFilterValues));
+  }
+
+  onInvestigationAccountFilterChange(values: string[]): void {
+    this.investigationAccountFilterValues = values;
+  }
 
   constructor(
     private route: ActivatedRoute,
@@ -266,12 +281,13 @@ export class ConfirmComponent implements OnInit {
   }
 
   get allInvestigationSelected(): boolean {
-    return this.investigationRows.length > 0 && this.investigationRows.every((r) => this.selectedInvestigationIds.has(r.id));
+    const visible = this.filteredInvestigationRows;
+    return visible.length > 0 && visible.every((r) => this.selectedInvestigationIds.has(r.id));
   }
 
   toggleSelectAllInvestigation(checked: boolean): void {
-    if (checked) this.investigationRows.forEach((r) => this.selectedInvestigationIds.add(r.id));
-    else this.selectedInvestigationIds.clear();
+    if (checked) this.filteredInvestigationRows.forEach((r) => this.selectedInvestigationIds.add(r.id));
+    else this.filteredInvestigationRows.forEach((r) => this.selectedInvestigationIds.delete(r.id));
   }
 
   // Dinas options valid for EVERY currently-selected row at once — excludes a dinas the moment
@@ -369,14 +385,24 @@ export class ConfirmComponent implements OnInit {
     this.pendingRows.forEach((r) => (r.checked = checked));
   }
 
+  // REQ-RDT-NAV-09: filter first, THEN paginate what's left.
+  get filteredPendingRows(): PendingRowVm[] {
+    return this.pendingRows.filter((r) => matchesAnyFilterValue(r.account, this.pendingAccountFilterValues));
+  }
+
+  onPendingAccountFilterChange(values: string[]): void {
+    this.pendingAccountFilterValues = values;
+    this.page = 1;
+  }
+
   // REQ-RDT-NAV-07: pagination for pendingRows via the shared pager component.
   get totalPages(): number {
-    return Math.max(1, Math.ceil(this.pendingRows.length / this.pageSize));
+    return Math.max(1, Math.ceil(this.filteredPendingRows.length / this.pageSize));
   }
 
   get pagedPendingRows(): PendingRowVm[] {
     const start = (this.page - 1) * this.pageSize;
-    return this.pendingRows.slice(start, start + this.pageSize);
+    return this.filteredPendingRows.slice(start, start + this.pageSize);
   }
 
   onPageChange(p: number): void { this.page = p; }

@@ -11,7 +11,6 @@ const PAGE_TITLES: Record<string, string> = {
   repost: 'Repost',
   confirm: 'Confirmation',
   'need-approval': 'Need Approval',
-  'repost-history': 'Riwayat Repost TAB',
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
@@ -72,7 +71,14 @@ export class ShellComponent implements OnInit {
     // bug elsewhere).
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       const segment = this.route.firstChild?.snapshot.routeConfig?.path;
-      this.pageTitle = (segment && PAGE_TITLES[segment]) || 'Dashboard';
+      // REQ-RDT-SAP-12 (31 Jul, expanded): this page is TAB's own archive OR a dinas's own
+      // archive of the same underlying data, so its title follows who's looking — same dynamic
+      // pattern as Dashboard's "Repost Every PIC" vs "Own Repost" sub-link just below.
+      if (segment === 'repost-history') {
+        this.pageTitle = this.currentUser.current?.role === 'TAB' ? 'Riwayat Repost TAB' : `Riwayat Repost ${this.currentUser.current?.dinas || ''}`;
+      } else {
+        this.pageTitle = (segment && PAGE_TITLES[segment]) || 'Dashboard';
+      }
       // REQ-RDT-NAV-02a: which Dashboard sub-link reads bold — HomeComponent owns the ?sub=
       // query param, read here too so the sidebar (a sibling, not an ancestor of HomeComponent)
       // can reflect it. Also a natural opportunistic refresh point for the badge count, same
@@ -105,12 +111,6 @@ export class ShellComponent implements OnInit {
   // including Corp's). Repost has no role gate at all now — every remaining role (PIC, TAB)
   // was already allowed.
   get canSeeNeedApproval(): boolean {
-    return this.currentUser.current?.role === 'TAB';
-  }
-
-  // REQ-RDT-SAP-10 (30 Jul): same TAB-only gate as Need Approval — this page is that queue's
-  // archive, not a separately-permissioned feature.
-  get canSeeRepostHistory(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 

@@ -1,0 +1,47 @@
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
+// shell.component.scss for the "why literal, not just structural" note. Same tokens as
+// pagination.component.scss (this component's sibling).
+
+$ink: #000;
+$ink-600: #52616e;
+$accent: #006298;
+$line: #cccccc;
+$radius-md: 8px;
+
+.mvf {
+  margin: 4px 0 12px;
+  max-width: 320px;
+}
+
+.mvf__box {
+  width: 100%;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.mvf__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: $ink-600;
+}
+
+.mvf__count { font-weight: 600; }
+
+.mvf__clear {
+  border: none;
+  background: none;
+  color: $accent;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  &:hover { text-decoration: underline; }
+}

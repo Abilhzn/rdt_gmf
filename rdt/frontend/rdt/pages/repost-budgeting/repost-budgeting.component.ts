@@ -5,6 +5,7 @@ import { Transaction, TransactionStatus, AggregationMatrix } from '../../service
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { DinasService } from '../../services/dinas.service';
 import { ModalService } from '../../services/modal.service';
+import { matchesAnyFilterValue } from '../../shared/multi-value-filter.component';
 
 type UiPhase = 'idle' | 'parsing' | 'parsed' | 'committing' | 'committed' | 'error';
 
@@ -47,6 +48,9 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   statusFilter: TransactionStatus | 'ALL' = 'ALL';
   dinasFilter = 'ALL';
   searchText = '';
+  /** REQ-RDT-NAV-09: paste-many-values filter on Account, ala SAP — see
+   * shared/multi-value-filter.component.ts for the reusable paste box + matching rules. */
+  accountFilterValues: string[] = [];
 
   /** REQ-RDT-NAV-07: pagination sederhana client-side, 100 baris/halaman, pager reusable
    * (shared/pagination.component.ts) yang juga dipakai di Confirmation. */
@@ -243,6 +247,7 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     this.statusFilter = 'ALL';
     this.dinasFilter = 'ALL';
     this.searchText = '';
+    this.accountFilterValues = [];
     this.page = 1;
   }
 
@@ -281,12 +286,18 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     return this.rows.filter((r) => {
       if (this.statusFilter !== 'ALL' && r.status_konfirmasi !== this.statusFilter) return false;
       if (this.dinasFilter !== 'ALL' && r.dinas_target !== this.dinasFilter) return false;
+      if (!matchesAnyFilterValue(r.account, this.accountFilterValues)) return false;
       if (q) {
         const hay = `${r.account || ''} ${r.remark || ''} ${r.category || ''} ${r.sheet || ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
+  }
+
+  onAccountFilterChange(values: string[]): void {
+    this.accountFilterValues = values;
+    this.onFilterChange();
   }
 
   get pagedRows(): Transaction[] {

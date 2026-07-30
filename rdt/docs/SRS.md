@@ -282,6 +282,37 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 > sudah ada) saat pasangan mereka di-repost — section ini pelengkap yang bisa
 > di-browse, bukan pengganti notifikasi yang sudah ada.
 >
+> `REQ-RDT-SAP-11` **(baru 31 Jul, gap ditemukan saat review kode)**: `rdt.export_subdocs`
+> sekarang cuma `{batch_id, subdoc_number}` — TIDAK ada linkage ke transaksi spesifik.
+> Kalau satu pasangan dipecah jadi beberapa subdoc (limit ~300 baris SAP), sistem
+> HARUS bisa nunjukin baris transaksi mana masuk subdoc yang mana — bukan cuma
+> daftar nomor subdoc tanpa konteks. Butuh linkage (kolom `subdoc_id` di
+> `rdt.transactions`, atau tabel junction terpisah) yang diisi saat TAB memasukkan
+> subdoc, idealnya dengan UI yang biarin TAB pilih/lihat baris mana yang tercakup
+> di tiap nomor subdoc.
+>
+> `REQ-RDT-SAP-12` **(baru 31 Jul, gap ditemukan saat review kode; diperluas 31 Jul
+> per ide pemilik proyek jadi "Riwayat Repost [Dinas]")**: Dinas PENGAJU (CBO)
+> harus punya **arsip riwayat sendiri**, simetris dengan "Riwayat Repost TAB"
+> (REQ-RDT-SAP-10) tapi di-filter ke pasangan yang dinas itu mulai saja —
+> menampilkan status & nomor subdoc dari TAB untuk tiap pasangan, bisa difilter
+> per periode sama seperti punya TAB. Ini BUKAN dua fitur terpisah dari SAP-10 —
+> reuse endpoint/tabel yang sama (`rdt.export_batches` + `rdt.export_subdocs`),
+> cukup beda scope filter (TAB lihat semua, dinas cuma lihat punya sendiri) dan
+> beda otorisasi (bukan `requireRole('TAB')` doang, PIC dinas pengaju juga boleh
+> akses versi milik mereka). Saat ini seluruh endpoint `export-batches` di-gate
+> TAB-only, dan view "Own Repost" milik PIC dinas pengaju tidak menyertakan
+> `state_label`/subdoc sama sekali — walau TAB sudah selesai repost, dinas
+> pengaju gak akan pernah liat "Reposted with subdoc X" di dashboard mereka.
+> Perlu endpoint read-only yang bisa diakses PIC dinas pengaju untuk pasangan
+> yang mereka mulai, DAN `buildChainAwareProgress`/as_initiator view perlu
+> disertain `state_label`.
+>
+> **Open question (periode/bulan berganti)**: pemilik proyek belum final soal
+> bagaimana sistem menangani pergantian periode/bulan repost (kemungkinan besar
+> diarsipkan, tapi mekanismenya belum dijabarkan) — JANGAN desain sendiri, tunggu
+> detail lebih lanjut sebelum implementasi apapun terkait ini.
+>
 > **Migrasi**: model per-dinas-pengaju (29 Jul) dan model batch global (24 Jul)
 > **DIGANTI TOTAL** oleh model per-pasangan ini. Kalau ada kode yang sudah
 > mengikuti model 29 Jul (gate nunggu semua pasangan satu dinas), itu HARUS
@@ -308,6 +339,7 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 - `REQ-RDT-COMMENT-01`: Tabel Komentar berelasi dengan tabel Transaksi melalui Foreign Key.
 - `REQ-RDT-COMMENT-02`: Logika parent-child agar komentar tampil terindentasi seperti forum.
 - `REQ-RDT-COMMENT-03`: Sistem harus mendeteksi @mention (referensi ke user/role lain) dalam isi komentar dan mengirim **notifikasi** ke pengguna yang di-mention (mis. badge/counter notifikasi, bisa juga entry di tabel notifikasi baru). @mention **PURELY notifikasi** — tidak memicu perubahan status transaksi atau reassignment otomatis apapun (lihat klarifikasi di REQ-RDT-NAV-03). Format penulisan mention di UI (mis. `@nama` dengan autocomplete) menyusul, tapi minimal parsing teks `@[...]` harus terdeteksi.
+- `REQ-RDT-COMMENT-04` **(baru 31 Jul)**: Mention `@TA` harus di-resolve sebagai mention ke **TAB** (bukan dicari sebagai dinas terpisah bernama "TA") — konsisten dengan REQ-RDT-AUTH-04 yang menyatakan TA sudah tergabung ke TAB. Tanpa alias ini, `@TA` tidak menotifikasi siapapun karena tidak ada directory entry dengan `dinas='TA'`.
 
 ### 3.6 Audit Trail & Logging Aktivitas
 
@@ -444,6 +476,18 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   ada halaman lain di luar rentang, nomor di sekitar halaman aktif yang bergeser saat
   navigasi). Komponen ini harus reusable (dipakai di kedua tabel, bukan diimplementasi
   dua kali secara terpisah).
+- `REQ-RDT-NAV-09` **(baru 31 Jul, filter multi-value ala SAP)**: Setiap tampilan yang
+  menunjukkan data transaksi/DT (Repost Review, Confirmation, Dashboard-Detailing,
+  transparansi Need Approval, Riwayat Repost TAB/Dinas, antrian Investigation, dst)
+  harus punya opsi **filter multi-value dengan cara paste**, terinspirasi pola SAP:
+  pengguna paste banyak nilai sekaligus (satu nilai per baris, dari copy kolom Excel
+  misalnya) ke kotak filter untuk satu kolom tertentu (mis. Account, Remark, Ref.
+  Doc.) — tabel langsung terfilter ke baris yang nilainya COCOK SALAH SATU dari
+  daftar yang di-paste (OR di antara nilai yang di-paste, bukan AND). Harus jadi
+  **komponen reusable** (satu implementasi dipakai di semua tabel di atas, bukan
+  ditulis ulang tiap halaman) — pola yang sama seperti komponen pagination di
+  REQ-RDT-NAV-07. Parsing paste: pisahkan per baris (newline) DAN per koma, trim
+  whitespace tiap nilai, hilangkan duplikat.
 - `REQ-RDT-NAV-08` **(baru 23 Jul)**: Sistem harus punya halaman **Login** (username +
   password) dan **Select Platform** sesuai draf Figma awal (node `40:95`/`40:96`),
   MENGGANTIKAN dropdown "Login sebagai" yang sekarang cuma simulasi. Kredensial

@@ -28,6 +28,12 @@
 
     <div class="transparency-panel" *ngIf="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)">
       <p class="alert alert--error" *ngIf="transparencyError">{{ transparencyError }}</p>
+      <!-- REQ-RDT-NAV-09: paste banyak nilai Account sekaligus, ala SAP. -->
+      <rdt-multi-value-filter
+        *ngIf="transparencyRows.length"
+        placeholder="Tempel banyak Account sekaligus (satu per baris/koma)..."
+        (valuesChange)="onTransparencyAccountFilterChange($event)"
+      ></rdt-multi-value-filter>
       <div class="table-scroll" *ngIf="transparencyRows.length">
         <table class="rows">
           <thead>
@@ -37,7 +43,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let t of transparencyRows">
+            <tr *ngFor="let t of filteredTransparencyRows">
               <td>{{ t.account }}</td>
               <td>{{ t.ref_doc }}</td>
               <td class="rows__num">{{ t.nominal | number: '1.2-2' }}</td>

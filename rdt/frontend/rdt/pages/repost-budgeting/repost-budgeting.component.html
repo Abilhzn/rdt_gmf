@@ -128,6 +128,12 @@
             </label>
           </div>
 
+          <!-- REQ-RDT-NAV-09: paste banyak nilai Account sekaligus, ala SAP. -->
+          <rdt-multi-value-filter
+            placeholder="Tempel banyak Account sekaligus (satu per baris/koma)..."
+            (valuesChange)="onAccountFilterChange($event)"
+          ></rdt-multi-value-filter>
+
           <div class="table-scroll">
             <table class="rows">
               <thead>

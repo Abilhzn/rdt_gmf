@@ -74,6 +74,11 @@
           (click)="downloadOriginal(u.upload_id, u.upload_filename)"
         >⬇ Download file asli: {{ u.upload_filename }}</button>
       </div>
+      <!-- REQ-RDT-NAV-09: paste banyak nilai Account sekaligus, ala SAP. -->
+      <rdt-multi-value-filter
+        placeholder="Tempel banyak Account sekaligus (satu per baris/koma)..."
+        (valuesChange)="onPendingAccountFilterChange($event)"
+      ></rdt-multi-value-filter>
       <div class="table-scroll">
         <table class="rows">
           <thead>
@@ -175,6 +180,12 @@
         <textarea class="batch-note" [(ngModel)]="investigationDescription" rows="2"
           placeholder="Kenapa baris ini di-assign ke dinas yang dipilih... akan muncul sebagai komentar di Dashboard-Detailing pasangan dinas tersebut"></textarea>
       </label>
+      <!-- REQ-RDT-NAV-09: paste banyak nilai Account sekaligus, ala SAP. Menyaring baris yang
+           tampil/bisa dipilih via checkbox — TIDAK menyaring "Assign All" (tetap semua baris). -->
+      <rdt-multi-value-filter
+        placeholder="Tempel banyak Account sekaligus (satu per baris/koma)..."
+        (valuesChange)="onInvestigationAccountFilterChange($event)"
+      ></rdt-multi-value-filter>
       <div class="table-scroll">
         <table class="rows">
           <thead>
@@ -194,7 +205,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of investigationRows">
+            <tr *ngFor="let r of filteredInvestigationRows">
               <td>
                 <input type="checkbox" [checked]="isInvestigationSelected(r.id)"
                   (change)="toggleInvestigationSelection(r.id, $any($event.target).checked)" />

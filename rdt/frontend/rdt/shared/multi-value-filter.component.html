@@ -1,0 +1,13 @@
+<div class="mvf">
+  <textarea
+    class="mvf__box"
+    rows="2"
+    [placeholder]="placeholder"
+    [(ngModel)]="raw"
+    (ngModelChange)="onInput()"
+  ></textarea>
+  <div class="mvf__meta" *ngIf="values.length">
+    <span class="mvf__count">{{ values.length }} nilai terpasang</span>
+    <button class="mvf__clear" type="button" (click)="clear()">Bersihkan</button>
+  </div>
+</div>

@@ -2,6 +2,7 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireDinasAccess } = require('../middleware/auth');
 const { validateReassignTarget } = require('../rules/reassignmentRules');
+const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
 
@@ -117,6 +118,13 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
 
     const trimmedDescription = description && String(description).trim();
     if (trimmedDescription) {
+      // Gap found in 31 Jul code review: this reply used to be posted with no notification at
+      // all — unlike a plain manual comment (resolveMentionedUserIds) and unlike TAB's
+      // closing_description (fans out to the whole target dinas). Fixed the same way TAB's does:
+      // this description is inherently addressed to the dinas_inisiasi whose submission it's
+      // replying to, so notify that dinas's PIC(s) directly rather than requiring an explicit
+      // @mention for something that's already implied by context.
+      const directory = await loadDirectory();
       for (const [dinasInisiasi, fallbackTransactionId] of initiatorTransactionId) {
         const parentRes = await client.query(
           `SELECT c.id, c.transaction_id FROM rdt.comments c
@@ -126,10 +134,20 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
           [dinasInisiasi, dinas]
         );
         const parent = parentRes.rows[0];
-        await client.query(
-          `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body) VALUES ($1, $2, $3, $4)`,
+        const commentRes = await client.query(
+          `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body) VALUES ($1, $2, $3, $4) RETURNING id`,
           [parent ? parent.transaction_id : fallbackTransactionId, parent ? parent.id : null, userId, trimmedDescription]
         );
+        const commentId = commentRes.rows[0].id;
+        const recipientIds = Object.keys(directory).filter(
+          (id) => String(directory[id].dinas).toUpperCase() === String(dinasInisiasi).toUpperCase() && id !== userId
+        );
+        for (const recipientId of recipientIds) {
+          await client.query(
+            'INSERT INTO rdt.notifications (recipient_user_id, comment_id) VALUES ($1, $2)',
+            [recipientId, commentId]
+          );
+        }
       }
     }
 

@@ -7,6 +7,7 @@ import {
 } from '../services/export-batch.service';
 import { triggerBlobDownload } from '../services/confirmation.service';
 import { ModalService } from '../services/modal.service';
+import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
 
 // REQ-RDT-SAP-03..06 (SRS.md 3.3, SUPERSEDED 30 Jul) — full rewrite replacing the 29 Jul
 // per-dinas_inisiasi UI. Approval unit is now one PASANGAN (dinas_inisiasi, dinas_target): a
@@ -32,6 +33,16 @@ export class NeedApprovalComponent implements OnInit {
   transparencyError = '';
   closingDescription = '';
   confirming = false;
+  // REQ-RDT-NAV-09: paste-many-values filter on Account, ala SAP.
+  transparencyAccountFilterValues: string[] = [];
+
+  get filteredTransparencyRows(): TransparencyRow[] {
+    return this.transparencyRows.filter((r) => matchesAnyFilterValue(r.account, this.transparencyAccountFilterValues));
+  }
+
+  onTransparencyAccountFilterChange(values: string[]): void {
+    this.transparencyAccountFilterValues = values;
+  }
 
   // REQ-RDT-SAP-08: subdoc entry is a separate step from Confirm, done any time after a batch
   // lands in "Sudah Confirmed" — one text input per batch row, keyed by batch id since more than
@@ -69,6 +80,7 @@ export class NeedApprovalComponent implements OnInit {
     this.transparencyError = '';
     this.closingDescription = '';
     this.transparencyRows = [];
+    this.transparencyAccountFilterValues = [];
     this.exportBatches.getTransparency(dinasInisiasi, dinasTarget).subscribe({
       next: (rows) => { this.transparencyRows = rows; },
       error: (err) => { this.transparencyError = err?.message || 'Gagal memuat transparansi'; },

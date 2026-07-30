@@ -45,4 +45,14 @@ describe('resolveMentionedUserIds', () => {
   test('does not duplicate a user reachable via both a direct mention and their dinas', () => {
     expect(resolveMentionedUserIds('@demo-pic-tj @TJ', directory)).toEqual(['demo-pic-tj']);
   });
+
+  // REQ-RDT-COMMENT-04 (31 Jul): "TA" was retired and merged into "TAB" — no directory entry has
+  // dinas='TA', so @TA must alias to TAB instead of silently resolving to nobody.
+  test('@TA aliases to dinas TAB', () => {
+    expect(resolveMentionedUserIds('cc @TA tolong cek', directory)).toEqual(['demo-tab']);
+  });
+
+  test('@TA alias is case-insensitive', () => {
+    expect(resolveMentionedUserIds('cc @ta tolong cek', directory)).toEqual(['demo-tab']);
+  });
 });

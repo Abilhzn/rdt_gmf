@@ -28,8 +28,20 @@ export interface ConfirmedBatch {
   state_label: string;
 }
 
-// REQ-RDT-SAP-10 "Riwayat Repost TAB" — a ConfirmedBatch plus the subdoc numbers that archived it.
+// REQ-RDT-SAP-11 — one subdoc entry with the transaction ids it actually covers, not just the
+// bare number.
+export interface SubdocDetail {
+  id: number;
+  subdoc_number: string;
+  created_at: string;
+  transaction_ids: number[];
+}
+
+// REQ-RDT-SAP-10 "Riwayat Repost TAB/Dinas" — a ConfirmedBatch plus the subdoc(s) that archived
+// it (SAP-11: full linkage, not just the bare numbers — subdoc_numbers stays as a flat
+// convenience list derived from `subdocs`).
 export interface HistoryBatch extends ConfirmedBatch {
+  subdocs: SubdocDetail[];
   subdoc_numbers: string[];
 }
 
@@ -48,6 +60,19 @@ export interface Subdoc {
   id: number;
   subdoc_number: string;
   created_at: string;
+  transaction_ids: number[];
+}
+
+// REQ-RDT-SAP-11 — one transaction line within a batch, annotated with which subdoc (if any)
+// already covers it. Used by the subdoc-entry picker (GET /:batchId/lines, TAB-only).
+export interface BatchLine {
+  id: number;
+  account: string;
+  nominal: number;
+  remark: string | null;
+  ref_doc: string | null;
+  subdoc_id: number | null;
+  subdoc_number: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -114,17 +139,31 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-08 — a batch can take more than one subdoc over time (SAP's ~300 line item cap).
-  addSubdoc(batchId: number, subdocNumber: string): Observable<Subdoc> {
+  // REQ-RDT-SAP-08/11 — a batch can take more than one subdoc over time (SAP's ~300 line item
+  // cap). transactionIds omitted = every transaction in this batch not yet covered by an earlier
+  // subdoc (the common single-subdoc case); pass a subset to split a batch across several
+  // subdocs (see getBatchLines for the picker data).
+  addSubdoc(batchId: number, subdocNumber: string, transactionIds?: number[]): Observable<Subdoc> {
     return this.http
       .post<{ ok: boolean; subdoc: Subdoc; error?: string }>(
         `${this.base}/${batchId}/subdocs`,
-        { subdoc_number: subdocNumber },
+        { subdoc_number: subdocNumber, transaction_ids: transactionIds },
         { headers: this.currentUser.authHeaders() }
       )
       .pipe(map((res) => {
         if (!res.ok) throw new Error(res.error || 'gagal menambah subdoc');
         return res.subdoc;
+      }));
+  }
+
+  // REQ-RDT-SAP-11 — TAB-only. Every line in a batch with its current subdoc assignment, so the
+  // subdoc-entry UI can show/pick which unassigned rows go into a new subdoc number.
+  getBatchLines(batchId: number): Observable<BatchLine[]> {
+    return this.http
+      .get<{ ok: boolean; lines: BatchLine[]; error?: string }>(`${this.base}/${batchId}/lines`, { headers: this.currentUser.authHeaders() })
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal memuat baris batch');
+        return res.lines;
       }));
   }
 
