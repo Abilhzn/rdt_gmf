@@ -1,0 +1,14 @@
+$accent: #006298;
+$accent-050: rgba(0, 98, 152, 0.1);
+
+// REQ-RDT-COMMENT-03 (diperjelas 3 Agu): distinct styled chip, not plain text — REQ-RDT-UI-03:
+// tinted background instead of a shadow as the visual marker.
+.mention-chip {
+  display: inline;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: $accent-050;
+  color: $accent;
+  font-weight: 600;
+  cursor: default;
+}

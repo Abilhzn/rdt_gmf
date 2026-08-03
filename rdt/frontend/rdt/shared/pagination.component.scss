@@ -49,11 +49,13 @@ $radius-md: 8px;
   cursor: pointer;
   border: none;
 
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
+  // penanda visual sebagai gantinya.
   &--ghost {
     background: #fff;
     color: $ink;
-    box-shadow: $shadow-sm;
-    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
-    &:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+    border: 1px solid $line;
+    &:hover { border-color: $accent; }
+    &:disabled { opacity: 0.4; cursor: default; border-color: $line; }
   }
 }

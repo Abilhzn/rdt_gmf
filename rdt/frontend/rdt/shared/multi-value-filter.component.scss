@@ -6,11 +6,65 @@ $ink: #000;
 $ink-600: #52616e;
 $accent: #006298;
 $line: #cccccc;
+$page-bg: #f2f2f2;
 $radius-md: 8px;
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.35);
 
 .mvf {
-  margin: 4px 0 12px;
-  max-width: 320px;
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.mvf__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: $ink-600;
+  cursor: pointer;
+  border-radius: 4px;
+
+  svg { width: 12px; height: 12px; }
+
+  &:hover { background: rgba(0, 0, 0, 0.08); color: $ink; }
+  &--active { color: $accent; }
+}
+
+.mvf__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 2px;
+  border-radius: 7px;
+  background: $accent;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+}
+
+.mvf__popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 240px;
+  background: #fff;
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+  padding: 10px;
+  text-transform: none;
+  font-weight: 400;
 }
 
 .mvf__box {
@@ -22,23 +76,32 @@ $radius-md: 8px;
   font-family: inherit;
   resize: vertical;
   box-sizing: border-box;
+  color: $ink;
 }
 
-.mvf__meta {
+.mvf__actions {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 11.5px;
-  color: $ink-600;
+  margin-top: 8px;
 }
 
-.mvf__count { font-weight: 600; }
+.mvf__apply {
+  border: none;
+  border-radius: $radius-md;
+  background: $accent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+  &:hover { background: #004a73; }
+}
 
 .mvf__clear {
   border: none;
   background: none;
-  color: $accent;
+  color: $ink-600;
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;

@@ -17,10 +17,11 @@ $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
+// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
   padding: 36px;
   color: $ink;
 }
@@ -40,7 +41,7 @@ $radius-md: 8px;
   font-weight: 700;
   color: $ink;
   background: #fff;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
   padding: 10px 20px;
   border-radius: $radius-md;
 }
@@ -64,7 +65,7 @@ $radius-md: 8px;
   background: #fff;
   border-radius: $radius-lg;
   padding: 16px 12px;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
 }
 
 .dinas-circle-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
@@ -96,6 +97,23 @@ $radius-md: 8px;
 
 .thread-title { margin: 24px 0 4px; font-size: 14px; }
 
+// REQ-RDT-NAV-03 (3 Agu): per-transaction redirect chain, only rendered when >=1 row was
+// actually redirected — REQ-RDT-UI-03: border, not shadow.
+.redirect-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 8px;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  overflow: hidden;
+
+  th, td { padding: 8px 12px; border-bottom: 1px solid $line; text-align: left; }
+  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 12px; text-transform: uppercase; }
+  tbody tr:last-child td { border-bottom: none; }
+  &__num { text-align: right; font-variant-numeric: tabular-nums; }
+}
+
 .thread-comment {
   display: flex;
   gap: 10px;
@@ -109,40 +127,11 @@ $radius-md: 8px;
   &__text { margin: 4px 0; font-size: 13.5px; white-space: pre-wrap; }
 }
 
-// ---------- @mention dropdown (shared interaction with RepostBudgetingComponent) ----------
-.mention-wrap { position: relative; margin-top: 14px; }
-
-.mention-list {
-  position: absolute;
-  z-index: 20;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: 2px 0 0;
-  padding: 4px;
-  list-style: none;
-  background: #fff;
-  border: 1px solid $line;
-  border-radius: $radius-md;
-  box-shadow: $shadow-lg;
-  max-height: 180px;
-  overflow-y: auto;
-  text-align: left;
-
-  li {
-    padding: 6px 8px;
-    font-size: 13px;
-    color: $ink;
-    cursor: pointer;
-    border-radius: 6px;
-    &:hover { background: $page-bg; }
-    // Keyboard-selected item (ArrowUp/ArrowDown) — same visual treatment as :hover so the
-    // keyboard and mouse paths feel consistent.
-    &--active { background: $page-bg; }
-  }
-}
-
-.repost-desc {
+// ---------- @mention (shared component, see shared/mention-input.component.ts) ----------
+// ::ng-deep: this class is passed as [extraClass] into <rdt-mention-input>, which lives inside a
+// CHILD component's own template — Angular's default emulated encapsulation otherwise can't have
+// this component's stylesheet reach it (see mention-input.component.scss's note on the same).
+::ng-deep .repost-desc {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid $line;
@@ -184,11 +173,13 @@ $radius-md: 8px;
     &:hover:not(:disabled) { background: #004a73; }
   }
 
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
+  // penanda visual sebagai gantinya.
   &--ghost {
     background: #fff;
     color: $ink;
-    box-shadow: $shadow-sm;
-    &:hover:not(:disabled) { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+    border: 1px solid $line;
+    &:hover:not(:disabled) { border-color: $accent; }
   }
 
   &--link {

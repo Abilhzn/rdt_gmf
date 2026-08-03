@@ -17,10 +17,12 @@ $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
+// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): berlaku ke SELURUH elemen visual dashboard sekarang —
+// outline, bukan shadow.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
   padding: 36px;
   color: $ink;
 }
@@ -40,7 +42,7 @@ $radius-md: 8px;
   font-weight: 700;
   color: $ink;
   background: #fff;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
   padding: 10px 20px;
   border-radius: $radius-md;
 }
@@ -60,11 +62,13 @@ $radius-md: 8px;
   border: none;
 
   &--primary { background: $accent; color: #fff; box-shadow: $shadow-sm; &:hover { background: #004a73; } }
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
+  // penanda visual sebagai gantinya. Shadow tetap boleh untuk card/container biasa.
   &--ghost {
     background: #fff;
     color: $ink;
-    box-shadow: $shadow-sm;
-    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+    border: 1px solid $line;
+    &:hover { border-color: $accent; }
   }
   &--link {
     background: none;
@@ -82,7 +86,7 @@ $radius-md: 8px;
 .card {
   background: #fff;
   border-radius: $radius-lg;
-  box-shadow: $shadow-sm;
+  border: 1px solid $line;
   padding: 20px;
   margin-bottom: 18px;
 
@@ -142,6 +146,38 @@ input[type='checkbox'] {
   input[type='checkbox'] { margin-right: 6px; vertical-align: middle; }
 }
 
+// REQ-RDT-NAV-05 (baru 3 Agu): pending vs declined/reassign queue switched via Excel-workbook-
+// style tabs — same visual language as repost-history.component.scss's .month-tabs.
+.queue-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid $line;
+}
+
+.queue-tab {
+  border: 1px solid $line;
+  border-bottom: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: $page-bg;
+  color: $ink-600;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  margin-bottom: -1px;
+  cursor: pointer;
+
+  &:hover { color: $ink; }
+
+  &--active {
+    background: #fff;
+    color: $ink;
+    border-color: $line;
+    border-bottom-color: #fff;
+  }
+}
+
 .table-scroll { overflow-x: auto; }
 
 .rows {
@@ -169,13 +205,14 @@ input[type='checkbox'] {
 
 .declined-row {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
-  padding: 6px 0;
+  // REQ-RDT-UI-04 (1 Agu, spacing audit): 6px was too tight for 2 selects + 2 buttons in a row.
+  padding: 10px 0;
   border-bottom: 1px dashed $line;
 
   &__info { flex: 1; }
-  &__actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  &__actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 }
 
 .target-picker {
@@ -216,6 +253,10 @@ input[type='checkbox'] {
   font-weight: 600;
   color: $ink-600;
   flex: 1 1 320px;
+  // REQ-RDT-UI-04 (1 Agu, spacing audit): standalone uses (Deskripsi/Keterangan textarea sitting
+  // directly above a table) had zero gap below — inside .batch-resolve-footer's flex gap already
+  // covers this, a little extra there is harmless.
+  margin-bottom: 12px;
 }
 
 .original-file-downloads {
@@ -225,7 +266,10 @@ input[type='checkbox'] {
   margin-bottom: 14px;
 }
 
-.batch-note {
+// ::ng-deep: passed as [extraClass] into <rdt-mention-input>, which lives inside a CHILD
+// component's own template — see shared/mention-input.component.scss's note on why this needs
+// ::ng-deep to be reached from here.
+::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
   padding: 8px 10px;

@@ -1,16 +1,15 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
 
-// REQ-RDT-NAV-09 (31 Jul, "filter multi-value ala SAP"): a paste box for filtering a table
-// column against MANY values at once (e.g. pasting a column of Account numbers copied out of
-// Excel) — every row whose value matches ANY of the pasted values (OR, not AND) stays visible.
-// One reusable component for every transaction-data table (Repost Review, Confirmation,
-// Dashboard-Detailing, Need Approval transparency, Riwayat Repost TAB/Dinas, Investigation),
-// same "write it once, reuse everywhere" rationale as PaginationComponent (REQ-RDT-NAV-07) — see
-// that component's header comment for why: this used to get reimplemented per-page.
+// REQ-RDT-NAV-09 (31 Jul, "filter multi-value ala SAP") — Excel-style: a small funnel button
+// sits in the column header itself (next to the header text, not a separate box above the whole
+// table); clicking it opens a popup with the paste textarea, positioned under that column.
+// Project owner correction (31 Jul): the earlier "one paste box above the table" layout wasn't
+// what was asked for — this is per-column, like Excel's own column filter buttons.
 //
-// This component only owns the paste box UI + parsing; each page keeps its own filtering
-// (different columns, different row shapes) using matchesAnyFilterValue below against the
-// values this emits.
+// One instance per filterable column. Same "write it once, reuse everywhere" rationale as
+// PaginationComponent (REQ-RDT-NAV-07) — see that component's header comment for why. This
+// component only owns the button + popup + parsing; each page keeps its own filtering (different
+// columns, different row shapes) using matchesAnyFilterValue below against the values this emits.
 @Component({
   selector: 'rdt-multi-value-filter',
   standalone: false,
@@ -21,18 +20,49 @@ export class MultiValueFilterComponent {
   @Input() placeholder = 'Tempel nilai di sini (satu per baris atau pisah koma)...';
   @Output() valuesChange = new EventEmitter<string[]>();
 
+  open = false;
   raw = '';
   values: string[] = [];
 
-  onInput(): void {
-    this.values = parseMultiValueFilter(this.raw);
-    this.valuesChange.emit(this.values);
+  constructor(private elementRef: ElementRef<HTMLElement>) {}
+
+  get active(): boolean {
+    return this.values.length > 0;
   }
 
-  clear(): void {
+  toggle(event: MouseEvent): void {
+    event.stopPropagation();
+    this.open = !this.open;
+    if (this.open) this.raw = this.values.join('\n');
+  }
+
+  apply(): void {
+    this.values = parseMultiValueFilter(this.raw);
+    this.valuesChange.emit(this.values);
+    this.open = false;
+  }
+
+  clear(event: MouseEvent): void {
+    event.stopPropagation();
     this.raw = '';
     this.values = [];
     this.valuesChange.emit(this.values);
+    this.open = false;
+  }
+
+  // Closes on any click outside this component — same pattern shell.component.ts uses for its
+  // user/notification dropdowns.
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.open) return;
+    if (!this.elementRef.nativeElement.contains(event.target as Node)) this.open = false;
+  }
+
+  // Stop clicks inside the popup itself from bubbling to the document listener above (would
+  // otherwise close the popup on every keystroke's containing click, e.g. clicking into the
+  // textarea).
+  stopClick(event: MouseEvent): void {
+    event.stopPropagation();
   }
 }
 
@@ -54,4 +84,23 @@ export function matchesAnyFilterValue(cellValue: string | number | null | undefi
   if (!values.length) return true;
   const normalized = String(cellValue ?? '').trim().toUpperCase();
   return values.some((v) => v.trim().toUpperCase() === normalized);
+}
+
+// REQ-RDT-NAV-09 (diperluas 1 Agu): one filter box per COLUMN, not just one (e.g. Account) —
+// combine as AND across columns (a row must satisfy every column that has an active filter),
+// OR within one column (matchesAnyFilterValue's existing rule, untouched). `filters` is keyed by
+// whatever column-key convention the caller uses; `getCellValue` reads that key off a row. Every
+// table that adopts per-column filtering shares this one function instead of hand-rolling its
+// own AND-loop — same "write it once" rationale as matchesAnyFilterValue itself.
+export function matchesAllColumnFilters<T>(
+  row: T,
+  filters: Record<string, string[]>,
+  getCellValue: (row: T, key: string) => string | number | null | undefined,
+): boolean {
+  for (const key of Object.keys(filters)) {
+    const values = filters[key];
+    if (!values || !values.length) continue;
+    if (!matchesAnyFilterValue(getCellValue(row, key), values)) return false;
+  }
+  return true;
 }

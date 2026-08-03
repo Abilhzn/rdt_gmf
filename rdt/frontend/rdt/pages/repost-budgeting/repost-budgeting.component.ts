@@ -1,19 +1,19 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { TransactionService } from '../../services/transaction.service';
+import { TransactionService, ContractField } from '../../services/transaction.service';
 import { Transaction, TransactionStatus, AggregationMatrix } from '../../services/transaction.model';
 import { CurrentUserService } from '@auth/services/current-user.service';
-import { DinasService } from '../../services/dinas.service';
 import { ModalService } from '../../services/modal.service';
-import { matchesAnyFilterValue } from '../../shared/multi-value-filter.component';
+import { matchesAllColumnFilters } from '../../shared/multi-value-filter.component';
 
 type UiPhase = 'idle' | 'parsing' | 'parsed' | 'committing' | 'committed' | 'error';
 
-interface MentionOption {
-  /** what actually gets inserted after "@" — must stay a single \w-ish token, no spaces */
-  token: string;
-  /** what's shown in the dropdown so entries are distinguishable */
+interface PreviewColumn {
+  key: string;
   label: string;
+  /** true for the one contract field (In PCLC) rendered via the specially-formatted Nominal
+   * cell instead of a plain text cell — see the template's *ngSwitchCase. */
+  numeric?: boolean;
 }
 
 @Component({
@@ -30,16 +30,10 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   isDragOver = false;
   /** item 6: optional free-text note attached to the upload record, not a required field */
   description = '';
-
-  // Item 5: @mention a dinas OR a specific user in the description, like tagging on social
-  // media. `token` is what actually gets inserted (must stay a single \w-ish word, no spaces,
-  // to keep the trailing "@partial" regex match working); `label` is what's shown in the
-  // dropdown so the user can tell entries apart.
-  @ViewChild('descInput') descInput?: ElementRef<HTMLTextAreaElement>;
-  mentionOptions: MentionOption[] = [];
-  mentionSuggestions: MentionOption[] = [];
-  showMentions = false;
-  highlightedMentionIndex = -1;
+  /** REQ-RDT-SAP-13 (3 Agu): which month/year this DT is FOR — REQUIRED, never inferred from the
+   * upload/repost timestamp (that inference is exactly the bug this requirement fixes: a June DT
+   * re-posted in August used to archive under August). "YYYY-MM" from an <input type="month">. */
+  period = '';
 
   rows: Transaction[] = [];
   aggregation: AggregationMatrix = {};
@@ -48,9 +42,18 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   statusFilter: TransactionStatus | 'ALL' = 'ALL';
   dinasFilter = 'ALL';
   searchText = '';
-  /** REQ-RDT-NAV-09: paste-many-values filter on Account, ala SAP — see
-   * shared/multi-value-filter.component.ts for the reusable paste box + matching rules. */
-  accountFilterValues: string[] = [];
+  /** REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account —
+   * keyed by PreviewColumn.key, AND antar kolom aktif, OR di dalam satu kolom (lihat
+   * matchesAllColumnFilters). */
+  columnFilters: Record<string, string[]> = {};
+
+  /** REQ-RDT-NAV-04 (1 Agu): kolom preview HARUS sama persis dengan yang ikut ter-repost — satu
+   * sumber (CONTRACT_FIELDS, via GET /api/contract-fields) dipakai bareng oleh preview ini dan
+   * proses export sebenarnya (exportBatches.js), bukan di-hardcode terpisah. In PCLC dirender
+   * lewat kolom "Nominal" yang sudah ada (format angka + highlight negatif) di posisi yang sama,
+   * bukan dua kolom terpisah untuk nilai yang sama. */
+  contractFields: ContractField[] = [];
+  previewColumns: PreviewColumn[] = [];
 
   /** REQ-RDT-NAV-07: pagination sederhana client-side, 100 baris/halaman, pager reusable
    * (shared/pagination.component.ts) yang juga dipakai di Confirmation. */
@@ -63,18 +66,45 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   constructor(
     private txService: TransactionService,
     public currentUser: CurrentUserService,
-    dinasService: DinasService,
     private modal: ModalService,
   ) {
-    // Item 1: mentions cover every dinas AND every user, not just dinas codes.
-    dinasService.getActiveDinas().subscribe((dinasList) => {
-      const dinasOptions: MentionOption[] = dinasList.map((d) => ({ token: d.code, label: `${d.code} — ${d.name}` }));
-      this.mentionOptions = [...dinasOptions, ...this.mentionOptions.filter((o) => !dinasOptions.some((d) => d.token === o.token))];
+    this.txService.getContractFields().subscribe((fields) => {
+      this.contractFields = fields;
+      this.previewColumns = this.buildPreviewColumns(fields);
     });
-    this.currentUser.loadDirectory().subscribe((directory) => {
-      const userOptions: MentionOption[] = Object.entries(directory).map(([id, entry]) => ({ token: id, label: `${entry.display_name} (${entry.dinas})` }));
-      this.mentionOptions = [...this.mentionOptions, ...userOptions];
-    });
+  }
+
+  // REQ-RDT-NAV-04: Sub Group leftmost, then the existing meta columns (Sheet/Baris), then EVERY
+  // contract field in its contract order (In PCLC swapped for the specially-formatted Nominal
+  // cell at that same position — see PreviewColumn.numeric), then the existing operational
+  // columns (Dinas target/Kategori/Status), Remark, and finally Catatan Reviewer.
+  private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
+    const contractCols: PreviewColumn[] = fields.map((f) =>
+      f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Nominal', numeric: true } : { key: f.key, label: f.label },
+    );
+    return [
+      { key: 'sub_group', label: 'Sub Group' },
+      { key: 'sheet', label: 'Sheet' },
+      { key: 'row', label: 'Baris' },
+      ...contractCols,
+      { key: 'dinas_target', label: 'Dinas target' },
+      { key: 'category', label: 'Kategori' },
+      { key: 'status_konfirmasi', label: 'Status' },
+      { key: 'remark', label: 'Remark' },
+    ];
+  }
+
+  // Generic accessor so the template can read any PreviewColumn.key off a row without a giant
+  // *ngSwitch — every contract field is already a top-level property on the parsed row (see
+  // excelParser.js's buildDetailRow), same object, no per-column special-casing needed here.
+  getCellValue(row: Transaction, key: string): string | number | null | undefined {
+    return (row as unknown as Record<string, string | number | null | undefined>)[key];
+  }
+
+  onColumnFilterChange(key: string, values: string[]): void {
+    if (values.length) this.columnFilters[key] = values;
+    else delete this.columnFilters[key];
+    this.onFilterChange();
   }
 
   ngOnInit(): void {
@@ -90,66 +120,6 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.userSub?.unsubscribe();
-  }
-
-  // ---------- @mention (item 5) ----------
-  // Detects "@partial-word" immediately before the cursor and shows matching dinas/user
-  // options — matched against BOTH the insertable token and the human-readable label, same
-  // interaction as tagging someone on social media.
-  //
-  // Bug fix (live testing, 24 Jul): capped at 8 like ui-demo.html originally was, but with 21
-  // dinas + ~24 directory users to match against, 8 was too few to reliably find someone by
-  // scanning alone — raised to 20 (the dropdown box already scrolls, .mention-list's
-  // max-height/overflow-y in the scss). Also added arrow-key navigation + Enter-to-select,
-  // which neither app had at all before — mouse-only wasn't enough for a list this size.
-  onDescriptionInput(): void {
-    const el = this.descInput?.nativeElement;
-    if (!el) return;
-    const cursor = el.selectionStart ?? el.value.length;
-    const upToCursor = el.value.slice(0, cursor);
-    const match = /@([\w-]*)$/.exec(upToCursor);
-    if (!match) { this.showMentions = false; return; }
-    const query = match[1].toLowerCase();
-    this.mentionSuggestions = this.mentionOptions
-      .filter((o) => o.token.toLowerCase().includes(query) || o.label.toLowerCase().includes(query))
-      .slice(0, 20);
-    this.showMentions = this.mentionSuggestions.length > 0;
-    this.highlightedMentionIndex = this.showMentions ? 0 : -1;
-  }
-
-  onDescriptionKeydown(event: KeyboardEvent): void {
-    if (!this.showMentions || !this.mentionSuggestions.length) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      this.highlightedMentionIndex = (this.highlightedMentionIndex + 1) % this.mentionSuggestions.length;
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      this.highlightedMentionIndex = (this.highlightedMentionIndex - 1 + this.mentionSuggestions.length) % this.mentionSuggestions.length;
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      const option = this.mentionSuggestions[this.highlightedMentionIndex];
-      if (option) this.insertMention(option);
-    } else if (event.key === 'Escape') {
-      this.showMentions = false;
-    }
-  }
-
-  insertMention(option: MentionOption): void {
-    const el = this.descInput?.nativeElement;
-    if (!el) return;
-    const cursor = el.selectionStart ?? this.description.length;
-    const upToCursor = this.description.slice(0, cursor);
-    const afterCursor = this.description.slice(cursor);
-    const replaced = upToCursor.replace(/@([\w-]*)$/, `@${option.token} `);
-    this.description = replaced + afterCursor;
-    this.showMentions = false;
-    const newCursor = replaced.length;
-    setTimeout(() => { el.focus(); el.setSelectionRange(newCursor, newCursor); });
-  }
-
-  closeMentions(): void {
-    // Delay so a click on a suggestion registers before the list disappears (blur fires first).
-    setTimeout(() => { this.showMentions = false; }, 150);
   }
 
   // ---------- file selection ----------
@@ -212,10 +182,13 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   }
 
   commit(): void {
-    if (!this.rows.length) return;
+    if (!this.rows.length || !this.period) return;
     this.phase = 'committing';
+    // REQ-RDT-NAV-04: reviewer_note is frontend-only (see transaction.model.ts) — strip it before
+    // persisting so it's unambiguous nothing gets silently sent/stored server-side.
+    const rowsToPersist = this.rows.map(({ reviewer_note, ...rest }) => rest);
     this.txService
-      .persistToDatabase(this.rows, this.aggregation, this.selectedFile, this.description)
+      .persistToDatabase(rowsToPersist, this.aggregation, this.selectedFile, this.period, this.description)
       .subscribe({
         next: async (res) => {
           if (!res.ok) {
@@ -242,12 +215,13 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.selectedFile = null;
     this.description = '';
+    this.period = '';
     this.rows = [];
     this.aggregation = {};
     this.statusFilter = 'ALL';
     this.dinasFilter = 'ALL';
     this.searchText = '';
-    this.accountFilterValues = [];
+    this.columnFilters = {};
     this.page = 1;
   }
 
@@ -286,18 +260,13 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     return this.rows.filter((r) => {
       if (this.statusFilter !== 'ALL' && r.status_konfirmasi !== this.statusFilter) return false;
       if (this.dinasFilter !== 'ALL' && r.dinas_target !== this.dinasFilter) return false;
-      if (!matchesAnyFilterValue(r.account, this.accountFilterValues)) return false;
+      if (!matchesAllColumnFilters(r, this.columnFilters, (row, key) => this.getCellValue(row, key))) return false;
       if (q) {
         const hay = `${r.account || ''} ${r.remark || ''} ${r.category || ''} ${r.sheet || ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }
-
-  onAccountFilterChange(values: string[]): void {
-    this.accountFilterValues = values;
-    this.onFilterChange();
   }
 
   get pagedRows(): Transaction[] {

@@ -1,9 +1,32 @@
 import { Component, OnInit } from '@angular/core';
 import { ExportBatchService, HistoryBatch } from '../services/export-batch.service';
-import { triggerBlobDownload } from '../services/confirmation.service';
+import { triggerBlobDownload, filenameFromResponse } from '../services/confirmation.service';
 import { ModalService } from '../services/modal.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
+
+// Project owner request (31 Jul sore): split the list into month "sheets" (like separate tabs in
+// one Excel workbook), labeled literally MM-YYYY (e.g. "06-2026") — not a localized month name.
+export interface MonthGroup {
+  key: string;
+  batches: HistoryBatch[];
+}
+
+function monthKeyOf(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+}
+
+// REQ-RDT-SAP-13 (3 Agu): "YYYY-MM" (rdt.uploads.period) -> this page's "MM-YYYY" tab-key format.
+function periodToMonthKey(period: string): string {
+  const [yyyy, mm] = period.split('-');
+  return `${mm}-${yyyy}`;
+}
+
+function monthKeySortValue(key: string): number {
+  const [mm, yyyy] = key.split('-');
+  return Number(yyyy) * 100 + Number(mm);
+}
 
 // REQ-RDT-SAP-10/12 "Riwayat Repost TAB/Dinas" — the archive destination for REQ-RDT-SAP-09 (a
 // batch leaves Need Approval's "Sudah Confirmed" the instant it gets its first subdoc, see
@@ -49,6 +72,43 @@ export class RepostHistoryComponent implements OnInit {
     this.subdocFilterValues = values;
   }
 
+  // Month "sheets" — REQ-RDT-SAP-13 (3 Agu): grouped by the DECLARED period (rdt.uploads.period,
+  // "which month this DT is FOR"), not confirmed_at (the repost action date) — a June DT reposted
+  // in August must archive under June, not August. Falls back to confirmed_at only for legacy
+  // batches confirmed before this field existed (b.period null). Sorted oldest to newest (same
+  // left-to-right order Excel workbook tabs get added in), independent of the subdoc paste-filter
+  // above.
+  selectedMonthKey: string | null = null;
+
+  get monthGroups(): MonthGroup[] {
+    const byKey = new Map<string, HistoryBatch[]>();
+    for (const b of this.filteredBatches) {
+      const key = b.period ? periodToMonthKey(b.period) : monthKeyOf(b.confirmed_at);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key)!.push(b);
+    }
+    return Array.from(byKey.entries())
+      .sort(([a], [b]) => monthKeySortValue(a) - monthKeySortValue(b))
+      .map(([key, batches]) => ({ key, batches }));
+  }
+
+  // Falls back to the most recent month whenever selectedMonthKey is unset or no longer exists
+  // in the current (possibly re-filtered) group list — e.g. right after load() or a subdoc filter
+  // change that empties out the previously active month.
+  get activeMonthKey(): string | null {
+    const groups = this.monthGroups;
+    if (this.selectedMonthKey && groups.some((g) => g.key === this.selectedMonthKey)) return this.selectedMonthKey;
+    return groups.length ? groups[groups.length - 1].key : null;
+  }
+
+  get activeMonthBatches(): HistoryBatch[] {
+    return this.monthGroups.find((g) => g.key === this.activeMonthKey)?.batches || [];
+  }
+
+  selectMonth(key: string): void {
+    this.selectedMonthKey = key;
+  }
+
   constructor(
     private exportBatches: ExportBatchService,
     private modal: ModalService,
@@ -77,11 +137,14 @@ export class RepostHistoryComponent implements OnInit {
     this.load();
   }
 
+  // REQ-RDT-SAP-06 auto-split (1 Agu): >300 rows comes back as a .zip instead of .xlsx — the
+  // actual filename (with the right extension) comes from the response, not guessed client-side.
   download(batch: HistoryBatch): void {
     this.exportBatches.downloadExport(batch.id).subscribe({
-      next: (blob) => {
+      next: (res) => {
         const dateStr = new Date().toISOString().slice(0, 10);
-        triggerBlobDownload(blob, `${batch.dinas_inisiasi}-${batch.dinas_target}_${dateStr}.xlsx`);
+        const fallback = `${batch.dinas_inisiasi}-${batch.dinas_target}_${dateStr}.xlsx`;
+        triggerBlobDownload(res.body!, filenameFromResponse(res.headers, fallback));
       },
       error: async (err) => { await this.modal.alert('Gagal mengunduh: ' + (err?.message || err)); },
     });

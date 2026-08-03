@@ -91,6 +91,14 @@ test('parser aggregates match SRS pivot numbers', async () => {
 // Ask TA both resolve to TA" merge): "Ask TA" is NOT dinas TA — it's a signal the row's
 // ownership is ambiguous and needs manual TAB investigation, so it now gets its own
 // NEEDS_INVESTIGATION status (see investigation.test.js) instead of folding into the TA bucket.
+// UPDATE (31 Jul, REQ-RDT-AUTH-05/TMM correction — supersedes the "TMM is a sub-dinas of TM"
+// paragraph above): TAB re-confirmed TMM is its OWN dinas, distinct from TM, with its own repost
+// business — NOT a sub-unit reachable via the generic suffix convention. Added to the canonical
+// roster (dinas.codes.json / rdt.dinas) as a real code, so it now resolves directly via
+// allowedCodes BEFORE resolveSubDinasCode is ever consulted — no parser logic changed, only the
+// roster data. resolveSubDinasCode itself stays in place for any other GMF-wide case it may
+// legitimately apply to; it's simply never reached for "TMM" anymore since an exact-code match
+// wins first.
 test('parser skips the TJ-TE/TJ-TMM/TJ-Scrap reconciliation sheets and routes everything via the main sheet', async () => {
   const file = path.join(__dirname, '..', '..', 'contoh_input', '06. DT TJ JUN 2026 R1.xlsx');
   const results = await parseExcelFile(file, { uploaderDinas: 'TJ' });
@@ -108,8 +116,9 @@ test('parser skips the TJ-TE/TJ-TMM/TJ-Scrap reconciliation sheets and routes ev
   });
   // TE resolves directly; TA resolves to TA (1653.24 — the 3 ex-"Ask TA" rows, 40393.29, are now
   // NEEDS_INVESTIGATION, not PENDING, so they're excluded from this PENDING-only aggregation);
-  // TMM resolves to TM via the sub-dinas suffix rule. No NEEDS_REVIEW left.
-  expect(mainByTarget).toEqual({ TE: 84.36, TA: 1653.24, TM: 473933.51 });
+  // TMM resolves to its OWN dinas_target 'TMM' now (31 Jul correction), not folded into TM. No
+  // NEEDS_REVIEW left.
+  expect(mainByTarget).toEqual({ TE: 84.36, TA: 1653.24, TMM: 473933.51 });
   const mainNeedsReview = mainSheetRows.filter((r) => r.status_konfirmasi === 'NEEDS_REVIEW');
   expect(mainNeedsReview.length).toBe(0);
   const mainNeedsInvestigation = mainSheetRows.filter((r) => r.status_konfirmasi === 'NEEDS_INVESTIGATION');
@@ -119,9 +128,10 @@ test('parser skips the TJ-TE/TJ-TMM/TJ-Scrap reconciliation sheets and routes ev
 // Task #15 (27 Jul) + 28 Jul dinas-routing correction (project owner confirmed) + REQ-RDT-
 // LEDGER-10 (27 Jul, "Ask TA" split out of the TA bucket): R1's main sheet must parse to 490/490
 // DETAIL_ROW rows whose PENDING+NEEDS_INVESTIGATION totals match contoh_input/06. DT TJ -
-// Jun 2026.xlsx's pivot-cache aggregates EXACTLY: TM=473933.51 (475 rows, ex-"TMM" sub-dinas
-// suffix), TA=1653.24 (11 rows, PENDING), "Ask TA"=40393.29 (3 rows, NEEDS_INVESTIGATION — see
-// investigation.test.js for the dedicated REQ-RDT-LEDGER-10 assertions), TE=84.36 (1 row).
+// Jun 2026.xlsx's pivot-cache aggregates EXACTLY: TMM=473933.51 (475 rows — 31 Jul correction:
+// TMM is its own dinas now, not folded into TM), TA=1653.24 (11 rows, PENDING), "Ask TA"=40393.29
+// (3 rows, NEEDS_INVESTIGATION — see investigation.test.js for the dedicated REQ-RDT-LEDGER-10
+// assertions), TE=84.36 (1 row).
 test('R1 main sheet: full 490-row detail total matches the pivot-cache aggregates exactly', async () => {
   const file = path.join(__dirname, '..', '..', 'contoh_input', '06. DT TJ JUN 2026 R1.xlsx');
   const results = await parseExcelFile(file, { uploaderDinas: 'TJ' });
@@ -135,11 +145,12 @@ test('R1 main sheet: full 490-row detail total matches the pivot-cache aggregate
   expect(teRows.length).toBe(1);
   expect(round2(teRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(84.36, 2);
 
-  // TM: routed via "Review TJ" = "TMM" (Remarks empty on all 475 of these rows) through the
-  // sub-dinas suffix rule ("TMM" = dinas TM + suffix "M").
-  const tmRows = mainSheetRows.filter((r) => r.status_konfirmasi === 'PENDING' && r.dinas_target === 'TM');
-  expect(tmRows.length).toBe(475);
-  expect(round2(tmRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(473933.51, 2);
+  // TMM: routed via "Review TJ" = "TMM" (Remarks empty on all 475 of these rows). REQ-RDT-AUTH-05
+  // (31 Jul correction): TMM is now in the canonical roster as its own dinas, so this resolves via
+  // the plain allowedCodes exact-match branch, not the sub-dinas suffix fallback.
+  const tmmRows = mainSheetRows.filter((r) => r.status_konfirmasi === 'PENDING' && r.dinas_target === 'TMM');
+  expect(tmmRows.length).toBe(475);
+  expect(round2(tmmRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(473933.51, 2);
 
   // TA: 11 rows whose Remarks holds a free-text note ("Scrap. Mohon ditakeout", not a dinas
   // prefix) fall back to Review TJ="TA" (a real, distinct dinas_target — not TAB).
@@ -153,6 +164,6 @@ test('R1 main sheet: full 490-row detail total matches the pivot-cache aggregate
   expect(investigationRows.length).toBe(3);
   expect(round2(investigationRows.reduce((s, r) => s + Number(r.nominal || 0), 0))).toBeCloseTo(40393.29, 2);
 
-  // Nothing left unaccounted for: TE + TM + TA + investigation rows must be every row in the sheet.
-  expect(teRows.length + tmRows.length + taRows.length + investigationRows.length).toBe(490);
+  // Nothing left unaccounted for: TE + TMM + TA + investigation rows must be every row in the sheet.
+  expect(teRows.length + tmmRows.length + taRows.length + investigationRows.length).toBe(490);
 });

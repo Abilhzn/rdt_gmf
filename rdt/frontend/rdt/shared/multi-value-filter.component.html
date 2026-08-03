@@ -1,13 +1,25 @@
-<div class="mvf">
-  <textarea
-    class="mvf__box"
-    rows="2"
-    [placeholder]="placeholder"
-    [(ngModel)]="raw"
-    (ngModelChange)="onInput()"
-  ></textarea>
-  <div class="mvf__meta" *ngIf="values.length">
-    <span class="mvf__count">{{ values.length }} nilai terpasang</span>
-    <button class="mvf__clear" type="button" (click)="clear()">Bersihkan</button>
+<span class="mvf">
+  <button
+    type="button"
+    class="mvf__icon"
+    [class.mvf__icon--active]="active"
+    (click)="toggle($event)"
+    title="Filter"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+    <span class="mvf__badge" *ngIf="active">{{ values.length }}</span>
+  </button>
+
+  <div class="mvf__popup" *ngIf="open" (click)="stopClick($event)">
+    <textarea
+      class="mvf__box"
+      rows="4"
+      [placeholder]="placeholder"
+      [(ngModel)]="raw"
+    ></textarea>
+    <div class="mvf__actions">
+      <button class="mvf__apply" type="button" (click)="apply()">Terapkan</button>
+      <button class="mvf__clear" type="button" (click)="clear($event)">Bersihkan</button>
+    </div>
   </div>
-</div>
+</span>

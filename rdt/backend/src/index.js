@@ -14,7 +14,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const { parseExcelFile } = require('./parser/excelParser');
+const { parseExcelFile, CONTRACT_FIELDS } = require('./parser/excelParser');
 const { flagDuplicates } = require('./persist/duplicateCheck');
 const { saveOriginalFile } = require('./persist/originalFile');
 const confirmationRouter = require('./routes/confirmation');
@@ -24,8 +24,10 @@ const dashboardRouter = require('./routes/dashboard');
 const uploadsRouter = require('./routes/uploads');
 const notificationsRouter = require('./routes/notifications');
 const investigationRouter = require('./routes/investigation');
+const shareCostRouter = require('./routes/shareCost');
 const { requireUser } = require('./middleware/auth');
 const { loadDirectory } = require('./dataUserClient');
+const { resolveMentionedUserIds } = require('./rules/mentionRules');
 const { Client } = require('pg');
 
 const app = express();
@@ -143,6 +145,16 @@ app.get('/api/directory', async (req, res) => {
   } catch (err) {
     res.status(502).json({ ok: false, error: `Gagal menghubungi data_user service: ${err.message}` });
   }
+});
+
+// GET /api/contract-fields — REQ-RDT-NAV-04 (1 Agu, presentation feedback): the Repost Review
+// preview table must show the SAME columns that actually get repost-ed, from ONE shared source —
+// this is that source. CONTRACT_FIELDS (excelParser.js) is already what routes/exportBatches.js's
+// GET /export/:batchId uses to build the real 53-column SAP file; exposing it here means the
+// Angular preview table renders columns by iterating this list instead of a second, hand-picked
+// column set that could drift out of sync if the contract ever changes.
+app.get('/api/contract-fields', (req, res) => {
+  res.json({ ok: true, fields: CONTRACT_FIELDS.map((f) => ({ key: f.key, label: f.variants[0] })) });
 });
 
 // GET /api/dinas — list of active dinas codes (for reassignment target pickers etc.)
@@ -296,6 +308,16 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
   body.rows = rows;
   body.aggregation = typeof body.aggregation === 'string' ? JSON.parse(body.aggregation) : body.aggregation;
 
+  // REQ-RDT-SAP-13 (3 Agu): the dinas pengaju must explicitly state which month/year this DT is
+  // FOR — never inferred from the upload/repost timestamp (that's the bug this requirement fixes:
+  // a June DT re-posted in August used to archive under August). "YYYY-MM" from an
+  // <input type="month">, validated here rather than trusted as freeform text.
+  const period = typeof body.period === 'string' ? body.period.trim() : '';
+  if (!/^\d{4}-\d{2}$/.test(period)) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+    return res.status(400).json({ ok: false, error: 'period is required, format YYYY-MM' });
+  }
+
   // If no DB config, fallback to staging JSON
   const hasDb = !!(process.env.DATABASE_URL || process.env.PGHOST || process.env.PGUSER || process.env.PGDATABASE);
   if (!hasDb) {
@@ -332,8 +354,8 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
     try {
       await client.query('BEGIN');
       const upRes = await client.query(
-        `INSERT INTO rdt.uploads (dinas_code, uploaded_by_user_id, original_filename, description, row_count_total) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-        [uploader, uploadedBy, originalFilename, description, rawCount]
+        `INSERT INTO rdt.uploads (dinas_code, uploaded_by_user_id, original_filename, description, row_count_total, period) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [uploader, uploadedBy, originalFilename, description, rawCount, period]
       );
       const uploadId = upRes.rows[0].id;
 
@@ -374,7 +396,10 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
         'asset','rep_mat','ar','dt','ref_tran','item','bill_t','sd_doc','s_grp','s_off','co_ar','in_pclc','curr',
         'doc_date','pstng_date','in_ccc','in_tc','qty','unit','entry_dte','value_date',
         // trailing fields
-        'sheet_name','raw_row_index','remark','raw_payload'
+        // REQ-RDT-NAV-04 (diperluas 1 Agu, ditegaskan 3 Agu): sub_group now persists (migration
+        // 011) so it survives past this Repost step into Confirmation/Need Approval/history
+        // previews too, not just the pre-persist Review screen.
+        'sheet_name','raw_row_index','remark','raw_payload','sub_group'
       ];
       // helper to normalize value for insert (explicit null check)
       const v = (x) => (x === undefined ? null : x === null ? null : x);
@@ -444,11 +469,26 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
           if (String(r.dinas_target).toUpperCase() === String(r.dinas_inisiasi).toUpperCase()) continue;
           if (!pairTransactionId.has(r.dinas_target)) pairTransactionId.set(r.dinas_target, r.id);
         }
-        for (const transactionId of pairTransactionId.values()) {
-          await client.query(
-            `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body) VALUES ($1, NULL, $2, $3)`,
+        // REQ-RDT-COMMENT-03 (diperluas 3 Agu, gap found in sweep): this comment never notified
+        // ANYONE before — not even the target dinas it's addressed to, let alone anyone @mentioned
+        // in it. dashboard.js's plain manual-comment endpoint already does mention-based notify;
+        // this is that same rule (resolveMentionedUserIds), applied here too — one target dinas's
+        // PIC(s) implicitly (this comment IS addressed to them) plus anyone else @mentioned.
+        const directory = await loadDirectory();
+        for (const [targetDinas, transactionId] of pairTransactionId) {
+          const commentRes = await client.query(
+            `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body) VALUES ($1, NULL, $2, $3) RETURNING id`,
             [transactionId, uploadedBy, trimmedDescription]
           );
+          const commentId = commentRes.rows[0].id;
+          const recipientIds = new Set(resolveMentionedUserIds(trimmedDescription, directory));
+          Object.keys(directory).forEach((id) => {
+            if (String(directory[id].dinas).toUpperCase() === String(targetDinas).toUpperCase()) recipientIds.add(id);
+          });
+          recipientIds.delete(uploadedBy);
+          for (const recipientId of recipientIds) {
+            await client.query('INSERT INTO rdt.notifications (recipient_user_id, comment_id) VALUES ($1, $2)', [recipientId, commentId]);
+          }
         }
       }
 
@@ -476,6 +516,7 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/uploads', uploadsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/investigation', investigationRouter);
+app.use('/api/share-cost', shareCostRouter);
 
 // Bug fix (live testing, 24 Jul): multer/busboy errors (e.g. MulterError on a field exceeding
 // its size limit) are thrown INSIDE the upload.single(...) middleware, before any route

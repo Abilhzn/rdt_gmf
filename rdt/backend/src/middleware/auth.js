@@ -46,10 +46,12 @@ async function requireUser(req, res, next) {
 
 // Middleware factory: only allow role TAB, or a user whose own dinas matches
 // req.params[dinasParam] — that's true for a plain PIC, and equally true for TAB staff acting
-// on dinas "TAB" itself. Dinas "TA" was retired and merged into "TAB" — same entity, confirmed
-// with project owner. Role was renamed from 'ADMIN_TAB' to plain 'TAB' on 24 Jul (project owner
-// correction) — same role/permissions, just dropped the 'ADMIN' prefix; SM_TA/GH_TA were later
-// removed entirely the same day, role TAB now handles everything they used to.
+// on dinas "TAB" itself. Dinas "TA" is its own operational dinas with its own PIC (REQ-RDT-AUTH-05,
+// corrected 31 Jul — an earlier 24 Jul assumption that TA merged into TAB was wrong); a TA PIC
+// gets access here the same way any other PIC does, via the plain dinas-match check below. Role
+// was renamed from 'ADMIN_TAB' to plain 'TAB' on 24 Jul (project owner correction) — same
+// role/permissions, just dropped the 'ADMIN' prefix; SM_TA/GH_TA were later removed entirely the
+// same day, role TAB now handles everything they used to.
 //
 // REQ-RDT-AUTH-04 (koreksi 22 Jul): dinas "Corp" has no dedicated PIC, but who may act on its
 // queue is role TAB only.

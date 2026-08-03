@@ -2,20 +2,32 @@ import { Component, OnInit } from '@angular/core';
 import {
   ExportBatchService,
   WaitingEntry,
-  ConfirmedBatch,
   TransparencyRow,
 } from '../services/export-batch.service';
-import { triggerBlobDownload } from '../services/confirmation.service';
+import { triggerBlobDownload, filenameFromResponse } from '../services/confirmation.service';
 import { ModalService } from '../services/modal.service';
-import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
+import { matchesAllColumnFilters } from '../shared/multi-value-filter.component';
+import { TransactionService, ContractField } from '../services/transaction.service';
 
-// REQ-RDT-SAP-03..06 (SRS.md 3.3, SUPERSEDED 30 Jul) — full rewrite replacing the 29 Jul
-// per-dinas_inisiasi UI. Approval unit is now one PASANGAN (dinas_inisiasi, dinas_target): a
-// WAITING entry appears (computed, not stored) once that specific pair is resolved — other pairs
-// from the same dinas_inisiasi never block or get blocked by it. TAB opens full transparency for
-// that one pair (including DECLINED/reassigned history) before confirming with a mandatory
-// closing description; only after that does the pair's Excel download (full 53 contract columns)
-// become available — one batch = one pair now, so download is a direct button, no picker needed.
+interface PreviewColumn {
+  key: string;
+  label: string;
+  numeric?: boolean;
+}
+
+// REQ-RDT-SAP-03..06 (SRS.md 3.3) — approval unit is one PASANGAN (dinas_inisiasi, dinas_target):
+// a WAITING entry appears (computed, not stored) once that specific pair is resolved — other
+// pairs from the same dinas_inisiasi never block or get blocked by it. TAB can open full
+// transparency for that one pair (including DECLINED/reassigned history), and can download the
+// pair's Excel (full 53 contract columns) directly off this list.
+//
+// REQ-RDT-SAP-05 REVISED 31 Jul (presentation feedback): two changes from the earlier version —
+// (1) download no longer waits for Confirm at all, it's one button per waiting entry; (2) Confirm
+// is now ONE form (closing description + first subdoc number together, submitted in a single
+// call) instead of Confirm-then-separately-add-a-subdoc. A batch is created WITH its first subdoc
+// already attached, so it goes straight from this page's "Waiting" list into Riwayat Repost TAB —
+// there is no more intermediate "confirmed, no subdoc yet" list here (see
+// export-batch.service.ts's header comment for what that replaced).
 @Component({
   selector: 'rdt-need-approval',
   standalone: false,
@@ -24,36 +36,64 @@ import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
 })
 export class NeedApprovalComponent implements OnInit {
   waiting: WaitingEntry[] = [];
-  confirmed: ConfirmedBatch[] = [];
   errorMessage = '';
 
-  // Transparency view: at most one pair expanded at a time, keyed "dinas_inisiasi dinas_target".
+  // Transparency + confirm form: at most one pair expanded at a time, keyed
+  // "dinas_inisiasi dinas_target".
   expandedPairKey: string | null = null;
   transparencyRows: TransparencyRow[] = [];
   transparencyError = '';
   closingDescription = '';
+  subdocNumber = '';
   confirming = false;
-  // REQ-RDT-NAV-09: paste-many-values filter on Account, ala SAP.
-  transparencyAccountFilterValues: string[] = [];
+  // REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account.
+  transparencyColumnFilters: Record<string, string[]> = {};
+
+  // REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): transparansi HARUS tampilkan SEMUA
+  // kolom yang benar-benar ikut ter-repost — satu sumber (CONTRACT_FIELDS via GET
+  // /api/contract-fields) sama persis yang dipakai repost-budgeting.component's previewColumns,
+  // bukan subset Account/Ref.Doc/Nominal/Remark/Status yang di-hardcode terpisah seperti
+  // sebelumnya.
+  previewColumns: PreviewColumn[] = [];
+
+  // Per-entry download-in-progress flag (waiting list, keyed by pairKey) — separate from
+  // `confirming` above, which only applies to the expanded transparency panel's form.
+  downloadingPairKey: string | null = null;
 
   get filteredTransparencyRows(): TransparencyRow[] {
-    return this.transparencyRows.filter((r) => matchesAnyFilterValue(r.account, this.transparencyAccountFilterValues));
+    return this.transparencyRows.filter((r) => matchesAllColumnFilters(r, this.transparencyColumnFilters, (row, key) => (row as any)[key]));
   }
 
-  onTransparencyAccountFilterChange(values: string[]): void {
-    this.transparencyAccountFilterValues = values;
+  onTransparencyColumnFilterChange(key: string, values: string[]): void {
+    if (values.length) this.transparencyColumnFilters[key] = values;
+    else delete this.transparencyColumnFilters[key];
   }
-
-  // REQ-RDT-SAP-08: subdoc entry is a separate step from Confirm, done any time after a batch
-  // lands in "Sudah Confirmed" — one text input per batch row, keyed by batch id since more than
-  // one row can be mid-entry at once (unlike transparency, which is single-expand).
-  subdocInputByBatchId: Record<number, string> = {};
-  addingSubdocBatchId: number | null = null;
 
   constructor(
     private exportBatches: ExportBatchService,
     private modal: ModalService,
-  ) {}
+    private txService: TransactionService,
+  ) {
+    this.txService.getContractFields().subscribe((fields) => {
+      this.previewColumns = this.buildPreviewColumns(fields);
+    });
+  }
+
+  private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
+    const contractCols: PreviewColumn[] = fields.map((f) =>
+      f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Nominal', numeric: true } : { key: f.key, label: f.label },
+    );
+    return [
+      { key: 'sub_group', label: 'Sub Group' },
+      ...contractCols,
+      { key: 'status_konfirmasi', label: 'Status' },
+      { key: 'remark', label: 'Remark' },
+    ];
+  }
+
+  getCellValue(row: TransparencyRow, key: string): string | number | null | undefined {
+    return row[key] as string | number | null | undefined;
+  }
 
   ngOnInit(): void {
     this.load();
@@ -65,10 +105,6 @@ export class NeedApprovalComponent implements OnInit {
       next: (waiting) => { this.waiting = waiting; },
       error: (err) => { this.errorMessage = err?.message || 'Gagal memuat antrian'; },
     });
-    this.exportBatches.getConfirmed().subscribe({
-      next: (confirmed) => { this.confirmed = confirmed; },
-      error: (err) => { this.errorMessage = err?.message || 'Gagal memuat batch terkonfirmasi'; },
-    });
   }
 
   pairKey(dinasInisiasi: string, dinasTarget: string): string {
@@ -79,8 +115,9 @@ export class NeedApprovalComponent implements OnInit {
     this.expandedPairKey = this.pairKey(dinasInisiasi, dinasTarget);
     this.transparencyError = '';
     this.closingDescription = '';
+    this.subdocNumber = '';
     this.transparencyRows = [];
-    this.transparencyAccountFilterValues = [];
+    this.transparencyColumnFilters = {};
     this.exportBatches.getTransparency(dinasInisiasi, dinasTarget).subscribe({
       next: (rows) => { this.transparencyRows = rows; },
       error: (err) => { this.transparencyError = err?.message || 'Gagal memuat transparansi'; },
@@ -92,19 +129,22 @@ export class NeedApprovalComponent implements OnInit {
     this.transparencyRows = [];
   }
 
+  // REQ-RDT-SAP-05 (revised): Confirm now requires BOTH the closing description AND the first
+  // subdoc number — "aksi Confirm yang sebenarnya = memasukkan nomor subdoc BERSAMAAN dengan
+  // deskripsi penutup, dalam SATU aksi".
   canConfirm(): boolean {
-    return !!this.closingDescription.trim();
+    return !!this.closingDescription.trim() && !!this.subdocNumber.trim();
   }
 
   async confirmPair(dinasInisiasi: string, dinasTarget: string): Promise<void> {
     if (!this.canConfirm()) return;
-    const ok = await this.modal.confirm(`Confirm repost ${dinasInisiasi} → ${dinasTarget}? Aksi ini tidak bisa dibatalkan.`);
+    const ok = await this.modal.confirm(`Confirm repost ${dinasInisiasi} → ${dinasTarget} dengan subdoc ${this.subdocNumber.trim()}? Aksi ini tidak bisa dibatalkan.`);
     if (!ok) return;
     this.confirming = true;
-    this.exportBatches.confirm(dinasInisiasi, dinasTarget, this.closingDescription.trim()).subscribe({
+    this.exportBatches.confirm(dinasInisiasi, dinasTarget, this.closingDescription.trim(), this.subdocNumber.trim()).subscribe({
       next: async () => {
         this.confirming = false;
-        await this.modal.success(`Repost ${dinasInisiasi} → ${dinasTarget} sudah dikonfirmasi`);
+        await this.modal.success(`Repost ${dinasInisiasi} → ${dinasTarget} sudah dikonfirmasi dan tercatat di Riwayat Repost TAB.`);
         this.closeTransparency();
         this.load();
       },
@@ -115,33 +155,23 @@ export class NeedApprovalComponent implements OnInit {
     });
   }
 
-  download(batch: ConfirmedBatch): void {
-    this.exportBatches.downloadExport(batch.id).subscribe({
-      next: (blob) => {
+  // REQ-RDT-SAP-05/06 (revised): download is available the instant a pair shows up here — no
+  // batch/Confirm needed first. Reads directly off the pair's still-unbatched CONFIRMED rows.
+  // REQ-RDT-SAP-06 auto-split (1 Agu): >300 rows comes back as a .zip instead of .xlsx — the
+  // actual filename (with the right extension) comes from the response, not guessed client-side.
+  download(entry: WaitingEntry): void {
+    const key = this.pairKey(entry.dinas_inisiasi, entry.dinas_target);
+    this.downloadingPairKey = key;
+    this.exportBatches.getExportPair(entry.dinas_inisiasi, entry.dinas_target).subscribe({
+      next: (res) => {
+        this.downloadingPairKey = null;
         const dateStr = new Date().toISOString().slice(0, 10);
-        triggerBlobDownload(blob, `${batch.dinas_inisiasi}-${batch.dinas_target}_${dateStr}.xlsx`);
-      },
-      error: async (err) => { await this.modal.alert('Gagal mengunduh: ' + (err?.message || err)); },
-    });
-  }
-
-  // REQ-RDT-SAP-08/09: adding the FIRST subdoc archives this batch out of "Sudah Confirmed"
-  // (backend excludes any batch with >=1 subdoc from GET /confirmed) into Riwayat Repost TAB —
-  // so a successful add always means reloading this list, not just clearing the input.
-  async addSubdoc(batch: ConfirmedBatch): Promise<void> {
-    const subdocNumber = (this.subdocInputByBatchId[batch.id] || '').trim();
-    if (!subdocNumber) return;
-    this.addingSubdocBatchId = batch.id;
-    this.exportBatches.addSubdoc(batch.id, subdocNumber).subscribe({
-      next: async () => {
-        this.addingSubdocBatchId = null;
-        delete this.subdocInputByBatchId[batch.id];
-        await this.modal.success(`Subdoc ${subdocNumber} ditambahkan untuk ${batch.dinas_inisiasi} → ${batch.dinas_target}`);
-        this.load();
+        const fallback = `${entry.dinas_inisiasi}-${entry.dinas_target}_${dateStr}.xlsx`;
+        triggerBlobDownload(res.body!, filenameFromResponse(res.headers, fallback));
       },
       error: async (err) => {
-        this.addingSubdocBatchId = null;
-        await this.modal.alert('Gagal menambah subdoc: ' + (err?.message || err));
+        this.downloadingPairKey = null;
+        await this.modal.alert('Gagal mengunduh: ' + (err?.message || err));
       },
     });
   }

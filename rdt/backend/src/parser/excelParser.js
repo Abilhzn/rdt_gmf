@@ -67,6 +67,17 @@ function loadJSON(relPath) {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
+// REQ-RDT-NAV-04 (3 Agu, re-reported "Sub Group masih belum muncul"): the exact-match
+// `name.toLowerCase() === 'sub group'` check only tolerated a literal single space. Every real
+// contoh_input file we have DOES match that exactly (verified against TB/TJ/TJ-R1 directly), but
+// since we can't test every dinas's real export, harden the comparison against the whitespace/
+// separator variants a hand-edited header is likely to drift into ("Sub-Group", "Sub_Group",
+// "Sub  Group" double space, trailing space) — collapsing runs of whitespace/hyphen/underscore to
+// one space before comparing, rather than requiring byte-for-byte "sub group".
+function isSubGroupHeaderName(name) {
+  return String(name || '').toLowerCase().replace(/[\s_-]+/g, ' ').trim() === 'sub group';
+}
+
 // Codes a raw Remarks/Review value can resolve to without an explicit mapping.seed.json entry —
 // mapping's own keys+values (aliases already confirmed) plus the full canonical dinas roster
 // (dinas.codes.json), so e.g. a bare "TM" resolves even though no dinas needs an alias entry for
@@ -82,10 +93,15 @@ function buildAllowedCodes(mapping, dinasCodes) {
 
 // GMF-wide sub-dinas naming convention (confirmed by project owner, 28 Jul 2026): a value that
 // isn't a known code/alias on its own may still be a SUB-DINAS of a real one, written as that
-// code plus extra trailing letters with no separator — e.g. "TMM" is dinas TM's own sub-unit.
-// Only matches when the candidate is strictly longer than the base code (so a code never
-// "matches itself" here — that's allowedCodes' job) and picks the LONGEST matching base to avoid
-// a shorter code shadowing a more specific one.
+// code plus extra trailing letters with no separator. Only matches when the candidate is
+// strictly longer than the base code (so a code never "matches itself" here — that's
+// allowedCodes' job) and picks the LONGEST matching base to avoid a shorter code shadowing a
+// more specific one.
+// "TMM" used to be this function's textbook example, until 31 Jul 2026 when the project owner
+// reasserted TMM is its OWN dinas, not a TM sub-unit — see dinas.codes.json's comment. TMM is
+// now in the canonical roster, so it resolves via the plain allowedCodes exact-match branch
+// (its caller checks allowedCodes BEFORE falling back to this function) and never reaches this
+// fallback at all. This function stays in place for any OTHER genuine sub-dinas case.
 function resolveSubDinasCode(rawUpper, dinasCodes) {
   if (!rawUpper || !/^[A-Z]+$/.test(rawUpper)) return null;
   let best = null;
@@ -236,7 +252,7 @@ function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas,
 // ala-TB worksheet path AND the pivot-cache DETAIL_ROW path (REQ-RDT-EXT-09 jalur 1b) — same rules
 // either way, on purpose, so a row extracted from a cache is indistinguishable downstream from one
 // read off a normal worksheet.
-function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, gl, mapping, exclusions, uploaderDinas, granularity, rawPayload, dinasCodes }) {
+function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, gl, subGroupRaw, mapping, exclusions, uploaderDinas, granularity, rawPayload, dinasCodes }) {
   const nominal = parseNumber(fieldValues.in_pclc);
   let rawPrefix = remark ? String(remark).split('-')[0].trim() : null;
   // Only reached when Remarks is genuinely empty — never overrides a Remarks value, so this
@@ -284,9 +300,9 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
     if (allowedCodes.has(rp)) {
       dinasTarget = rp;
     } else if (subDinasBase) {
-      // GMF-wide sub-dinas suffix convention (e.g. Remarks/Review holding "TMM" for dinas TM's
-      // own sub-unit) — see resolveSubDinasCode's header comment. Still never overrides a Remarks
-      // value that already resolved via mapping/allowedCodes above.
+      // GMF-wide sub-dinas suffix convention — see resolveSubDinasCode's header comment (31 Jul:
+      // "TMM" no longer reaches this branch, it's an exact roster match now). Still never
+      // overrides a Remarks value that already resolved via mapping/allowedCodes above.
       dinasTarget = subDinasBase;
     } else {
       // Remarks-derived value didn't resolve — before giving up, retry via the "Review <dinas>"
@@ -385,6 +401,15 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
     reason_if_invalid: reason_if_invalid,
     status_konfirmasi: status,
     category: gl,
+    // REQ-RDT-NAV-04 (1 Agu, presentation feedback): "Sub Group" as its OWN preview column, raw
+    // and undisturbed by the "category" field's own GL-or-Sub-Group fallback above — a dinas
+    // whose sheet has no literal "GL" column (e.g. TJ-R1) has its Sub Group value doing double
+    // duty as BOTH `category` (unchanged, existing pivot-matching behavior) AND this dedicated
+    // field, looked up independently by header name so it always reflects the real "Sub Group"
+    // column regardless of where that column sits (verified varies by dinas — REQ-RDT-NAV-04's
+    // SRS note: TJ-R1 puts it right after "Group", before Account). null for any dinas whose
+    // sheet has no such column at all (e.g. TB).
+    sub_group: subGroupRaw != null && subGroupRaw !== '' ? subGroupRaw : null,
     raw_payload: rawPayload,
     granularity: granularity,
   };
@@ -441,8 +466,11 @@ async function deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, upl
     // XLOOKUP, e.g. "Repairable-Material"/"Spare parts scrap") under a differently-named field.
     // Without this fallback every TJ row's category stays null even though the source data has it.
     const glField = fieldNames.find((n) => n.toLowerCase() === 'gl')
-      || fieldNames.find((n) => n.toLowerCase() === 'sub group');
+      || fieldNames.find((n) => isSubGroupHeaderName(n));
     const reviewField = fieldNames.find((n) => n.toLowerCase().startsWith('review'));
+    // REQ-RDT-NAV-04 (1 Agu) — independent "Sub Group" lookup for the dedicated preview column,
+    // same rationale as the live-sheet path's subGroupCol.
+    const subGroupField = fieldNames.find((n) => isSubGroupHeaderName(n));
     const coveredFields = new Set([...Object.values(keyToFieldName).filter(Boolean), remarkField, glField, reviewField]);
 
     cache.records.forEach((record, idx) => {
@@ -454,6 +482,7 @@ async function deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, upl
       const remark = remarkField ? record[remarkField] : null;
       const reviewRaw = reviewField ? record[reviewField] : null;
       const gl = glField ? record[glField] : null;
+      const subGroupRaw = subGroupField ? record[subGroupField] : null;
 
       // raw_payload: any cache field outside the 53-column contract and the special routing/
       // category columns already surfaced above — mirrors the live-sheet path's "everything after
@@ -471,6 +500,7 @@ async function deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, upl
         remark,
         reviewRaw,
         gl,
+        subGroupRaw,
         mapping,
         exclusions,
         uploaderDinas,
@@ -594,7 +624,7 @@ async function parseExcelFile(filePath, options = {}) {
         if (name.toLowerCase() === 'gl') return headerIndex[name][0];
       }
       for (const name of Object.keys(headerIndex)) {
-        if (name.toLowerCase() === 'sub group') return headerIndex[name][0];
+        if (isSubGroupHeaderName(name)) return headerIndex[name][0];
       }
       return undefined;
     })();
@@ -607,6 +637,15 @@ async function parseExcelFile(filePath, options = {}) {
     const reviewCol = (function(){
       for (const name of Object.keys(headerIndex)) {
         if (name.toLowerCase().startsWith('review')) return headerIndex[name][0];
+      }
+      return undefined;
+    })();
+    // REQ-RDT-NAV-04 (1 Agu): independent "Sub Group" lookup for the dedicated preview column —
+    // separate from glCol above, which may ALSO point at this same column when the sheet has no
+    // literal "GL" (that's fine, both can read the same cell for their own purposes).
+    const subGroupCol = (function(){
+      for (const name of Object.keys(headerIndex)) {
+        if (isSubGroupHeaderName(name)) return headerIndex[name][0];
       }
       return undefined;
     })();
@@ -640,6 +679,7 @@ async function parseExcelFile(filePath, options = {}) {
       const remark = remarksCol ? readCellValue(row.getCell(remarksCol)) : null;
       const reviewRaw = reviewCol ? readCellValue(row.getCell(reviewCol)) : null;
       const gl = glCol ? readCellValue(row.getCell(glCol)) : null;
+      const subGroupRaw = subGroupCol ? readCellValue(row.getCell(subGroupCol)) : null;
 
       const rawPayload = {};
       for (let c = 1; c <= lastCol; c++) {
@@ -655,6 +695,7 @@ async function parseExcelFile(filePath, options = {}) {
         remark,
         reviewRaw,
         gl,
+        subGroupRaw,
         mapping,
         exclusions,
         uploaderDinas,

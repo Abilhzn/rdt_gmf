@@ -171,6 +171,7 @@ $danger-600: #b3261e;
 // ---------- clickable user badge + notif bell + dropdown menus (REQ-RDT-NAV-01/08) ----------
 .user-menu-wrap { position: relative; }
 
+// REQ-RDT-UI-03 (1 Agu): white button, no shadow — border instead.
 .user-badge {
   display: inline-flex;
   align-items: center;
@@ -179,12 +180,13 @@ $danger-600: #b3261e;
   font-weight: 700;
   color: $ink;
   background: #fff;
-  box-shadow: $shadow-sm;
   padding: 8px 20px 8px 8px;
   border-radius: $radius-lg;
-  border: none;
+  border: 1px solid $line;
   cursor: pointer;
   font-family: inherit;
+
+  &:hover { border-color: $accent; }
 
   // Lucide bell icon (28 Jul, replaces the 🔔 emoji), blue like the rest of the icon set.
   .notif-bell-icon { width: 20px; height: 20px; flex: 0 0 auto; color: $accent; }
@@ -241,11 +243,13 @@ $danger-600: #b3261e;
   border: none;
   transition: background 120ms ease, box-shadow 120ms ease;
 
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
+  // penanda visual sebagai gantinya.
   &--ghost {
     background: #fff;
     color: $ink;
-    box-shadow: $shadow-sm;
-    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+    border: 1px solid $line;
+    &:hover { border-color: $accent; }
   }
 }
 

@@ -12,51 +12,75 @@
           <span class="nav-badge" *ngIf="needToConfirmCount > 0">{{ needToConfirmCount }}</span>
         </a>
         <!-- REQ-RDT-NAV-02a: two switchable sub-views, "Need to Confirm" default (Figma nodes
-             1:2/69:209 show both as persistent sidebar sub-links under Dashboard). -->
+             1:2/69:209 show both as persistent sidebar sub-links under Dashboard).
+             REQ-RDT-NAV-10 (1 Agu sore, reversed): TAB keeps this sub-link too — briefly removed
+             when "Need to Confirm (dashboard)" merged with the Confirmation nav item into "Need
+             Identification", but the project owner asked for it back, just relabeled to match
+             (still the exact same underlying data/sub-view, now styled like Report Submission —
+             see home.component.html's pairCard useBar). A plain PIC's link stays "Need to
+             Confirm", unrenamed, per the earlier unresolved-ambiguity call. -->
         <div class="nav-subnav">
-          <a [routerLink]="['dashboard']" [queryParams]="{ sub: 'need' }" class="nav-sublink" [class.active]="dashboardSubview === 'need'">Need to Confirm</a>
+          <a [routerLink]="['dashboard']" [queryParams]="{ sub: 'need' }" class="nav-sublink" [class.active]="dashboardSubview === 'need'">{{ currentUser.current?.role === 'TAB' ? 'Need Identification' : 'Need to Confirm' }}</a>
           <!-- TAB's "Own Repost" is actually a global view across every submitting dinas (TAB
                doesn't originate reposts itself) — "Own Repost" reads wrong for that role
                (project owner request, 28 Jul). -->
-          <a [routerLink]="['dashboard']" [queryParams]="{ sub: 'own' }" class="nav-sublink" [class.active]="dashboardSubview === 'own'">{{ currentUser.current?.role === 'TAB' ? 'Repost Every PIC' : 'Own Repost' }}</a>
+          <!-- REQ-RDT-NAV-10 (31 Jul): TAB "Repost Every PIC" -> "Summary Progress All Dinas";
+               plain-dinas "Own Repost" -> "Report Submission / Submission Status". -->
+          <a [routerLink]="['dashboard']" [queryParams]="{ sub: 'own' }" class="nav-sublink" [class.active]="dashboardSubview === 'own'">{{ currentUser.current?.role === 'TAB' ? 'Summary Progress All Dinas' : 'Report Submission / Submission Status' }}</a>
         </div>
       </div>
-      <a routerLink="repost" routerLinkActive="active" class="nav-link">
+      <!-- REQ-RDT-NAV-10 (31 Jul): "Repost (nav item, versi TAB) -> Dihapus" — TAB doesn't
+           originate repost itself; label for the remaining PIC case -> "Upload Detail Transaction". -->
+      <a *ngIf="canSeeRepost" routerLink="repost" routerLinkActive="active" class="nav-link">
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
         </span>
-        Repost
+        Upload Detail Transaction
       </a>
       <div class="nav-group">
+        <!-- REQ-RDT-NAV-10 (31 Jul): "Confirmation (nav item)" -> "Detail Confirmation" for a
+             plain PIC (general table). TERJAWAB 1 Agu: the TAB-facing rename is "Need
+             Identification" — confirmed NOT a duplication, this is the same nav item that also
+             absorbs the Dashboard "Need to Confirm" sub-view for TAB (see the nav-subnav above),
+             so TAB now has exactly one place for "who needs identifying/confirming", not two. -->
         <a routerLink="confirm" routerLinkActive="active" class="nav-link">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
           </span>
-          Confirmation
+          {{ currentUser.current?.role === 'TAB' ? 'Need Identification' : 'Detail Confirmation' }}
         </a>
         <!-- REQ-RDT-LEDGER-10 restructure (29 Jul, project owner request): TAB-only sub-nav,
-             styled like Dashboard's Need-to-Confirm/Own-Repost — TA/Corp are TAB's two no-PIC
-             queues (REQ-RDT-AUTH-04), and Investigation/Ask TA (formerly its own top-level nav
-             item) is folded in here too, to save sidebar space. -->
+             styled like Dashboard's Need-to-Confirm/Own-Repost — Corp is TAB's no-PIC queue
+             (REQ-RDT-AUTH-04). 'TA' was REMOVED from this sub-nav 31 Jul (REQ-RDT-AUTH-05
+             correction) — TA has its own dedicated PIC, not staffed by TAB. The second tab
+             (formerly a standalone "Investigation" nav item, then "Investigation/Ask TA") is
+             relabeled "TAB" here (TERJAWAB 1 Agu, REQ-RDT-NAV-10) — same ?target=INVESTIGATION
+             queue, still TAB's own ambiguous-ownership bucket, just matching the sub-item name
+             the SRS's "Corp dan TAB" table row now specifies. -->
         <div class="nav-subnav" *ngIf="canSeeConfirmSubnav">
-          <a [routerLink]="['confirm']" [queryParams]="{ target: 'TA' }" class="nav-sublink" [class.active]="confirmSubTarget === 'TA'">TA</a>
           <a [routerLink]="['confirm']" [queryParams]="{ target: 'Corp' }" class="nav-sublink" [class.active]="confirmSubTarget === 'Corp'">Corp</a>
-          <a [routerLink]="['confirm']" [queryParams]="{ target: 'INVESTIGATION' }" class="nav-sublink" [class.active]="confirmSubTarget === 'INVESTIGATION'">Investigation/Ask TA</a>
+          <a [routerLink]="['confirm']" [queryParams]="{ target: 'INVESTIGATION' }" class="nav-sublink" [class.active]="confirmSubTarget === 'INVESTIGATION'">TAB</a>
+          <!-- SRS section 3.10 (Share-Cost, 3 Agu): "tempatnya di sidebar ini juga, di bawah
+               'Need Identification'" — same TAB-only gate as Corp/TAB above. -->
+          <a routerLink="share-cost" routerLinkActive="active" class="nav-sublink">Share-Cost</a>
         </div>
       </div>
+      <!-- REQ-RDT-NAV-10 (31 Jul): "Need Approval" -> "Wait to Repost" (TAB-only table). -->
       <a *ngIf="canSeeNeedApproval" routerLink="need-approval" routerLinkActive="active" class="nav-link">
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
         </span>
-        Need Approval
+        Wait to Repost
       </a>
       <!-- REQ-RDT-SAP-12 (31 Jul, expanded): visible to every logged-in user now, not TAB-only —
-           GET /history auto-scopes to the caller's own dinas_inisiasi for a plain PIC. -->
+           GET /history auto-scopes to the caller's own dinas_inisiasi for a plain PIC.
+           REQ-RDT-NAV-10 (31 Jul): "Riwayat Repost (dinas)" -> "Repost History" for the PIC case
+           (general table) — TAB's own label ("Riwayat Repost TAB") isn't covered by that row. -->
       <a routerLink="repost-history" routerLinkActive="active" class="nav-link">
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
         </span>
-        {{ currentUser.current?.role === 'TAB' ? 'Riwayat Repost TAB' : 'Riwayat Repost' }}
+        {{ currentUser.current?.role === 'TAB' ? 'Riwayat Repost TAB' : 'Repost History' }}
       </a>
       <span class="nav-link nav-link--disabled">
         <span class="nav-icon">

@@ -3,6 +3,7 @@
 
 $ink: #000;
 $accent: #006298;
+$line: #cccccc;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
 // REQ-RDT-UI-02 (28 Jul, override draf Figma): 10px, not Figma's literal 16px — project owner
@@ -95,5 +96,6 @@ $ok-600: #1e7f4f;
   border: none;
 
   &--primary { background: $accent; color: #fff; box-shadow: $shadow-sm; &:hover { background: #004a73; } }
-  &--ghost { background: #fff; color: $ink; box-shadow: $shadow-sm; &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); } }
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
+  &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
 }

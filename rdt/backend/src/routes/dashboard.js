@@ -31,7 +31,7 @@
 
 const express = require('express');
 const { Client } = require('pg');
-const { requireUser } = require('../middleware/auth');
+const { requireUser, requireRole } = require('../middleware/auth');
 const { resolveMentionedUserIds } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 const { deriveStateLabel } = require('../rules/stateLabel');
@@ -161,9 +161,9 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   // different redirect paths. Tracked per card below (batchIds, pending count, whether any
   // resolved transaction is still unbatched) so the label reflects the true combined state
   // instead of guessing off a single mismatched key.
-  const agg = {}; // key -> { dinasInisiasi, target, total, resolved, pending, declined_pending_action, reply_count, batchIds, hasUnbatchedResolved }
-  const bump = (key, dinasInisiasi, target, status, replyCount, exportBatchId) => {
-    if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, pending: 0, declined_pending_action: 0, reply_count: 0, batchIds: new Set(), hasUnbatchedResolved: false };
+  const agg = {}; // key -> { dinasInisiasi, target, total, resolved, pending, declined_pending_action, reply_count, batchIds, hasUnbatchedResolved, chain, chainConsistent }
+  const bump = (key, dinasInisiasi, target, status, replyCount, exportBatchId, fullChain) => {
+    if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, pending: 0, declined_pending_action: 0, reply_count: 0, batchIds: new Set(), hasUnbatchedResolved: false, chain: fullChain, chainConsistent: true };
     const a = agg[key];
     const resolved = RESOLVED_STATUSES.includes(status);
     a.total += 1;
@@ -175,13 +175,22 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
       if (exportBatchId) a.batchIds.add(exportBatchId);
       else a.hasUnbatchedResolved = true;
     }
+    // REQ-RDT-NAV-03 (31 Jul, breadcrumb fix): a card can group transactions that took DIFFERENT
+    // redirect paths after sharing the same original target (e.g. one went TJ->TC->TL, another
+    // TJ->TC->TE) — only expose a single `chain` breadcrumb when every member transaction agrees
+    // on the exact same full path; otherwise leave it undefined so the frontend falls back to the
+    // plain dinas_inisiasi -> target two-point display rather than showing a misleading blend.
+    if (JSON.stringify(fullChain) !== JSON.stringify(a.chain)) a.chainConsistent = false;
   };
   for (const t of transactions) {
     const replyCount = replyCounts[t.id] || 0;
     const chain = chainMap[t.id] || [];
     const originalTarget = chain.length > 0 ? chain[0] : t.dinas_target;
     const key = groupBy === 'pair' ? `${t.dinas_inisiasi} ${originalTarget}` : originalTarget;
-    bump(key, t.dinas_inisiasi, originalTarget, t.status_konfirmasi, replyCount, t.export_batch_id);
+    // Full breadcrumb this ONE transaction actually took: initiator -> every intermediate dinas it
+    // was reassigned FROM (chronological, see fetchReassignChainMap) -> its current dinas_target.
+    const fullChain = [t.dinas_inisiasi, ...chain, t.dinas_target];
+    bump(key, t.dinas_inisiasi, originalTarget, t.status_konfirmasi, replyCount, t.export_batch_id, fullChain);
   }
 
   // One batched lookup for every card's contributing batches' subdoc numbers, same shape as
@@ -206,10 +215,17 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     const base = {
       total: a.total,
       resolved: a.resolved,
+      // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): the segmented progress bar needs PENDING
+      // ("Open") as its own count, not just folded into `percent` — `resolved` already lumps
+      // CONFIRMED+BORNE_BY_INITIATOR together for that computation, so this is the missing piece.
+      open: a.pending,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       declined_pending_action: a.declined_pending_action,
       reply_count: a.reply_count,
       state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target, subdocNumbers }),
+      // REQ-RDT-NAV-03 (31 Jul): full redirect breadcrumb (e.g. ['TJ','TC','TL']), only present
+      // when every transaction under this card agrees on the same path — see bump()'s comment.
+      chain: a.chainConsistent ? a.chain : undefined,
     };
     return groupBy === 'pair'
       ? { dinas: a.dinasInisiasi, target_dinas: a.target, ...base }
@@ -236,13 +252,16 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
 // reassignment, unlike dinas_target).
 //
 // UPDATE (28 Jul, bug report): grouping by dinas_inisiasi ALONE loses which of TAB's several
-// queues (their own 'TAB', plus 'Corp'/'TA' which have no dedicated PIC — REQ-RDT-AUTH-04) a
-// submission actually sits in. That made TA/"Ask TA"-targeted rows (see excelParser.js's
-// sub-dinas/TA routing) show up merged into a generic "TJ" card with no indication of which
-// real queue held them, and the Confirmation page's queue picker had no way to auto-select the
-// right one — reported live as "muncul di dashboard tapi ga bisa di-confirm, defaultnya salah
+// queues (their own 'TAB', plus 'Corp' which has no dedicated PIC — REQ-RDT-AUTH-04) a
+// submission actually sits in. That made "Ask TA"-targeted rows (see excelParser.js's
+// NEEDS_INVESTIGATION routing) show up merged into a generic "TJ" card with no indication of
+// which real queue held them, and the Confirmation page's queue picker had no way to auto-select
+// the right one — reported live as "muncul di dashboard tapi ga bisa di-confirm, defaultnya salah
 // antrian". Now grouped by (dinas_inisiasi, dinas_target) PAIR so every card names its real
 // target and the frontend can route straight to the correct queue.
+// (REQ-RDT-AUTH-05, corrected 31 Jul: dinas 'TA' itself has its own PIC and its own confirmation
+// queue like any other dinas — it was mistakenly folded into TAB's staffed queues 28 Jul, fixed
+// in needToConfirmTargetCodes above. Only 'Corp' genuinely has no dedicated PIC.)
 // includeInvestigation (29 Jul, project owner request): NEEDS_INVESTIGATION rows need TAB
 // action too ("itu bagian yang harus dikonfirmasi") — appended as pseudo-cards via
 // fetchInvestigationCounts, same sentinel target_dinas='INVESTIGATION' used everywhere else on
@@ -262,11 +281,12 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
 
   const agg = {};
   for (const t of transactions) {
-    const key = `${t.dinas_inisiasi} ${t.dinas_target}`;
-    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, pending: 0, reply_count: 0 };
+    const key = `${t.dinas_inisiasi} ${t.dinas_target}`;
+    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, pending: 0, declined: 0, reply_count: 0 };
     agg[key].total += 1;
     if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) agg[key].resolved += 1;
     if (t.status_konfirmasi === 'PENDING') agg[key].pending += 1;
+    if (t.status_konfirmasi === 'DECLINED') agg[key].declined += 1;
     agg[key].reply_count += replyCounts[t.id] || 0;
   }
   // REQ-RDT-SAP-07 state label: this query is already scoped to export_batch_id IS NULL and keyed
@@ -281,6 +301,12 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
       target_dinas: a.target_dinas,
       total: a.total,
       resolved: a.resolved,
+      // REQ-RDT-NAV-02 (1 Agu sore, project owner request): TAB's "Need Identification" Dashboard
+      // sub-view reuses the same segmented-bar pair-card as Report Submission/Summary Progress —
+      // that card reads open/declined_pending_action off the row, same fields
+      // buildChainAwareProgress's rows already carry.
+      open: a.pending,
+      declined_pending_action: a.declined,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       reply_count: a.reply_count,
       state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target_dinas }),
@@ -316,10 +342,19 @@ async function getPairTransactions(client, initiatorDinas, targetDinas) {
   const reassignedIds = transactions.filter((t) => t.reassign_count > 0).map((t) => t.id);
   const chainMap = await fetchReassignChainMap(client, reassignedIds);
   const targetUpper = String(targetDinas).toUpperCase();
-  return transactions.filter((t) => {
-    const chainDinas = new Set([t.dinas_target, ...(chainMap[t.id] || [])].map((d) => String(d).toUpperCase()));
-    return chainDinas.has(targetUpper);
-  });
+  return transactions
+    .filter((t) => {
+      const chainDinas = new Set([t.dinas_target, ...(chainMap[t.id] || [])].map((d) => String(d).toUpperCase()));
+      return chainDinas.has(targetUpper);
+    })
+    // REQ-RDT-NAV-03 (3 Agu, re-flagged still-open): the pair-level breadcrumb (buildChainAwareProgress's
+    // `chain`) only shows when EVERY transaction in the pair agrees on the same redirect path — with
+    // hundreds of transactions per pair, that's almost never true for a pair where even one row got
+    // redirected, so the header falls back to the plain 2-point display, and (until now) there was
+    // NOWHERE ELSE a per-transaction breadcrumb was rendered at all — Dashboard-Detailing had no
+    // transaction list, just the aggregate circle. Attaching each transaction's OWN full chain here
+    // (initiator -> every from_dinas hop -> current target) lets the frontend show it per-row instead.
+    .map((t) => ({ ...t, chain: [initiatorDinas, ...(chainMap[t.id] || []), t.dinas_target] }));
 }
 
 // REQ-RDT-NAV-03/COMMENT: who may view or post in a dinas pair's drill-down + comment thread —
@@ -470,13 +505,16 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
 // So: keep any dinas_inisiasi with an ACTIONABLE row targeting me that hasn't yet been swept
 // into a confirmed batch, not just PENDING ones.
 //
-// TAB also staffs dinas "Corp"'s AND "TA"'s queues (neither has a dedicated PIC,
-// REQ-RDT-AUTH-04) — their dinas_target rows never showed up under myDinas='TAB' before this
-// fix. ('TA' added 28 Jul alongside the project owner's TA-is-a-real-target correction — see
-// schema.sql's rdt.dinas seed comment.)
+// TAB also staffs dinas "Corp"'s queue (no dedicated PIC, REQ-RDT-AUTH-04) — its dinas_target
+// rows never showed up under myDinas='TAB' before this fix.
 //
+// REQ-RDT-AUTH-05 (CORRECTED 31 Jul, presentation feedback): 'TA' was removed from this list.
+// It was added 28 Jul on the mistaken assumption that TA had no dedicated PIC like Corp — that
+// assumption was wrong. TA is its OWN operational dinas with its own PIC (see
+// employee-directory.seed.json's demo-ta entry), distinct from TAB staff. Its rows belong in
+// dinas TA's own confirmation queue, not bundled into TAB's.
 function needToConfirmTargetCodes(myDinas, isTabStaff) {
-  return (isTabStaff ? [myDinas, 'Corp', 'TA'] : [myDinas]).map((d) => String(d).toUpperCase());
+  return (isTabStaff ? [myDinas, 'Corp'] : [myDinas]).map((d) => String(d).toUpperCase());
 }
 
 // Bare dinas-code list, no percent/reply-count aggregation — used ONLY by GET
@@ -546,6 +584,151 @@ router.get('/need-to-confirm-count', async (req, res) => {
     await client.connect();
     const needToConfirm = await fetchNeedToConfirmDinas(client, needToConfirmTargetCodes(myDinas, isTabStaff), isTabStaff);
     res.json({ ok: true, count: needToConfirm.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  } finally {
+    try { await client.end(); } catch (e) {}
+  }
+});
+
+// "Open" = still needs SOMEONE's decision (PENDING waits on the target, DECLINED waits on the
+// initiator's Tanggung Sendiri/Ajukan Ulang) — the complement of RESOLVED_STATUSES within
+// ACTIONABLE_STATUSES. Not itself a pre-existing SRS term; derived here for the new KPI cards
+// (REQ-RDT-NAV-02, Figma nodes 78:242/78:243, 1 Agu) which don't have a written spec beyond the
+// mockup's example numbers, so these definitions are a reasonable, documented interpretation
+// rather than a literal requirement — flagged for the project owner to confirm/correct if the
+// exact semantics matter.
+const OPEN_STATUSES = ['PENDING', 'DECLINED'];
+
+// GET /api/dashboard/kpis — REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): the 4 summary cards atop
+// a PIC's Report Submission page (own dinas_inisiasi only), or the 5 summary cards atop TAB's
+// Summary Progress All Dinas page (system-wide). Role-aware response shape, same pattern as
+// GET /summary above.
+router.get('/kpis', async (req, res) => {
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const myDinas = req.rdtUser.dinas;
+  const isTabStaff = req.rdtUser.role === 'TAB';
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    if (!isTabStaff) {
+      const r = await client.query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COALESCE(SUM(nominal), 0)::float AS total_nilai,
+           COUNT(*) FILTER (WHERE status_konfirmasi = ANY($2))::int AS open_count,
+           COUNT(DISTINCT dinas_target)::int AS pasangan_count
+         FROM rdt.transactions
+         WHERE dinas_inisiasi = $1 AND dinas_target IS NOT NULL AND status_konfirmasi = ANY($3)`,
+        [myDinas, OPEN_STATUSES, ACTIONABLE_STATUSES]
+      );
+      const row = r.rows[0];
+      res.json({
+        ok: true,
+        is_global_view: false,
+        total_transaksi: row.total,
+        total_nilai: row.total_nilai,
+        pasangan_count: row.pasangan_count,
+        open_count: row.open_count,
+        resolved_count: row.total - row.open_count,
+      });
+      return;
+    }
+
+    const [dinasAktifRes, totalRes, investigasiRes, waitingRes, repostedRes] = await Promise.all([
+      client.query(`SELECT COUNT(DISTINCT dinas_inisiasi)::int AS c FROM rdt.transactions WHERE dinas_target IS NOT NULL AND status_konfirmasi = ANY($1)`, [ACTIONABLE_STATUSES]),
+      client.query(`SELECT COUNT(*)::int AS c FROM rdt.transactions WHERE dinas_target IS NOT NULL AND status_konfirmasi = ANY($1)`, [ACTIONABLE_STATUSES]),
+      client.query(`SELECT COUNT(*)::int AS c FROM rdt.transactions WHERE status_konfirmasi = 'NEEDS_INVESTIGATION'`),
+      // Same readiness rule as exportBatches.js's GET /waiting: every unbatched row for the pair
+      // is resolved (no PENDING/DECLINED/NEEDS_REVIEW left) and at least one attachable row exists.
+      client.query(
+        `SELECT COUNT(*)::int AS c FROM (
+           SELECT dinas_inisiasi, dinas_target
+           FROM rdt.transactions
+           WHERE export_batch_id IS NULL AND dinas_target IS NOT NULL
+             AND status_konfirmasi = ANY($1)
+           GROUP BY dinas_inisiasi, dinas_target
+           HAVING COUNT(*) FILTER (WHERE status_konfirmasi = ANY($2)) = 0
+              AND COUNT(*) FILTER (WHERE status_konfirmasi = ANY($3)) > 0
+         ) waiting_pairs`,
+        [[...OPEN_STATUSES, 'NEEDS_REVIEW'], [...OPEN_STATUSES, 'NEEDS_REVIEW'], RESOLVED_STATUSES]
+      ),
+      client.query(`SELECT COUNT(*)::int AS c FROM rdt.transactions WHERE subdoc_id IS NOT NULL`),
+    ]);
+    res.json({
+      ok: true,
+      is_global_view: true,
+      dinas_aktif: dinasAktifRes.rows[0].c,
+      total_transaksi: totalRes.rows[0].c,
+      butuh_investigasi: investigasiRes.rows[0].c,
+      waiting_to_repost: waitingRes.rows[0].c,
+      reposted: repostedRes.rows[0].c,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  } finally {
+    try { await client.end(); } catch (e) {}
+  }
+});
+
+// GET /api/dashboard/per-dinas-rollup — TAB-only. REQ-RDT-NAV-02 (Figma 78:243, "Progress per
+// Dinas Pengaju"): unlike buildChainAwareProgress's groupBy:'pair' (one row per (initiator,
+// target) pair), this sums ALL of one dinas_inisiasi's pairs into a single row — the table this
+// page shows is "how is each SUBMITTING dinas doing overall", not per-pair detail (that's still
+// available via the pair cards / Dashboard-Detailing). Sorted by Open descending (Figma's own
+// stated sort), matching the page's "worst first" triage intent.
+router.get('/per-dinas-rollup', requireRole('TAB'), async (req, res) => {
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const r = await client.query(
+      `SELECT dinas_inisiasi AS dinas,
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE status_konfirmasi = ANY($1))::int AS confirmed,
+              COUNT(*) FILTER (WHERE status_konfirmasi = 'PENDING')::int AS open,
+              COUNT(*) FILTER (WHERE status_konfirmasi = 'DECLINED')::int AS declined
+       FROM rdt.transactions
+       WHERE dinas_target IS NOT NULL AND status_konfirmasi = ANY($2)
+       GROUP BY dinas_inisiasi
+       ORDER BY open DESC, dinas_inisiasi ASC`,
+      [RESOLVED_STATUSES, ACTIONABLE_STATUSES]
+    );
+    const dinasList = r.rows.map((row) => row.dinas);
+    const investigasiRes = dinasList.length
+      ? await client.query(
+          `SELECT dinas_inisiasi AS dinas, COUNT(*)::int AS c FROM rdt.transactions
+           WHERE status_konfirmasi = 'NEEDS_INVESTIGATION' AND dinas_inisiasi = ANY($1)
+           GROUP BY dinas_inisiasi`,
+          [dinasList]
+        )
+      : { rows: [] };
+    const investigasiByDinas = {};
+    investigasiRes.rows.forEach((row) => { investigasiByDinas[row.dinas] = row.c; });
+
+    // Status pill: "Butuh Investigasi (N)" wins if this dinas has any NEEDS_INVESTIGATION rows
+    // (TAB needs to act regardless of how the rest of the dinas's pairs are doing); "Semua
+    // reposted" only once every row is resolved AND (see per-row check below) already has a
+    // subdoc — a 100%-resolved dinas that TAB hasn't reposted yet stays unbadged rather than
+    // claiming "reposted" prematurely.
+    const rows = await Promise.all(r.rows.map(async (row) => {
+      const total = row.total;
+      const percent = total > 0 ? Math.round((row.confirmed / total) * 1000) / 10 : 0;
+      const investigationCount = investigasiByDinas[row.dinas] || 0;
+      let status = null;
+      if (investigationCount > 0) {
+        status = { kind: 'investigation', label: `Butuh Investigasi (${investigationCount})` };
+      } else if (total > 0 && row.confirmed === total) {
+        const unrepostedRes = await client.query(
+          `SELECT COUNT(*)::int AS c FROM rdt.transactions
+           WHERE dinas_inisiasi = $1 AND status_konfirmasi = ANY($2) AND subdoc_id IS NULL`,
+          [row.dinas, RESOLVED_STATUSES]
+        );
+        if (unrepostedRes.rows[0].c === 0) status = { kind: 'reposted', label: 'Semua reposted' };
+      }
+      return { dinas: row.dinas, total, confirmed: row.confirmed, open: row.open, declined: row.declined, percent, status };
+    }));
+    res.json({ ok: true, rows });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });
   } finally {

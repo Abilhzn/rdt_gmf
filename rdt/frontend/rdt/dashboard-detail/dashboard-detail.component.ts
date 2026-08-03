@@ -1,17 +1,10 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { DashboardDetailService } from '../services/dashboard-detail.service';
+import { DashboardDetailService, PairTransaction } from '../services/dashboard-detail.service';
 import { DinasProgress } from '../services/dashboard.service';
 import { Comment } from '../services/comment.model';
 import { CurrentUserService } from '@auth/services/current-user.service';
-import { DinasService } from '../services/dinas.service';
-
-interface MentionOption {
-  /** what actually gets inserted after "@" — must stay a single \w-ish token, no spaces */
-  token: string;
-  /** what's shown in the dropdown so entries are distinguishable */
-  label: string;
-}
+import { MentionInputComponent } from '../shared/mention-input.component';
 
 interface ThreadRow {
   comment: Comment;
@@ -20,7 +13,9 @@ interface ThreadRow {
 
 // REQ-RDT-NAV-03/REQ-RDT-COMMENT-01/02/03 — drill-down for one (initiator, target) dinas pair:
 // progress circle for that pair specifically, plus a forum-style comment thread (parent/child
-// replies, @mention autocomplete/notifications). Ground truth ui-demo.html's
+// replies, @mention autocomplete/notifications/linked render — see shared/mention-input.component
+// .ts and shared/mention-text.component.ts, REQ-RDT-COMMENT-03 diperluas 3 Agu: one shared
+// implementation, no longer this component's own copy). Ground truth ui-demo.html's
 // view-dashboard-detail — reached only by clicking a Dashboard card (see HomeComponent), not a
 // sidebar item, so it isn't in PAGE_TITLES/nav — nested under HomeModule's routes precisely so
 // the "Dashboard" sidebar link + page title stay active/correct here too (see home.module.ts).
@@ -34,6 +29,7 @@ export class DashboardDetailComponent implements OnInit {
   initiatorDinas = '';
   targetDinas = '';
   progress: DinasProgress | null = null;
+  transactions: PairTransaction[] = [];
   threadRows: ThreadRow[] = [];
   errorMessage = '';
   loaded = false;
@@ -42,29 +38,14 @@ export class DashboardDetailComponent implements OnInit {
   commentBody = '';
   submitting = false;
 
-  @ViewChild('commentInput') commentInput?: ElementRef<HTMLTextAreaElement>;
-  mentionOptions: MentionOption[] = [];
-  mentionSuggestions: MentionOption[] = [];
-  showMentions = false;
-  highlightedMentionIndex = -1;
+  @ViewChild(MentionInputComponent) commentInput?: MentionInputComponent;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private detailSvc: DashboardDetailService,
     public currentUser: CurrentUserService,
-    dinasService: DinasService,
-  ) {
-    // Item 5 pattern reused from RepostBudgetingComponent — mentions cover every dinas AND user.
-    dinasService.getActiveDinas().subscribe((dinasList) => {
-      const dinasOptions: MentionOption[] = dinasList.map((d) => ({ token: d.code, label: `${d.code} — ${d.name}` }));
-      this.mentionOptions = [...dinasOptions, ...this.mentionOptions.filter((o) => !dinasOptions.some((d) => d.token === o.token))];
-    });
-    this.currentUser.loadDirectory().subscribe((directory) => {
-      const userOptions: MentionOption[] = Object.entries(directory).map(([id, entry]) => ({ token: id, label: `${entry.display_name} (${entry.dinas})` }));
-      this.mentionOptions = [...this.mentionOptions, ...userOptions];
-    });
-  }
+  ) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -87,7 +68,25 @@ export class DashboardDetailComponent implements OnInit {
 
   get replyCountLabel(): string {
     const total = this.progress?.total ?? 0;
-    return `${this.threadRows.length} reply · ${total} transaksi`;
+    return `${this.threadRows.length} comment · ${total} transaksi`;
+  }
+
+  // REQ-RDT-NAV-03 (31 Jul, presentation feedback): render the FULL redirect path (e.g.
+  // "TJ → TC → TL"), not just the two endpoints — backend already tracks the chain via
+  // audit_log's REASSIGN/REJECT_REDIRECT history (see dashboard.js's buildChainAwareProgress),
+  // this just renders it. Falls back to the plain [initiator, target] pair when the backend
+  // didn't send a chain (no redirect happened, or the card blends multiple different paths).
+  get breadcrumb(): string[] {
+    if (this.progress?.chain?.length) return this.progress.chain;
+    return [this.initiatorDinas, this.targetLabel];
+  }
+
+  // REQ-RDT-NAV-03 (3 Agu, re-flagged still-open): every transaction whose OWN chain has more
+  // than the plain 2-point [initiator, target] — i.e. it was actually redirected at least once —
+  // regardless of whether the header breadcrumb above could show a single representative chain
+  // for the whole pair.
+  get redirectedTransactions(): PairTransaction[] {
+    return this.transactions.filter((t) => (t.chain?.length || 0) > 2);
   }
 
   load(): void {
@@ -96,6 +95,7 @@ export class DashboardDetailComponent implements OnInit {
     this.detailSvc.getDetail(this.initiatorDinas, this.targetDinas).subscribe({
       next: (detail) => {
         this.progress = detail.progress;
+        this.transactions = detail.transactions;
         this.threadRows = this.buildThreadRows(detail.comments);
         this.loaded = true;
       },
@@ -143,7 +143,7 @@ export class DashboardDetailComponent implements OnInit {
 
   setReplyTarget(comment: Comment): void {
     this.replyTo = comment;
-    setTimeout(() => this.commentInput?.nativeElement.focus());
+    setTimeout(() => this.commentInput?.focus());
   }
 
   clearReplyTarget(): void {
@@ -166,61 +166,6 @@ export class DashboardDetailComponent implements OnInit {
         this.errorMessage = err?.error?.error || err?.message || 'Gagal mengirim komentar';
       },
     });
-  }
-
-  // ---------- @mention (same interaction as RepostBudgetingComponent) ----------
-  // Bug fix (live testing, 24 Jul): capped at 8 like ui-demo.html originally was, but with 21
-  // dinas + ~24 directory users to match against, 8 was too few to reliably find someone by
-  // scanning alone — raised to 20 (the dropdown box already scrolls, .mention-list's
-  // max-height/overflow-y in the scss). Also added arrow-key navigation + Enter-to-select,
-  // which neither app had at all before — mouse-only wasn't enough for a list this size.
-  onCommentInput(): void {
-    const el = this.commentInput?.nativeElement;
-    if (!el) return;
-    const cursor = el.selectionStart ?? el.value.length;
-    const upToCursor = el.value.slice(0, cursor);
-    const match = /@([\w-]*)$/.exec(upToCursor);
-    if (!match) { this.showMentions = false; return; }
-    const query = match[1].toLowerCase();
-    this.mentionSuggestions = this.mentionOptions
-      .filter((o) => o.token.toLowerCase().includes(query) || o.label.toLowerCase().includes(query))
-      .slice(0, 20);
-    this.showMentions = this.mentionSuggestions.length > 0;
-    this.highlightedMentionIndex = this.showMentions ? 0 : -1;
-  }
-
-  onCommentKeydown(event: KeyboardEvent): void {
-    if (!this.showMentions || !this.mentionSuggestions.length) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      this.highlightedMentionIndex = (this.highlightedMentionIndex + 1) % this.mentionSuggestions.length;
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      this.highlightedMentionIndex = (this.highlightedMentionIndex - 1 + this.mentionSuggestions.length) % this.mentionSuggestions.length;
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      const option = this.mentionSuggestions[this.highlightedMentionIndex];
-      if (option) this.insertMention(option);
-    } else if (event.key === 'Escape') {
-      this.showMentions = false;
-    }
-  }
-
-  insertMention(option: MentionOption): void {
-    const el = this.commentInput?.nativeElement;
-    if (!el) return;
-    const cursor = el.selectionStart ?? this.commentBody.length;
-    const upToCursor = this.commentBody.slice(0, cursor);
-    const afterCursor = this.commentBody.slice(cursor);
-    const replaced = upToCursor.replace(/@([\w-]*)$/, `@${option.token} `);
-    this.commentBody = replaced + afterCursor;
-    this.showMentions = false;
-    const newCursor = replaced.length;
-    setTimeout(() => { el.focus(); el.setSelectionRange(newCursor, newCursor); });
-  }
-
-  closeMentions(): void {
-    setTimeout(() => { this.showMentions = false; }, 150);
   }
 
   trackByCommentId(i: number, row: ThreadRow): number { return row.comment.id; }

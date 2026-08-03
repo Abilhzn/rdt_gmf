@@ -1,0 +1,56 @@
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
+// shell.component.scss for the "why literal, not just structural" note.
+
+$accent: #006298;
+$ink: #000;
+$ink-600: #52616e;
+$line: #cccccc;
+$page-bg: #f2f2f2;
+$radius-md: 8px;
+
+.mvi-wrap { position: relative; }
+
+// Deliberately minimal — width/padding/border/resize are each call site's OWN class (extraClass,
+// e.g. "repost-desc"/"reviewer-note-input"/"batch-note"), reached via that call site's own
+// `::ng-deep .the-class { ... }` (see e.g. repost-budgeting.component.scss) since Angular's
+// emulated encapsulation otherwise can't have a PARENT's stylesheet reach an element that a CHILD
+// component's own template created. Duplicating those properties here too would just be a
+// same-specificity coin-flip decided by CSS build order instead of a predictable override.
+.mvi-textarea {
+  box-sizing: border-box;
+  font-family: inherit;
+  color: $ink;
+
+  &:focus { outline: none; border-color: $accent; }
+}
+
+// REQ-RDT-UI-03: outline, not shadow — built fresh with this rule rather than shadow (matches
+// what pagination/multi-value-filter's own popups already carry over to).
+.mvi-list {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  max-height: 180px;
+  overflow-y: auto;
+  text-align: left;
+
+  li {
+    padding: 6px 8px;
+    font-size: 13px;
+    color: $ink;
+    cursor: pointer;
+    border-radius: 6px;
+
+    &:hover { background: $page-bg; }
+  }
+
+  &__item--active { background: $page-bg; }
+}

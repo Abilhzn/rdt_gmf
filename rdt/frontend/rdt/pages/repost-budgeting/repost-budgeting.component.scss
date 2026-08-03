@@ -34,10 +34,11 @@ $radius-md: 8px;
 
 // Page title/eyebrow now live in shell.component.html's shared topbar — this component
 // only owns its own content card + split layout.
+// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
   padding: 36px;
   color: $ink;
 }
@@ -61,10 +62,11 @@ $radius-md: 8px;
 
   h3 { margin: 0 0 16px; font-size: 15px; color: $ink; font-weight: 500; }
   .btn { display: block; width: 100%; margin-bottom: 12px; }
-  // Both Confirm and Cancel render white+shadow here per the Figma (only Confirmation's
-  // Submit button is solid-blue-filled) — override regardless of btn--primary/ghost class.
-  .btn--primary, .btn--ghost { background: #fff; color: $ink; box-shadow: $shadow-sm; border: none; }
-  .btn--primary:hover, .btn--ghost:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+  // Both Confirm and Cancel render white here per the Figma (only Confirmation's Submit button
+  // is solid-blue-filled) — override regardless of btn--primary/ghost class. REQ-RDT-UI-03
+  // (1 Agu): white/ghost buttons use border, not shadow.
+  .btn--primary, .btn--ghost { background: #fff; color: $ink; border: 1px solid $line; }
+  .btn--primary:hover, .btn--ghost:hover { border-color: $accent; }
 }
 
 .repost-desc-label {
@@ -76,7 +78,12 @@ $radius-md: 8px;
   margin-bottom: 12px;
 }
 
-.repost-desc {
+// ::ng-deep: this class is also passed as [extraClass] into <rdt-mention-input> (the Keterangan
+// field) — that textarea lives inside a CHILD component's own template, which Angular's default
+// emulated encapsulation otherwise wouldn't let this rule reach (see mention-input.component
+// .scss's note on the same thing). Still applies normally to the plain <input type="month"> in
+// THIS component's own template too.
+::ng-deep .repost-desc {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid $line;
@@ -88,40 +95,6 @@ $radius-md: 8px;
   margin-top: 4px;
 }
 
-// Item 5: @mention dropdown for the description textarea, like tagging on social media.
-.mention-wrap { position: relative; }
-
-.mention-list {
-  position: absolute;
-  z-index: 20;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: 2px 0 0;
-  padding: 4px;
-  list-style: none;
-  background: #fff;
-  border: 1px solid $line;
-  border-radius: $radius-md;
-  box-shadow: $shadow-lg;
-  max-height: 180px;
-  overflow-y: auto;
-  text-align: left;
-
-  li {
-    padding: 6px 8px;
-    font-size: 13px;
-    color: $ink;
-    cursor: pointer;
-    border-radius: 6px;
-
-    &:hover { background: $page-bg; }
-    // Keyboard-selected item (ArrowUp/ArrowDown) — same visual treatment as :hover so the
-    // keyboard and mouse paths feel consistent.
-    &--active { background: $page-bg; }
-  }
-}
-
 @media (max-width: 860px) {
   .repost-split { flex-direction: column; }
   .repost-side { width: 100%; }
@@ -131,7 +104,7 @@ $radius-md: 8px;
 .card {
   background: #fff;
   border-radius: $radius-lg;
-  box-shadow: $shadow-sm;
+  border: 1px solid $line;
   padding: 20px;
   margin-bottom: 18px;
 
@@ -204,11 +177,13 @@ $radius-md: 8px;
     &:hover:not(:disabled) { background: #004a73; }
   }
 
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
+  // penanda visual sebagai gantinya.
   &--ghost {
     background: #fff;
     color: $ink;
-    box-shadow: $shadow-sm;
-    &:hover:not(:disabled) { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
+    border: 1px solid $line;
+    &:hover:not(:disabled) { border-color: $accent; }
   }
 
   &--link {
@@ -324,6 +299,46 @@ $radius-md: 8px;
   }
 
   tbody tr:hover td { background: #f5f9fb; }
+}
+
+// REQ-RDT-NAV-04: editable "Catatan Reviewer" cell, sized to sit inline in a table row.
+// (3 Agu fix) Was a single-line <input> — text past its width just scrolled sideways instead of
+// being readable. Now a wrapping <textarea>: fixed height (rows="2"), no resize handle, no
+// scrollbar — long notes wrap instead of hiding behind a scroll box.
+// ::ng-deep: passed as [extraClass] into <rdt-mention-input> now — see .repost-desc's note above.
+::ng-deep .reviewer-note-input {
+  width: 200px;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: $ink;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  &:focus {
+    outline: none;
+    border-color: $accent;
+  }
+}
+
+// REQ-RDT-EXT-09 point 3: flags a PIVOT_DERIVED (synthetic aggregate) row next to Sheet —
+// REQ-RDT-UI-03: outline, not shadow.
+.granularity-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid $warn-700;
+  border-radius: $radius-md;
+  color: $warn-700;
+  background: $warn-050;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 // ---------- filters ----------

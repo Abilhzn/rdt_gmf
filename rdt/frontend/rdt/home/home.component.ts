@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { DashboardService, DinasProgress } from '../services/dashboard.service';
+import { DashboardService, DinasProgress, DashboardKpis, PerDinasRollupRow } from '../services/dashboard.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
 // REQ-RDT-NAV-02/02a — rebuilt to match the updated Figma (nodes 1:2 "Need to Confirm" / 69:209
@@ -25,6 +25,13 @@ export class HomeComponent implements OnInit {
    * submissions — TAB doesn't originate reposts itself. */
   isGlobalView = false;
 
+  // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): KPI summary row + (TAB only) the per-dinas
+  // rollup table — both only ever shown on the 'own' sub-view (Report Submission / Summary
+  // Progress All Dinas), matching the two Figma frames this was pulled from. 'need' (Need to
+  // Confirm) keeps its pre-existing donut-card look — no updated design was provided for it.
+  kpis: DashboardKpis | null = null;
+  perDinasRollup: PerDinasRollupRow[] = [];
+
   constructor(
     private dashboard: DashboardService,
     public currentUser: CurrentUserService,
@@ -34,7 +41,13 @@ export class HomeComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe((params) => {
-      this.subview = params.get('sub') === 'own' ? 'own' : 'need';
+      // REQ-RDT-NAV-10 (1 Agu sore, reversed): TAB's "Need Identification" Dashboard sub-view is
+      // back — an explicit ?sub=need/own always wins; with no query param, TAB still LANDS on
+      // 'own' (Summary Progress All Dinas) by default, same as right after the merge, just no
+      // longer the ONLY option. Unchanged for a plain PIC (?sub= unset defaults to 'need').
+      const isTab = this.currentUser.current?.role === 'TAB';
+      const sub = params.get('sub');
+      this.subview = sub === 'need' ? 'need' : sub === 'own' ? 'own' : isTab ? 'own' : 'need';
     });
     this.currentUser.user$.subscribe(() => this.load());
   }
@@ -43,10 +56,18 @@ export class HomeComponent implements OnInit {
     return this.currentUser.current?.dinas;
   }
 
+  // REQ-RDT-NAV-10 (1 Agu sore, project owner request): TAB's "Need Identification" Dashboard
+  // sub-view was retired when the merge with the Confirmation nav item happened — restored here,
+  // now styled like Report Submission/Summary Progress (segmented bar + KPI row) instead of the
+  // old donut. Unchanged for a plain PIC (donut, no KPI row, label stays "Need to Confirm").
+  get isTabRole(): boolean {
+    return this.currentUser.current?.role === 'TAB';
+  }
+
   load(): void {
     this.errorMessage = '';
     this.loaded = false;
-    if (!this.currentUser.current) { this.asInitiator = []; this.needToConfirm = []; return; }
+    if (!this.currentUser.current) { this.asInitiator = []; this.needToConfirm = []; this.kpis = null; this.perDinasRollup = []; return; }
     this.dashboard.getSummary().subscribe({
       next: (summary) => {
         this.asInitiator = summary.as_initiator;
@@ -56,6 +77,17 @@ export class HomeComponent implements OnInit {
       },
       error: (err) => { this.errorMessage = err?.error?.error || err?.message || 'Gagal memuat dashboard'; },
     });
+    this.dashboard.getKpis().subscribe({
+      next: (kpis) => { this.kpis = kpis; },
+      error: () => { /* KPI row is supplementary — don't block the rest of the page on it */ },
+    });
+    // Only TAB's global view has the per-dinas rollup table (backend also enforces TAB-only).
+    if (this.currentUser.current.role === 'TAB') {
+      this.dashboard.getPerDinasRollup().subscribe({
+        next: (rows) => { this.perDinasRollup = rows; },
+        error: () => { /* supplementary — see KPI note above */ },
+      });
+    }
   }
 
   // Single delegated click handler for the shared #pairCard template (see home.component.html) —
@@ -83,9 +115,15 @@ export class HomeComponent implements OnInit {
   // Centralizes every pair-card title so the Investigation sentinel never leaks its raw code
   // into the UI as a "dinas name" — REQ-RDT-LEDGER-10 restructure (29 Jul) reuses the same
   // "Investigation/Ask TA" label the Confirmation sub-nav already uses.
+  //
+  // REQ-RDT-NAV-03 (31 Jul): 'own' cards (buildChainAwareProgress) carry a full redirect
+  // breadcrumb in d.chain (e.g. ['TJ','TC','TL']) when every transaction under the card agrees
+  // on the same path — render that instead of just the two endpoints when present. 'need' cards
+  // (buildNeedToConfirmProgress) never redirect on dinas_inisiasi, so they stay two-point.
   pairTitle(kind: 'need' | 'own', d: DinasProgress): string {
     const label = (code: string | undefined) => (code === 'INVESTIGATION' ? 'Investigation/Ask TA' : code);
     if (kind === 'need') return `${d.dinas} → ${label(d.target_dinas) || this.myDinas || ''}`;
+    if (d.chain?.length) return d.chain.map((c) => label(c)).join(' → ');
     if (this.isGlobalView) return `${d.dinas} → ${label(d.target_dinas)}`;
     return `${this.myDinas || ''} → ${label(d.dinas)}`;
   }
@@ -136,5 +174,40 @@ export class HomeComponent implements OnInit {
     if (percent >= 100) return '#006298';
     if (percent < 50) return '#b3261e';
     return '#f2b400';
+  }
+
+  // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): 3-segment horizontal bar (Confirmed/Open/
+  // Declined) replacing the donut ring on the 'own' sub-view's pair cards. "Confirmed" here means
+  // `resolved` (CONFIRMED+BORNE_BY_INITIATOR combined, same definition `percent` already uses
+  // elsewhere in the app) — Figma's mockup label doesn't distinguish BORNE_BY_INITIATOR out, and
+  // introducing a second "confirmed" definition just for this bar would contradict the number
+  // shown right next to it.
+  barSegments(d: DinasProgress): { confirmedPct: number; openPct: number; declinedPct: number } {
+    const total = d.total || 0;
+    if (!total) return { confirmedPct: 0, openPct: 0, declinedPct: 0 };
+    const declined = d.declined_pending_action || 0;
+    const open = d.open || 0;
+    return {
+      confirmedPct: (d.resolved / total) * 100,
+      openPct: (open / total) * 100,
+      declinedPct: (declined / total) * 100,
+    };
+  }
+
+  // REQ-RDT-NAV-02 (Figma 78:243): status pill tone for the per-dinas rollup table.
+  rollupStatusClass(row: PerDinasRollupRow): string {
+    return row.status ? `rollup-status--${row.status.kind}` : '';
+  }
+
+  // P4.6 (3 Agu, Figma 78:242 re-pull): state_label pill is color-coded by status in the
+  // reference design (amber "Waiting for confirmation X", blue "Waiting to repost", green
+  // "Reposted..."/subdoc) — was a single flat gray tone before. Matched on the label TEXT
+  // (see backend's stateLabel.js — it's a derived string, not a stored enum) rather than
+  // duplicating deriveStateLabel's branching here.
+  stateLabelClass(label: string): string {
+    if (label.startsWith('Waiting for confirmation')) return 'pair-card__state-label--amber';
+    if (label.startsWith('Waiting to repost')) return 'pair-card__state-label--blue';
+    if (label.startsWith('Reposted')) return 'pair-card__state-label--green';
+    return '';
   }
 }

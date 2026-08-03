@@ -15,6 +15,13 @@ export interface PairTransaction {
   remark: string | null;
   dinas_target: string;
   reassign_count: number;
+  /** REQ-RDT-NAV-03 (3 Agu, still-open re-flag): this transaction's OWN full redirect path
+   * (initiator -> every dinas it was reassigned FROM -> its current target) — independent of
+   * `progress.chain`, which only shows a value when EVERY transaction in the whole pair agrees
+   * on the same path (rare once a pair has more than a handful of rows). This is what actually
+   * lets a 2+ hop reassignment be seen anywhere in the UI. Absent for the INVESTIGATION pseudo-
+   * pair (dinas_target IS NULL, nothing to chain-resolve yet). */
+  chain?: string[];
 }
 
 export interface DashboardDetail {

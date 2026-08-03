@@ -3,101 +3,95 @@
     Antrian per pasangan (dinas pengaju → dinas tujuan) — sebuah entri muncul begitu SEMUA
     transaksi pasangan ITU selesai (CONFIRMED/BORNE_BY_INITIATOR, tidak ada PENDING/DECLINED/
     NEEDS_REVIEW tersisa). Pasangan lain dari dinas pengaju yang sama TIDAK saling menunggu — tiap
-    pasangan diproses begitu siap. Buka transparansi untuk melihat detail lengkap pasangan itu
-    sebelum confirm — aksi Confirm berlaku untuk pasangan ini saja dan butuh deskripsi penutup.
-    Setelah confirmed, file Excel (53 kolom kontrak penuh) langsung bisa diunduh. Hanya role TAB
-    yang bisa bertindak di sini.
+    pasangan diproses begitu siap. File Excel (53 kolom kontrak penuh) sudah bisa diunduh dari
+    sini SEKARANG, tidak perlu Confirm dulu — download, posting manual ke SAP, lalu balik ke sini
+    dan Confirm sekalian masukkan nomor subdoc hasil posting-nya. Buka transparansi untuk melihat
+    detail lengkap pasangan itu sebelum confirm. Hanya role TAB yang bisa bertindak di sini.
   </p>
   <div class="card__actions">
     <button class="btn btn--ghost" type="button" (click)="load()">Muat ulang</button>
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
-  <h3 class="card__subtitle">Menunggu Confirm</h3>
-  <p class="note" *ngIf="!waiting.length">Belum ada pasangan yang siap di-confirm.</p>
+  <h3 class="card__subtitle">Menunggu Repost</h3>
+  <p class="note" *ngIf="!waiting.length">Belum ada pasangan yang siap di-repost.</p>
   <ng-container *ngFor="let w of waiting">
     <div class="batch-row">
       <div class="batch-row__id">{{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</div>
       <div class="batch-row__period">{{ w.total }} transaksi <span class="state-label">{{ w.state_label }}</span></div>
       <div class="batch-row__action">
+        <!-- REQ-RDT-SAP-05/06 (revised 31 Jul): download available immediately, no Confirm needed first. -->
+        <button
+          class="btn btn--ghost"
+          type="button"
+          [disabled]="downloadingPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)"
+          (click)="download(w)"
+        >&#8659; Download</button>
+        <!-- REQ-RDT-SAP-06 (rename 3 Agu): "Lihat Transparansi" -> "Confirm Reposted" — klik
+             menampilkan transparansi SEKALIGUS form deskripsi+subdoc, satu layar (lihat
+             .transparency-panel di bawah), bukan dua langkah terpisah. Tombol Confirm yang
+             benar-benar mengeksekusi tetap di paling bawah panel itu, tidak berubah. -->
         <button class="btn btn--ghost" type="button" (click)="openTransparency(w.dinas_inisiasi, w.dinas_target)">
-          {{ expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target) ? 'Tutup transparansi' : 'Lihat transparansi' }}
+          {{ expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target) ? 'Tutup' : 'Confirm Reposted' }}
         </button>
       </div>
     </div>
 
     <div class="transparency-panel" *ngIf="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)">
       <p class="alert alert--error" *ngIf="transparencyError">{{ transparencyError }}</p>
-      <!-- REQ-RDT-NAV-09: paste banyak nilai Account sekaligus, ala SAP. -->
-      <rdt-multi-value-filter
-        *ngIf="transparencyRows.length"
-        placeholder="Tempel banyak Account sekaligus (satu per baris/koma)..."
-        (valuesChange)="onTransparencyAccountFilterChange($event)"
-      ></rdt-multi-value-filter>
+      <!-- REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): SEMUA kolom kontrak, satu
+           sumber (previewColumns) sama seperti Repost Review — bukan subset Account/Ref.Doc/
+           Nominal/Remark/Status yang di-hardcode terpisah. -->
       <div class="table-scroll" *ngIf="transparencyRows.length">
         <table class="rows">
           <thead>
             <tr>
-              <th>Account</th><th>Ref.Doc</th><th class="rows__num">Nominal</th>
-              <th>Remark</th><th>Status</th><th>Reassign</th>
+              <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric">
+                {{ col.label }}
+                <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
+                <rdt-multi-value-filter [placeholder]="'Tempel banyak ' + col.label + ' sekaligus...'" (valuesChange)="onTransparencyColumnFilterChange(col.key, $event)"></rdt-multi-value-filter>
+              </th>
+              <th>Reassign</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let t of filteredTransparencyRows">
-              <td>{{ t.account }}</td>
-              <td>{{ t.ref_doc }}</td>
-              <td class="rows__num">{{ t.nominal | number: '1.2-2' }}</td>
-              <td class="rows__remark" [title]="t.remark || ''">{{ t.remark }}</td>
-              <td>{{ t.status_konfirmasi }}</td>
+              <ng-container *ngFor="let col of previewColumns">
+                <td *ngIf="col.key === 'status_konfirmasi'">{{ t.status_konfirmasi }}</td>
+                <td *ngIf="col.numeric" class="rows__num">{{ getCellValue(t, col.key) | number: '1.2-2' }}</td>
+                <td *ngIf="col.key === 'remark'" class="rows__remark" [title]="t.remark || ''">{{ t.remark }}</td>
+                <td *ngIf="col.key !== 'status_konfirmasi' && col.key !== 'remark' && !col.numeric">{{ getCellValue(t, col.key) ?? '—' }}</td>
+              </ng-container>
               <td>{{ t.reassign_count > 0 ? (t.reassigned_from + ' → ' + w.dinas_target) : '—' }}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
+      <!-- REQ-RDT-SAP-05 (revised 31 Jul): ONE form — deskripsi penutup + nomor subdoc pertama
+           sekaligus. Submit ini SEKALIGUS bikin batch dan attach subdoc pertamanya. -->
       <label class="batch-note-label">
         Deskripsi penutup (wajib)
-        <textarea class="batch-note" [(ngModel)]="closingDescription" rows="2"
-          placeholder="mis. repost sudah beres, terima kasih ke semua dinas terkait"></textarea>
+        <rdt-mention-input
+          [(ngModel)]="closingDescription"
+          [rows]="2"
+          extraClass="batch-note"
+          placeholder="mis. repost sudah beres, terima kasih ke semua dinas terkait"
+        ></rdt-mention-input>
+      </label>
+      <label class="batch-note-label">
+        Nomor subdoc SAP (wajib — hasil posting manual dari file yang sudah diunduh)
+        <input class="subdoc-input" type="text" [(ngModel)]="subdocNumber" placeholder="Nomor subdoc SAP" />
       </label>
       <div class="card__actions">
         <button
           class="btn btn--primary"
           type="button"
           [disabled]="!canConfirm() || confirming"
-          [title]="canConfirm() ? '' : 'Deskripsi penutup wajib diisi'"
+          [title]="canConfirm() ? '' : 'Deskripsi penutup dan nomor subdoc wajib diisi'"
           (click)="confirmPair(w.dinas_inisiasi, w.dinas_target)"
         >Confirm {{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</button>
       </div>
-    </div>
-  </ng-container>
-
-  <hr />
-  <h3 class="card__subtitle">Sudah Confirmed</h3>
-  <p class="note" *ngIf="!confirmed.length">Belum ada pasangan yang confirmed.</p>
-  <ng-container *ngFor="let b of confirmed">
-    <div class="batch-row">
-      <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
-      <div class="batch-row__period">{{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span></div>
-      <div class="batch-row__action">
-        <button class="btn btn--ghost" type="button" (click)="download(b)">&#8659; Download</button>
-      </div>
-    </div>
-    <div class="note" style="margin-bottom:10px">{{ b.closing_description }}</div>
-
-    <div class="subdoc-row">
-      <input
-        class="subdoc-input"
-        type="text"
-        [(ngModel)]="subdocInputByBatchId[b.id]"
-        placeholder="Nomor subdoc SAP"
-      />
-      <button
-        class="btn btn--ghost"
-        type="button"
-        [disabled]="!subdocInputByBatchId[b.id]?.trim() || addingSubdocBatchId === b.id"
-        (click)="addSubdoc(b)"
-      >+ Tambah subdoc</button>
     </div>
   </ng-container>
 </div>

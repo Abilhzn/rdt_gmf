@@ -2,6 +2,8 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
 const { validateReassignTarget } = require('../rules/reassignmentRules');
+const { resolveMentionedUserIds } = require('../rules/mentionRules');
+const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
 
@@ -29,10 +31,24 @@ async function postPairComment(client, dinasInisiasi, dinasTarget, fallbackTrans
     [dinasInisiasi, dinasTarget]
   );
   const parent = parentRes.rows[0];
-  await client.query(
-    `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body) VALUES ($1, $2, $3, $4)`,
+  const commentRes = await client.query(
+    `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body) VALUES ($1, $2, $3, $4) RETURNING id`,
     [parent ? parent.transaction_id : fallbackTransactionId, parent ? parent.id : null, authorUserId, body]
   );
+  // REQ-RDT-COMMENT-03 (diperluas 3 Agu, gap found in sweep): this never notified anyone before —
+  // not even the newly-assigned dinasTarget the comment is addressed to. Same union pattern as
+  // every other note field now: implicit recipient (the dinas TAB just routed this to) plus
+  // anyone explicitly @mentioned.
+  const commentId = commentRes.rows[0].id;
+  const directory = await loadDirectory();
+  const recipientIds = new Set(resolveMentionedUserIds(body, directory));
+  Object.keys(directory).forEach((id) => {
+    if (String(directory[id].dinas).toUpperCase() === String(dinasTarget).toUpperCase()) recipientIds.add(id);
+  });
+  recipientIds.delete(authorUserId);
+  for (const recipientId of recipientIds) {
+    await client.query('INSERT INTO rdt.notifications (recipient_user_id, comment_id) VALUES ($1, $2)', [recipientId, commentId]);
+  }
 }
 
 // GET /api/investigation — every row awaiting TAB's manual investigation, with enough context

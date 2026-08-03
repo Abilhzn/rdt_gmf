@@ -24,7 +24,7 @@
           <div class="thread-comment__body">
             <span class="thread-comment__name">{{ row.comment.author_display_name }}</span>
             <span class="thread-comment__meta">{{ row.comment.created_at | idDate }}</span>
-            <p class="thread-comment__text">{{ row.comment.body }}</p>
+            <p class="thread-comment__text"><rdt-mention-text [body]="row.comment.body"></rdt-mention-text></p>
           </div>
         </div>
       </div>
@@ -41,8 +41,12 @@
 
     <label class="batch-note-label" *ngIf="pendingRows.length">
       Deskripsi (opsional)
-      <textarea class="batch-note" [(ngModel)]="confirmDescription" rows="2"
-        placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"></textarea>
+      <rdt-mention-input
+        [(ngModel)]="confirmDescription"
+        [rows]="2"
+        extraClass="batch-note"
+        placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"
+      ></rdt-mention-input>
     </label>
 
     <div class="just-declined" *ngIf="justDeclined.length">
@@ -64,7 +68,18 @@
       </ul>
     </div>
 
-    <ng-container *ngIf="pendingRows.length">
+    <!-- REQ-RDT-NAV-05 (baru 3 Agu): baris declined/reassigned pindah ke tab/sheet terpisah,
+         mirip tab sheet Excel — tab ini SAMA SEKALI TIDAK dirender kalau declinedRows kosong. -->
+    <div class="queue-tabs" *ngIf="declinedRows.length">
+      <button type="button" class="queue-tab" [class.queue-tab--active]="activeQueueTab === 'pending'" (click)="selectQueueTab('pending')">
+        Perlu Dikonfirmasi ({{ pendingRows.length }})
+      </button>
+      <button type="button" class="queue-tab" [class.queue-tab--active]="activeQueueTab === 'declined'" (click)="selectQueueTab('declined')">
+        Declined / Reassign ({{ declinedRows.length }})
+      </button>
+    </div>
+
+    <ng-container *ngIf="pendingRows.length && activeQueueTab === 'pending'">
       <!-- REQ-RDT-LEDGER-09: one button per source upload — a file, not a per-row action. -->
       <div class="original-file-downloads" *ngIf="downloadableUploads.length">
         <button
@@ -74,20 +89,31 @@
           (click)="downloadOriginal(u.upload_id, u.upload_filename)"
         >⬇ Download file asli: {{ u.upload_filename }}</button>
       </div>
-      <!-- REQ-RDT-NAV-09: paste banyak nilai Account sekaligus, ala SAP. -->
-      <rdt-multi-value-filter
-        placeholder="Tempel banyak Account sekaligus (satu per baris/koma)..."
-        (valuesChange)="onPendingAccountFilterChange($event)"
-      ></rdt-multi-value-filter>
       <div class="table-scroll">
         <table class="rows">
           <thead>
             <tr>
-              <th>Dinas Pengaju</th>
-              <th>Account</th>
-              <th>Ref.Doc</th>
-              <th class="rows__num">Nominal</th>
-              <th>Remark</th>
+              <th>
+                Dinas Pengaju
+                <rdt-multi-value-filter placeholder="Tempel banyak Dinas Pengaju sekaligus..." (valuesChange)="onPendingColumnFilterChange('dinas_inisiasi', $event)"></rdt-multi-value-filter>
+              </th>
+              <th>
+                Account
+                <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
+                <rdt-multi-value-filter placeholder="Tempel banyak Account sekaligus..." (valuesChange)="onPendingColumnFilterChange('account', $event)"></rdt-multi-value-filter>
+              </th>
+              <th>
+                Ref.Doc
+                <rdt-multi-value-filter placeholder="Tempel banyak Ref.Doc sekaligus..." (valuesChange)="onPendingColumnFilterChange('ref_doc', $event)"></rdt-multi-value-filter>
+              </th>
+              <th class="rows__num">
+                Nominal
+                <rdt-multi-value-filter placeholder="Tempel banyak Nominal sekaligus..." (valuesChange)="onPendingColumnFilterChange('nominal', $event)"></rdt-multi-value-filter>
+              </th>
+              <th>
+                Remark
+                <rdt-multi-value-filter placeholder="Tempel banyak Remark sekaligus..." (valuesChange)="onPendingColumnFilterChange('remark', $event)"></rdt-multi-value-filter>
+              </th>
               <th>Jika Reject</th>
               <th class="select-all-col">
                 <label class="select-all-label">
@@ -119,7 +145,7 @@
       <rdt-pagination [page]="page" [totalItems]="pendingRows.length" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></rdt-pagination>
     </ng-container>
 
-    <ng-container *ngIf="declinedRows.length">
+    <ng-container *ngIf="declinedRows.length && activeQueueTab === 'declined'">
       <h3 class="card__subtitle">Perlu keputusan Anda (DECLINED oleh dinas target)</h3>
       <p class="note">Tentukan tujuan tiap baris dulu, lalu klik "Confirm All" di bawah untuk menyelesaikan semuanya
         sekaligus — atau pakai tombol per-baris untuk menyelesaikan satu per satu.</p>
@@ -149,7 +175,7 @@
       <div class="batch-resolve-footer">
         <label class="batch-note-label">
           Keterangan (opsional)
-          <textarea class="batch-note" [(ngModel)]="batchNote" rows="2" placeholder="Catatan tambahan untuk keputusan ini..."></textarea>
+          <rdt-mention-input [(ngModel)]="batchNote" [rows]="2" extraClass="batch-note" placeholder="Catatan tambahan untuk keputusan ini..."></rdt-mention-input>
         </label>
         <button class="btn btn--primary" type="button" [disabled]="!canSubmitAll()" (click)="submitAllResolutions()">
           Confirm All ({{ stagedCount }})
@@ -159,9 +185,10 @@
   </ng-container>
 
   <!-- REQ-RDT-LEDGER-10 restructure (29 Jul): Investigation/Ask TA sub-tab — was a standalone
-       InvestigationComponent/route, folded in here as a third TAB-only sub-nav choice alongside
-       TA/Corp. Completely different shape from the normal queue above (assign-a-dinas, not
-       Ya/Tidak), so it's a clean swap rather than trying to unify the two. -->
+       InvestigationComponent/route, folded in here as a second TAB-only sub-nav choice alongside
+       Corp (REQ-RDT-AUTH-05, corrected 31 Jul, dropped 'TA' from this sub-nav). Completely
+       different shape from the normal queue above (assign-a-dinas, not Ya/Tidak), so it's a clean
+       swap rather than trying to unify the two. -->
   <ng-container *ngIf="isInvestigation">
     <p class="note">
       Baris di bawah ini punya sinyal dinas "Ask TA" — bukan dinas sungguhan, artinya
@@ -177,15 +204,13 @@
     <ng-container *ngIf="investigationRows.length">
       <label class="batch-note-label">
         Keterangan (opsional)
-        <textarea class="batch-note" [(ngModel)]="investigationDescription" rows="2"
-          placeholder="Kenapa baris ini di-assign ke dinas yang dipilih... akan muncul sebagai komentar di Dashboard-Detailing pasangan dinas tersebut"></textarea>
+        <rdt-mention-input
+          [(ngModel)]="investigationDescription"
+          [rows]="2"
+          extraClass="batch-note"
+          placeholder="Kenapa baris ini di-assign ke dinas yang dipilih... akan muncul sebagai komentar di Dashboard-Detailing pasangan dinas tersebut"
+        ></rdt-mention-input>
       </label>
-      <!-- REQ-RDT-NAV-09: paste banyak nilai Account sekaligus, ala SAP. Menyaring baris yang
-           tampil/bisa dipilih via checkbox — TIDAK menyaring "Assign All" (tetap semua baris). -->
-      <rdt-multi-value-filter
-        placeholder="Tempel banyak Account sekaligus (satu per baris/koma)..."
-        (valuesChange)="onInvestigationAccountFilterChange($event)"
-      ></rdt-multi-value-filter>
       <div class="table-scroll">
         <table class="rows">
           <thead>
@@ -194,12 +219,33 @@
                 <input type="checkbox" [checked]="allInvestigationSelected"
                   (change)="toggleSelectAllInvestigation($any($event.target).checked)" title="Select All" />
               </th>
-              <th>Dinas Pengaju</th>
-              <th>Account</th>
-              <th>Ref.Doc</th>
-              <th class="rows__num">Nominal</th>
-              <th>Remark</th>
-              <th>File Asal</th>
+              <th>
+                Dinas Pengaju
+                <rdt-multi-value-filter placeholder="Tempel banyak Dinas Pengaju sekaligus..." (valuesChange)="onInvestigationColumnFilterChange('dinas_inisiasi', $event)"></rdt-multi-value-filter>
+              </th>
+              <th>
+                Account
+                <!-- REQ-RDT-NAV-09 (diperluas): filter per kolom. Menyaring baris yang
+                     tampil/bisa dipilih via checkbox — TIDAK menyaring "Assign All" (tetap semua
+                     baris). -->
+                <rdt-multi-value-filter placeholder="Tempel banyak Account sekaligus..." (valuesChange)="onInvestigationColumnFilterChange('account', $event)"></rdt-multi-value-filter>
+              </th>
+              <th>
+                Ref.Doc
+                <rdt-multi-value-filter placeholder="Tempel banyak Ref.Doc sekaligus..." (valuesChange)="onInvestigationColumnFilterChange('ref_doc', $event)"></rdt-multi-value-filter>
+              </th>
+              <th class="rows__num">
+                Nominal
+                <rdt-multi-value-filter placeholder="Tempel banyak Nominal sekaligus..." (valuesChange)="onInvestigationColumnFilterChange('nominal', $event)"></rdt-multi-value-filter>
+              </th>
+              <th>
+                Remark
+                <rdt-multi-value-filter placeholder="Tempel banyak Remark sekaligus..." (valuesChange)="onInvestigationColumnFilterChange('remark', $event)"></rdt-multi-value-filter>
+              </th>
+              <th>
+                File Asal
+                <rdt-multi-value-filter placeholder="Tempel banyak nama file sekaligus..." (valuesChange)="onInvestigationColumnFilterChange('upload_filename', $event)"></rdt-multi-value-filter>
+              </th>
               <th>Assign ke</th>
               <th></th>
             </tr>

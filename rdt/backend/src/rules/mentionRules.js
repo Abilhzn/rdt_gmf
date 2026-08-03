@@ -13,11 +13,12 @@ function extractMentionTokens(body) {
   return Array.from(new Set(matches.map((m) => m.slice(1))));
 }
 
-// REQ-RDT-COMMENT-04 (31 Jul, gap found in code review): "TA" was retired and merged into "TAB"
-// as a dinas (REQ-RDT-AUTH-04) — the directory has no entry with dinas='TA', so @TA silently
-// resolved to nobody. Alias the dinas TOKEN (not a user_id — those never collide with a bare
-// "TA") to TAB before the normal dinas-fan-out lookup below.
-const DINAS_TOKEN_ALIASES = { TA: 'TAB' };
+// REQ-RDT-COMMENT-04 (31 Jul morning, gap found in code review) INTRODUCED a DINAS_TOKEN_ALIASES
+// = { TA: 'TAB' } here on the assumption that "TA" had been retired and merged into "TAB". That
+// assumption was WRONG and got corrected the same day (REQ-RDT-AUTH-05, 31 Jul afternoon
+// presentation feedback): TA is its own operational dinas with its own PIC, distinct from TAB.
+// The alias has been removed — @TA now resolves the normal way, via the dinas-fan-out lookup
+// below matching directory entries with dinas='TA' (see employee-directory.seed.json's demo-ta).
 
 // directory: the employee-directory.seed.json shape, { user_id: { dinas, role, display_name } }.
 function resolveMentionedUserIds(body, directory) {
@@ -25,7 +26,7 @@ function resolveMentionedUserIds(body, directory) {
   const userIds = new Set();
   for (const token of tokens) {
     if (directory[token]) { userIds.add(token); continue; }
-    const tokenUpper = DINAS_TOKEN_ALIASES[token.toUpperCase()] || token.toUpperCase();
+    const tokenUpper = token.toUpperCase();
     Object.keys(directory).forEach((id) => {
       if (String(directory[id].dinas).toUpperCase() === tokenUpper) userIds.add(id);
     });

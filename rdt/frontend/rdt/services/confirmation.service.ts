@@ -86,3 +86,14 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// REQ-RDT-SAP-06 auto-split (1 Agu): the export endpoints now return EITHER a .xlsx (<=300 rows)
+// OR a .zip of chunk-N.xlsx files (>300 rows) — the server already knows which and puts the
+// right extension in Content-Disposition, so read it from there instead of a client-side
+// fallback guessing wrong. `fallback` covers only the pathological case of a response that
+// somehow arrives with no header at all (should never happen through HttpClient's normal path).
+export function filenameFromResponse(headers: { get(name: string): string | null }, fallback: string): string {
+  const disposition = headers.get('Content-Disposition') || headers.get('content-disposition');
+  const match = disposition ? /filename="?([^";]+)"?/.exec(disposition) : null;
+  return match ? match[1] : fallback;
+}

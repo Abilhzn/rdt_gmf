@@ -1,8 +1,17 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ParseResponse, CommitResponse, Transaction, AggregationMatrix } from './transaction.model';
 import { CurrentUserService } from '@auth/services/current-user.service';
+
+// REQ-RDT-NAV-04 (1 Agu): the exact 53-column contract used for the real SAP export
+// (exportBatches.js's CONTRACT_FIELDS) — fetched from the backend so the Repost Review preview
+// table has ONE shared source of columns instead of a second, separately hardcoded list.
+export interface ContractField {
+  key: string;
+  label: string;
+}
 
 /**
  * Semua panggilan API modul RDT lewat service ini — JANGAN pakai fetch()
@@ -42,7 +51,11 @@ export class TransactionService {
   // not just JSON — the server saves those bytes so REQ-RDT-LEDGER-09's download-with-live-
   // formulas has something to serve later. rows/aggregation travel as JSON-stringified fields
   // since multipart fields are plain strings; index.js's /api/persist parses them back.
-  persistToDatabase(rows: Transaction[], aggregation: AggregationMatrix, originalFile: File | null, description?: string): Observable<CommitResponse> {
+  // REQ-RDT-SAP-13 (3 Agu): `period` ("YYYY-MM") is required — the dinas pengaju states which
+  // month/year this DT is FOR, never inferred from the upload timestamp. Backend rejects a
+  // missing/malformed value; the Angular form also gates Confirm on it (see
+  // repost-budgeting.component.ts) so this never actually round-trips empty in practice.
+  persistToDatabase(rows: Transaction[], aggregation: AggregationMatrix, originalFile: File | null, period: string, description?: string): Observable<CommitResponse> {
     const user = this.currentUser.current;
     if (!user) return throwError(() => new Error('Pilih "Login sebagai" dulu.'));
     const fd = new FormData();
@@ -50,7 +63,17 @@ export class TransactionService {
     fd.append('aggregation', JSON.stringify(aggregation));
     fd.append('original_filename', originalFile?.name || 'unknown.xlsx');
     fd.append('description', description?.trim() || '');
+    fd.append('period', period);
     if (originalFile) fd.append('file', originalFile);
     return this.http.post<CommitResponse>(`${this.base}/persist`, fd, { headers: this.currentUser.authHeaders() });
+  }
+
+  getContractFields(): Observable<ContractField[]> {
+    return this.http
+      .get<{ ok: boolean; fields: ContractField[]; error?: string }>(`${this.base}/contract-fields`)
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal memuat daftar kolom kontrak');
+        return res.fields;
+      }));
   }
 }

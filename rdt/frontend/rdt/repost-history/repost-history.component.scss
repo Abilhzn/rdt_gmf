@@ -13,10 +13,11 @@ $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
 $radius-xl: 12px;
 $radius-md: 8px;
 
+// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
   padding: 36px;
   color: $ink;
 }
@@ -88,7 +89,8 @@ $radius-md: 8px;
     &:hover { background: #004a73; }
     &:disabled { background: $line; color: $ink-600; cursor: not-allowed; box-shadow: none; }
   }
-  &--ghost { background: #fff; color: $ink; box-shadow: $shadow-sm; &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); } }
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
+  &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
 }
 
 .alert {
@@ -113,6 +115,43 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   &__action { flex: 1; text-align: right; }
 }
 
+// Project owner request (31 Jul sore): month "sheets" styled like separate Excel workbook tabs —
+// active tab visually merges into the panel below via the shared white background + the
+// negative margin/border-color trick.
+.month-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+  border-bottom: 1px solid $line;
+}
+
+.month-tab {
+  border: 1px solid $line;
+  border-bottom: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: $page-bg;
+  color: $ink-600;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  margin-bottom: -1px;
+  cursor: pointer;
+
+  &:hover { color: $ink; }
+
+  &--active {
+    background: #fff;
+    color: $ink;
+    border-color: $line;
+    border-bottom-color: #fff;
+  }
+
+  &__count { color: $ink-600; font-weight: 400; }
+}
+
+.month-tab-panel { padding-top: 16px; }
+
 .state-label {
   display: inline-block;
   margin-left: 8px;
@@ -122,4 +161,12 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   color: $ink-600;
   font-size: 11.5px;
   font-weight: 600;
+
+  // REQ-RDT-SAP-14 (3 Agu): red, sits alongside the normal state-label (not instead of it).
+  // REQ-RDT-UI-03: outline, not shadow.
+  &--overdue {
+    background: $danger-050;
+    color: $danger-600;
+    border: 1px solid $danger-600;
+  }
 }

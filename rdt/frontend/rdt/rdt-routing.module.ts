@@ -30,6 +30,7 @@ const routes: Routes = [
       { path: 'repost', component: RepostBudgetingComponent },
       { path: 'confirm', loadChildren: () => import('./confirm/confirm.module').then(m => m.ConfirmModule) },
       { path: 'need-approval', loadChildren: () => import('./need-approval/need-approval.module').then(m => m.NeedApprovalModule) },
+      { path: 'share-cost', loadChildren: () => import('./share-cost/share-cost.module').then(m => m.ShareCostModule) },
       { path: 'repost-history', loadChildren: () => import('./repost-history/repost-history.module').then(m => m.RepostHistoryModule) },
       { path: 'admin', loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule) },
     ],

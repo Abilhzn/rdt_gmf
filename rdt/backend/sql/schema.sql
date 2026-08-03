@@ -230,23 +230,24 @@ CREATE INDEX IF NOT EXISTS idx_audit_user ON rdt.audit_log (user_id);
 -- ============================================================
 -- SEED
 -- ============================================================
--- 'TA' the LOGIN identity was retired and merged into 'TAB' (whoever could log in for dinas TA
--- was already TAB staff — same entity, no separate demo-ta login in employee-directory.seed.json).
--- That is NOT the same thing as the dinas_target VALUE — 'TA' stays a real, distinct dinas_target
--- (project owner correction, 28 Jul 2026, after a prior session briefly resolved it to 'TAB' and
--- broke transactions_dinas_target_fkey on a real repost, since TAB deliberately has no row here).
+-- 'TA' the dinas_target VALUE is a real, distinct dinas (project owner correction, 28 Jul 2026,
+-- after a prior session briefly resolved it to 'TAB' and broke transactions_dinas_target_fkey on
+-- a real repost, since TAB deliberately has no row here). A 24 Jul-era assumption that the LOGIN
+-- identity for TA had also merged into TAB was later found WRONG too (REQ-RDT-AUTH-05, corrected
+-- 31 Jul 2026): TA has its own dedicated PIC login, same as every other operational dinas (see
+-- employee-directory.seed.json's demo-ta entry) — it is NOT staffed by role TAB.
 -- TAB itself is deliberately NOT seeded here — it's the administrative division running RDT, not
 -- an operational dinas that receives repost transactions from Excel data — role TAB's dinas="TAB"
 -- doesn't need a rdt.dinas row to work (requireDinasAccess compares strings, no FK), and TAB
 -- shouldn't appear as a REASSIGN target choice (see reassignment.js's dinas picker, sourced from
--- this table). 'TA', like 'Corp', has no dedicated PIC — only role TAB confirms its queue (same
--- REQ-RDT-AUTH-04 pattern, see auth.js + dashboard.js's targetDinasCodes).
+-- this table). Unlike TA, 'Corp' genuinely has no dedicated PIC — only role TAB confirms its
+-- queue (REQ-RDT-AUTH-04 pattern, see auth.js + dashboard.js's targetDinasCodes).
 --
 -- Full 21-dinas roster (2026-07-22 fix): previously only 7 of the 21 operational dinas were
 -- seeded here, while employee-directory.seed.json already had PIC logins for all 21 — any
 -- transaction targeting one of the other 14 would have failed on the dinas_target FK the
--- moment it was inserted. Every dinas below has (or will have) its own PIC login except TA/Corp,
--- the two target values with no dedicated PIC (handled by role TAB, see auth.js comment).
+-- moment it was inserted. Every dinas below has (or will have) its own PIC login except 'Corp',
+-- the one target value with no dedicated PIC (handled by role TAB, see auth.js comment).
 -- NOTE (29 Jul 2026): the codes/names below are the ORIGINAL synthetic placeholder roster
 -- (literally "T" + each letter A-U sequentially, guessed before the real org structure was
 -- available) — left as-is here per this file's own "don't edit retroactively" rule (see header).

@@ -3,6 +3,7 @@ const { extractMentionTokens, resolveMentionedUserIds } = require('../src/rules/
 const directory = {
   'demo-pic-tc': { dinas: 'TC', role: 'PIC', display_name: 'PIC TC (demo)' },
   'demo-pic-tj': { dinas: 'TJ', role: 'PIC', display_name: 'PIC TJ (demo)' },
+  'demo-ta': { dinas: 'TA', role: 'PIC', display_name: 'TA (demo)' },
   'demo-tab': { dinas: 'TAB', role: 'TAB', display_name: 'TAB (demo)' },
 };
 
@@ -46,13 +47,14 @@ describe('resolveMentionedUserIds', () => {
     expect(resolveMentionedUserIds('@demo-pic-tj @TJ', directory)).toEqual(['demo-pic-tj']);
   });
 
-  // REQ-RDT-COMMENT-04 (31 Jul): "TA" was retired and merged into "TAB" — no directory entry has
-  // dinas='TA', so @TA must alias to TAB instead of silently resolving to nobody.
-  test('@TA aliases to dinas TAB', () => {
-    expect(resolveMentionedUserIds('cc @TA tolong cek', directory)).toEqual(['demo-tab']);
+  // REQ-RDT-AUTH-05 (corrected 31 Jul): "TA" is its own operational dinas with its own PIC, NOT
+  // a synonym for "TAB" — @TA must resolve to the TA PIC, not TAB (a same-day 24 Jul-era alias
+  // that briefly did the opposite has been removed, see mentionRules.js).
+  test('@TA resolves to dinas TA\'s own PIC, not TAB', () => {
+    expect(resolveMentionedUserIds('cc @TA tolong cek', directory)).toEqual(['demo-ta']);
   });
 
-  test('@TA alias is case-insensitive', () => {
-    expect(resolveMentionedUserIds('cc @ta tolong cek', directory)).toEqual(['demo-tab']);
+  test('@TA resolution is case-insensitive', () => {
+    expect(resolveMentionedUserIds('cc @ta tolong cek', directory)).toEqual(['demo-ta']);
   });
 });

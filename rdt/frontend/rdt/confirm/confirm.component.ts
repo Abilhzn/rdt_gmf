@@ -9,7 +9,7 @@ import { ModalService } from '../services/modal.service';
 import { DashboardDetailService } from '../services/dashboard-detail.service';
 import { Comment } from '../services/comment.model';
 import { InvestigationService, InvestigationRow } from '../services/investigation.service';
-import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
+import { matchesAllColumnFilters } from '../shared/multi-value-filter.component';
 
 interface PendingRowVm extends PendingRow {
   checked: boolean;
@@ -48,15 +48,24 @@ export class ConfirmComponent implements OnInit {
   selectedTarget = '';
   filterFromDinas: string | null = null;
   /** ?target=<dinas> — set when navigating here from a "Need to Confirm" dashboard card, which
-   * now knows the REAL queue a submission sits in (TAB's own dinas, or 'Corp'/'TA' — neither has
-   * a dedicated PIC, REQ-RDT-AUTH-04). Without it, selectedTarget falls back to the user's own
-   * dinas as before. Bug fixed 28 Jul: TA-targeted rows used to be reachable from the dashboard
-   * card but the queue always defaulted to the user's own dinas regardless, so they never
-   * actually showed up to confirm. */
+   * knows the REAL queue a submission sits in (a plain dinas's own PIC, or 'Corp' — TAB's only
+   * no-dedicated-PIC queue, REQ-RDT-AUTH-04). Without it, selectedTarget falls back to the
+   * user's own dinas. REQ-RDT-AUTH-05 (corrected 31 Jul): 'TA' was removed from the set of
+   * TAB-staffed queues here — a 28 Jul fix had briefly treated it like Corp on the mistaken
+   * assumption TA had no dedicated PIC; TA rows now only ever show up under TA's own PIC login. */
   filterTargetDinas: string | null = null;
   pendingRows: PendingRowVm[] = [];
   declinedRows: DeclinedRow[] = [];
   dinasOptions: DinasEntry[] = [];
+
+  // REQ-RDT-NAV-05 (baru 3 Agu): baris DECLINED/sedang-direassign pindah ke tab/sheet terpisah
+  // (mirip tab sheet Excel), bukan ditumpuk di bawah tabel pending — dan tab ini cuma dirender
+  // sama sekali kalau ADA datanya (lihat confirm.component.html's *ngIf="declinedRows.length").
+  activeQueueTab: 'pending' | 'declined' = 'pending';
+
+  selectQueueTab(tab: 'pending' | 'declined'): void {
+    this.activeQueueTab = tab;
+  }
 
   statusError = '';
   emptyNote = '';
@@ -66,8 +75,10 @@ export class ConfirmComponent implements OnInit {
   // the shared pager (100 rows/page) also used by Repost's review table.
   page = 1;
   readonly pageSize = 100;
-  // REQ-RDT-NAV-09: paste-many-values filter on Account, ala SAP.
-  pendingAccountFilterValues: string[] = [];
+  // REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account —
+  // keyed by PendingRowVm's own field names (dinas_inisiasi/account/ref_doc/nominal/remark), AND
+  // antar kolom aktif, OR di dalam satu kolom (matchesAllColumnFilters).
+  pendingColumnFilters: Record<string, string[]> = {};
 
   // Item 7: right after a submit, show exactly which rows were declined vs redirected (from
   // the submit response, no refetch needed) as immediate feedback for the confirming user —
@@ -116,17 +127,18 @@ export class ConfirmComponent implements OnInit {
   // answer than the rest, per project owner: "assign satu-per-satu tetap harus tersedia".
   selectedInvestigationIds = new Set<number>();
   bulkTargetDinas = '';
-  // REQ-RDT-NAV-09: paste-many-values filter on Account — narrows what's shown/selectable, but
+  // REQ-RDT-NAV-09 (diperluas 1 Agu): filter per kolom — narrows what's shown/selectable, but
   // NOT what "Assign All" targets (that stays literally every awaiting-investigation row, its
   // pre-existing meaning).
-  investigationAccountFilterValues: string[] = [];
+  investigationColumnFilters: Record<string, string[]> = {};
 
   get filteredInvestigationRows(): InvestigationRow[] {
-    return this.investigationRows.filter((r) => matchesAnyFilterValue(r.account, this.investigationAccountFilterValues));
+    return this.investigationRows.filter((r) => matchesAllColumnFilters(r, this.investigationColumnFilters, (row, key) => (row as any)[key]));
   }
 
-  onInvestigationAccountFilterChange(values: string[]): void {
-    this.investigationAccountFilterValues = values;
+  onInvestigationColumnFilterChange(key: string, values: string[]): void {
+    if (values.length) this.investigationColumnFilters[key] = values;
+    else delete this.investigationColumnFilters[key];
   }
 
   constructor(
@@ -163,14 +175,14 @@ export class ConfirmComponent implements OnInit {
   private resolveDinasAndLoad(): void {
     const user = this.currentUser.current;
     this.dinas = user?.dinas || '';
-    // ?target= overrides the default queue — set by the shell sidebar's TA/Corp/Investigation
-    // sub-nav (TAB-only). Without it: TAB defaults to the 'TA' sub-tab (dinas_target can never
+    // ?target= overrides the default queue — set by the shell sidebar's Corp/Investigation
+    // sub-nav (TAB-only). Without it: TAB defaults to the 'Corp' sub-tab (dinas_target can never
     // literally be 'TAB' — see schema.sql's rdt.dinas seed comment — so falling back to
     // this.dinas would always show an empty queue for TAB); a plain PIC defaults to their own.
     if (this.filterTargetDinas) {
       this.selectedTarget = this.filterTargetDinas;
     } else if (user) {
-      this.selectedTarget = user.role === 'TAB' ? 'TA' : this.dinas;
+      this.selectedTarget = user.role === 'TAB' ? 'Corp' : this.dinas;
     }
     if (this.dinas) this.loadStatus();
   }
@@ -178,7 +190,9 @@ export class ConfirmComponent implements OnInit {
   get badgeText(): string {
     const user = this.currentUser.current;
     if (!user) return 'Belum login';
-    if (this.isInvestigation) return 'Investigation / Ask TA';
+    // REQ-RDT-NAV-10 (TERJAWAB 1 Agu): sub-nav label for this queue is now "TAB", not
+    // "Investigation/Ask TA" — matches the sidebar rename (shell.component.html).
+    if (this.isInvestigation) return 'TAB';
     const from = this.filterFromDinas || 'Semua dinas';
     const target = this.selectedTarget === this.dinas ? user.display_name : this.selectedTarget;
     return `${from} → ${target}`;
@@ -192,6 +206,7 @@ export class ConfirmComponent implements OnInit {
     this.justRedirected = [];
     this.confirmDescription = '';
     this.page = 1;
+    this.activeQueueTab = 'pending';
 
     this.isInvestigation = this.selectedTarget === 'INVESTIGATION';
     if (this.isInvestigation) {
@@ -387,11 +402,12 @@ export class ConfirmComponent implements OnInit {
 
   // REQ-RDT-NAV-09: filter first, THEN paginate what's left.
   get filteredPendingRows(): PendingRowVm[] {
-    return this.pendingRows.filter((r) => matchesAnyFilterValue(r.account, this.pendingAccountFilterValues));
+    return this.pendingRows.filter((r) => matchesAllColumnFilters(r, this.pendingColumnFilters, (row, key) => (row as any)[key]));
   }
 
-  onPendingAccountFilterChange(values: string[]): void {
-    this.pendingAccountFilterValues = values;
+  onPendingColumnFilterChange(key: string, values: string[]): void {
+    if (values.length) this.pendingColumnFilters[key] = values;
+    else delete this.pendingColumnFilters[key];
     this.page = 1;
   }
 

@@ -86,6 +86,8 @@ tbody tr:hover td { background:#f5f9fb; }
 .num { text-align:right; font-variant-numeric:tabular-nums; }
 .num.neg { color:var(--danger-600); }
 .remark { max-width:280px; overflow:hidden; text-overflow:ellipsis; }
+.reviewer-note-input { width:160px; border:1px solid var(--line); border-radius:var(--radius-md); padding:5px 8px; font-size:12.5px; font-family:inherit; color:var(--ink); box-sizing:border-box; }
+.reviewer-note-input:focus { outline:none; border-color:var(--accent); }
 .rowhead { font-weight:600; }
 .empty { text-align:center; color:var(--ink-600); padding:24px 12px; }
 .filters { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:12px; }
@@ -368,21 +370,29 @@ input[type="checkbox"]:disabled { cursor:default; }
           <a href="#dashboard:own" class="nav-sublink" data-view="dashboard" data-subview="own" id="nav-own-repost">Own Repost</a>
         </div>
       </div>
-      <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>Repost</a>
+      <!-- REQ-RDT-NAV-10 (31 Jul): "Repost" -> "Upload Detail Transaction"; hidden entirely for
+           TAB now (see updateNavVisibility()). -->
+      <a id="nav-repost" href="#repost" class="nav-link" data-view="repost"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>Upload Detail Transaction</a>
       <div class="nav-group">
-        <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></span>Confirmation</a>
+        <!-- REQ-RDT-NAV-10 (31 Jul): "Confirmation" -> "Detail Confirmation" for a plain PIC
+             (general table); TAB-facing "Need Identification" rename is one of two rows the SRS
+             flags as needing clarification — left as plain "Confirmation" for TAB, set dynamically
+             by updateOwnRepostLabel() alongside the Own Repost/Repost Every PIC label. -->
+        <a id="nav-confirmation" href="#confirmation" class="nav-link" data-view="confirmation"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg></span><span id="nav-confirmation-label">Detail Confirmation</span></a>
         <!-- REQ-RDT-LEDGER-10 restructure (29 Jul, project owner request): TAB-only sub-nav,
-             styled like Dashboard's Need-to-Confirm/Own-Repost — TA/Corp are TAB's two no-PIC
-             queues (REQ-RDT-AUTH-04), and Investigation/Ask TA (formerly its own top-level nav
-             item) is folded in here too, to save sidebar space. Hidden by default, shown only for
-             role TAB (see updateNavVisibility()). -->
+             styled like Dashboard's Need-to-Confirm/Own-Repost — Corp is TAB's no-PIC queue
+             (REQ-RDT-AUTH-04), and Investigation/Ask TA (formerly its own top-level nav item) is
+             folded in here too, to save sidebar space. Hidden by default, shown only for role TAB
+             (see updateNavVisibility()). 'TA' was REMOVED from this sub-nav 31 Jul (REQ-RDT-AUTH-05
+             correction) — TA has its own dedicated PIC and its own confirmation queue like any
+             other dinas, it is not staffed by TAB. -->
         <div class="nav-subnav hidden" id="confirm-subnav">
-          <a href="#confirmation::TA" class="nav-sublink" data-confirm-target="TA">TA</a>
           <a href="#confirmation::Corp" class="nav-sublink" data-confirm-target="Corp">Corp</a>
           <a href="#confirmation::INVESTIGATION" class="nav-sublink" data-confirm-target="INVESTIGATION">Investigation/Ask TA</a>
         </div>
       </div>
-      <a id="nav-need-approval" href="#need-approval" class="nav-link" data-view="need-approval"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>Need Approval</a>
+      <!-- REQ-RDT-NAV-10 (31 Jul): "Need Approval" -> "Wait to Repost" (TAB-only table). -->
+      <a id="nav-need-approval" href="#need-approval" class="nav-link" data-view="need-approval"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>Wait to Repost</a>
       <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>Guidance Application</span>
       <span class="nav-link nav-link--disabled"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Feedback Application</span>
     </nav>
@@ -546,8 +556,12 @@ input[type="checkbox"]:disabled { cursor:default; }
               <div class="tscroll">
                 <table>
                   <thead><tr>
+                    <!-- REQ-RDT-NAV-04 (31 Jul): Sub Group paling kiri (hanya file skema R1), Catatan
+                         Reviewer paling kanan (editable, frontend-only — lihat renderRows()). -->
+                    <th>Sub Group</th>
                     <th>Sheet</th><th>Baris</th><th>Account</th><th>Ref.Doc</th><th>Dinas target</th>
                     <th class="num">Nominal</th><th>Kategori</th><th>Status</th><th>Remark</th>
+                    <th>Catatan Reviewer</th>
                   </tr></thead>
                   <tbody id="tbody"></tbody>
                 </table>
@@ -787,12 +801,17 @@ function successModal(message) { return showModal(message || 'Selesai!', { check
 // -> param "TB:TC") — each view that needs more than one value splits its own param further,
 // rather than parseHash() hardcoding a fixed arity for every view.
 const VIEWS = ['dashboard', 'repost', 'confirmation', 'need-approval', 'dashboard-detail'];
-const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Repost', confirmation: 'Confirmation', 'need-approval': 'Need Approval', 'dashboard-detail': 'Dashboard' };
+// REQ-RDT-NAV-10 (31 Jul): 'repost'/'need-approval' renamed; 'confirmation' is role-aware (see
+// showView()'s override below — plain PIC "Detail Confirmation", TAB stays "Confirmation").
+const PAGE_TITLES = { dashboard: 'Dashboard', repost: 'Upload Detail Transaction', confirmation: 'Confirmation', 'need-approval': 'Wait to Repost', 'dashboard-detail': 'Dashboard' };
 let confirmationFilterDinas = null;
-// ?target (28 Jul bug fix): the REAL queue a "Need to Confirm" card sits under (TAB's own dinas,
-// or 'Corp'/'TA' — neither has a dedicated PIC, REQ-RDT-AUTH-04). Without this, the queue always
-// defaulted to the viewer's own dinas, so TA-targeted rows were reachable from the dashboard card
-// but never actually showed up to confirm. See buildNeedToConfirmProgress's target_dinas field.
+// ?target (28 Jul bug fix): the REAL queue a "Need to Confirm" card sits under (a plain dinas's
+// own PIC, or 'Corp' — TAB's only no-dedicated-PIC queue, REQ-RDT-AUTH-04). Without this, the
+// queue always defaulted to the viewer's own dinas, so target-specific rows were reachable from
+// the dashboard card but never actually showed up to confirm. See buildNeedToConfirmProgress's
+// target_dinas field. (REQ-RDT-AUTH-05, corrected 31 Jul: 'TA' was briefly treated like Corp here
+// too, on the mistaken assumption it had no dedicated PIC — TA rows now only ever surface under
+// TA's own PIC login.)
 let confirmationFilterTargetDinas = null;
 
 function parseHash() {
@@ -811,7 +830,12 @@ function showView(view, param) {
   // Dashboard stays highlighted as the closest sidebar parent while drilled into a pair.
   const navHighlight = view === 'dashboard-detail' ? 'dashboard' : view;
   document.querySelectorAll('.nav-link[data-view]').forEach((a) => a.classList.toggle('active', a.dataset.view === navHighlight));
-  $('page-title').textContent = PAGE_TITLES[view];
+  // REQ-RDT-NAV-10: 'confirmation' page title matches the role-aware nav label set by
+  // updateOwnRepostLabel() — "Detail Confirmation" for a plain PIC, "Confirmation" for TAB.
+  const user = currentUser();
+  $('page-title').textContent = view === 'confirmation'
+    ? ((user && user.role === 'TAB') ? 'Confirmation' : 'Detail Confirmation')
+    : PAGE_TITLES[view];
   if (view === 'dashboard') {
     // REQ-RDT-NAV-02a: "Need to Confirm" is the default sub-view — an empty/unrecognized param
     // (e.g. plain "#dashboard" from the top-level sidebar link) falls back to it, not "own".
@@ -825,16 +849,17 @@ function showView(view, param) {
     const [initiator, target] = (param || '').split(':');
     confirmationFilterDinas = initiator || null;
     confirmationFilterTargetDinas = target || null;
-    // REQ-RDT-LEDGER-10 restructure (29 Jul): no more dropdown — the sidebar sub-nav (TA/Corp/
+    // REQ-RDT-LEDGER-10 restructure (29 Jul): no more dropdown — the sidebar sub-nav (Corp/
     // Investigation, TAB-only) drives selectedConfirmTarget via an explicit target param
-    // (e.g. "#confirmation::TA"). A plain PIC never gets a target param at all, so they default
-    // to their own dinas; a bare "#confirmation" for TAB defaults to the first sub-tab (TA),
-    // matching Dashboard's "Need to Confirm" default-tab pattern.
+    // (e.g. "#confirmation::Corp"). A plain PIC never gets a target param at all, so they default
+    // to their own dinas; a bare "#confirmation" for TAB defaults to the first sub-tab (Corp),
+    // matching Dashboard's "Need to Confirm" default-tab pattern. (REQ-RDT-AUTH-05, corrected
+    // 31 Jul: TAB's default sub-tab used to be 'TA' — removed, TA is no longer TAB-staffed.)
     const user = currentUser();
     if (confirmationFilterTargetDinas) {
       selectedConfirmTarget = confirmationFilterTargetDinas;
     } else if (user) {
-      selectedConfirmTarget = user.role === 'TAB' ? 'TA' : user.dinas;
+      selectedConfirmTarget = user.role === 'TAB' ? 'Corp' : user.dinas;
     }
     document.querySelectorAll('#confirm-subnav .nav-sublink').forEach((a) => a.classList.toggle('active', a.dataset.confirmTarget === selectedConfirmTarget));
     loadMyStatus();
@@ -1072,15 +1097,23 @@ function renderRows() {
   if (page > totalPages) page = totalPages;
   const slice = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
   $('rows-title').textContent = 'Detail baris ('+filtered.length+' dari '+allRows.length+')';
-  $('tbody').innerHTML = slice.length ? slice.map(r => {
+  const sliceStart = (page-1)*PAGE_SIZE;
+  $('tbody').innerHTML = slice.length ? slice.map((r, i) => {
     const neg = (r.nominal||0) < 0;
-    return '<tr><td>'+esc(r.sheet||'')+'</td><td>'+(r.row??'')+'</td>' +
+    const filteredIdx = sliceStart + i;
+    // REQ-RDT-NAV-04 (31 Jul): Sub Group (raw_payload, R1-schema files only) + Catatan Reviewer
+    // (editable, frontend-only — see transaction.model.ts's matching comment on the Angular
+    // side). data-idx addresses the row within `filtered` so setReviewerNote() can mutate the
+    // SAME object `r` (filtered is a plain .filter() over allRows, same references).
+    return '<tr><td>'+esc((r.raw_payload && r.raw_payload['Sub Group']) || '—')+'</td>' +
+      '<td>'+esc(r.sheet||'')+'</td><td>'+(r.row??'')+'</td>' +
       '<td>'+esc(r.account||'')+'</td><td>'+esc(r.ref_doc||'')+'</td><td>'+esc(r.dinas_target||'—')+'</td>' +
       '<td class="num'+(neg?' neg':'')+'">'+(r.nominal!=null?fmtNum.format(r.nominal):'—')+'</td>' +
       '<td>'+esc(r.category||'—')+'</td>' +
       '<td><span class="chip chip-'+String(r.status_konfirmasi).toLowerCase()+'">'+esc(r.status_konfirmasi)+'</span></td>' +
-      '<td class="remark" title="'+esc(r.remark||'')+'">'+esc(r.remark||'')+'</td></tr>';
-  }).join('') : '<tr><td colspan="9" class="empty">Tidak ada baris yang cocok dengan filter.</td></tr>';
+      '<td class="remark" title="'+esc(r.remark||'')+'">'+esc(r.remark||'')+'</td>' +
+      '<td><input type="text" class="reviewer-note-input" placeholder="Catatan opsional..." value="'+esc(r.reviewer_note||'')+'" oninput="setReviewerNote('+filteredIdx+', this.value)" /></td></tr>';
+  }).join('') : '<tr><td colspan="11" class="empty">Tidak ada baris yang cocok dengan filter.</td></tr>';
   const pager = $('pager');
   if (totalPages > 1) {
     pager.classList.remove('hidden');
@@ -1092,6 +1125,13 @@ function gotoPage(p) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   page = Math.min(Math.max(1, p), totalPages);
   renderRows();
+}
+
+// REQ-RDT-NAV-04: mutates the row object in place — `filtered` shares object references with
+// `allRows`, so this survives re-filtering/re-paging within the same review session. Never sent
+// to POST /api/persist (see the commit() call site, which strips it before building the payload).
+function setReviewerNote(filteredIdx, value) {
+  if (filtered[filteredIdx]) filtered[filteredIdx].reviewer_note = value;
 }
 
 // ---------- Dashboard (REQ-RDT-NAV-02 / REQ-RDT-DASH-01-02) ----------
@@ -1184,7 +1224,13 @@ function renderDashOwn(list, isGlobalView) {
   grid.innerHTML = list.map((d) => {
     const initiator = isGlobalView ? d.dinas : myDinas;
     const target = isGlobalView ? d.target_dinas : d.dinas;
-    const title = `${esc(initiator || '')} → ${esc(dinasLabel(target))}`;
+    // REQ-RDT-NAV-03 (31 Jul): render the full redirect breadcrumb (e.g. "TJ → TC → TL") when
+    // the backend sent one (dashboard.js's buildChainAwareProgress `chain` field — only present
+    // when every transaction under this card took the same path), falling back to the plain
+    // two-point pair otherwise.
+    const title = (d.chain && d.chain.length)
+      ? d.chain.map((c) => esc(dinasLabel(c))).join(' → ')
+      : `${esc(initiator || '')} → ${esc(dinasLabel(target))}`;
     const clickAttr = (initiator && target) ? ` onclick="goToDashboardDetail('${esc(initiator)}','${esc(target)}')"` : '';
     return pairCardHtml(d, title, clickAttr);
   }).join('');
@@ -1196,8 +1242,8 @@ function renderDashNeed(list) {
   const myDinas = (currentUser() || {}).dinas || '';
   listEl.innerHTML = list.map((d) => {
     // target_dinas (28 Jul bug fix): the REAL queue this pair sits under — may differ from
-    // myDinas for TAB (staffs 'Corp'/'TA' too, neither has a dedicated PIC). Falls back to
-    // myDinas for a plain PIC, where they're always the same.
+    // myDinas for TAB (also staffs 'Corp', which has no dedicated PIC — REQ-RDT-AUTH-04).
+    // Falls back to myDinas for a plain PIC, where they're always the same.
     const target = d.target_dinas || myDinas;
     const title = `${esc(d.dinas)} → ${esc(dinasLabel(target))}`;
     // REQ-RDT-LEDGER-10: the Investigation/Ask TA pseudo-card goes straight to Confirmation's
@@ -1231,6 +1277,11 @@ async function loadDashboardDetail(initiatorDinas, targetDinas) {
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'Gagal memuat detail');
     const p = j.progress;
+    // REQ-RDT-NAV-03 (31 Jul): once progress loads, prefer the full redirect breadcrumb over the
+    // plain two-point placeholder set above — see renderDashOwn's matching chain handling.
+    $('dd-badge').textContent = (p.chain && p.chain.length)
+      ? p.chain.map(dinasLabel).join(' → ')
+      : `${initiatorDinas} → ${dinasLabel(targetDinas)}`;
     $('dd-circle').style.setProperty('--pct', p.percent);
     $('dd-circle').style.setProperty('--ring-color', ringColor(p.percent));
     $('dd-pct-label').textContent = p.percent.toFixed(1) + '%';
@@ -1451,9 +1502,16 @@ function selectPlatform() {
 // Project owner request (28 Jul): TAB's "Own Repost" sub-view is actually a global view across
 // every submitting dinas (TAB doesn't originate reposts itself, see renderDashOwn's isGlobalView
 // branch) — "Own Repost" reads wrong there, so the sidebar label itself changes for that role.
+// REQ-RDT-NAV-10 (31 Jul): renamed again — TAB "Repost Every PIC" -> "Summary Progress All
+// Dinas"; plain-dinas "Own Repost" -> "Report Submission / Submission Status". Also sets the
+// Confirmation nav label: "Detail Confirmation" for a plain PIC, plain "Confirmation" for TAB
+// (the TAB-facing "Need Identification" rename is one of two rows the SRS flags as needing
+// clarification — left unrenamed until the project owner answers).
 function updateOwnRepostLabel() {
   const user = currentUser();
-  $('nav-own-repost').textContent = (user && user.role === 'TAB') ? 'Repost Every PIC' : 'Own Repost';
+  const isTab = !!user && user.role === 'TAB';
+  $('nav-own-repost').textContent = isTab ? 'Summary Progress All Dinas' : 'Report Submission / Submission Status';
+  $('nav-confirmation-label').textContent = isTab ? 'Confirmation' : 'Detail Confirmation';
 }
 
 function toggleUserMenu() {
@@ -2055,7 +2113,10 @@ async function doCommit() {
     // live-formulas. rows/aggregation travel as JSON-stringified fields (multipart fields are
     // plain strings) — /api/persist parses them back.
     const fd = new FormData();
-    fd.append('rows', JSON.stringify(allRows));
+    // REQ-RDT-NAV-04: reviewer_note is frontend-only (see renderRows()'s Catatan Reviewer column
+    // comment) — stripped here so it's unambiguous nothing gets silently persisted server-side.
+    const rowsToPersist = allRows.map((r) => { const { reviewer_note, ...rest } = r; return rest; });
+    fd.append('rows', JSON.stringify(rowsToPersist));
     fd.append('aggregation', JSON.stringify(aggregation));
     fd.append('original_filename', selectedFile ? selectedFile.name : 'unknown.xlsx');
     fd.append('description', descEl && descEl.value.trim() ? descEl.value.trim() : '');
@@ -2139,14 +2200,17 @@ function esc(s){ return String(s).replace(/[&<>"']/g,
   // Items 2 & 9: role-filtered nav, mirrors shell.component.ts's canSeeNeedApproval. Need
   // Approval is TAB-only (SM_TA/GH_TA removed entirely 24 Jul 2026, project owner correction —
   // role TAB alone now approves every submission once 100% confirmed, including Corp's).
-  // Repost and Confirmation have no role gate at all now — every remaining role (PIC, TAB)
-  // is already allowed at both. See exportBatches.js's requireRole('TAB') gates.
+  // Confirmation has no role gate — every remaining role (PIC, TAB) is allowed. See
+  // exportBatches.js's requireRole('TAB') gates.
+  // REQ-RDT-NAV-10 (31 Jul): Repost's nav item is now hidden for TAB too ("TAB tidak originate
+  // repost sendiri") — was previously ungated like Confirmation.
   function updateNavVisibility() {
     const user = currentUser();
     const role = user ? user.role : null;
     const canSeeNeedApproval = role === 'TAB';
     $('nav-need-approval').classList.toggle('hidden', !canSeeNeedApproval);
-    // REQ-RDT-LEDGER-10 restructure (29 Jul): TA/Corp/Investigation sub-nav under Confirmation is
+    $('nav-repost').classList.toggle('hidden', role === 'TAB');
+    // REQ-RDT-LEDGER-10 restructure (29 Jul): Corp/Investigation sub-nav under Confirmation is
     // TAB-only, same gate Need Approval already used — a plain PIC only ever has their own single
     // queue, no sub-nav needed.
     $('confirm-subnav').classList.toggle('hidden', role !== 'TAB');
@@ -2154,6 +2218,9 @@ function esc(s){ return String(s).replace(/[&<>"']/g,
     // role-inappropriate page open.
     const h = parseHash();
     if (h.view === 'need-approval' && !canSeeNeedApproval) {
+      location.hash = 'dashboard';
+    }
+    if (h.view === 'repost' && role === 'TAB') {
       location.hash = 'dashboard';
     }
   }

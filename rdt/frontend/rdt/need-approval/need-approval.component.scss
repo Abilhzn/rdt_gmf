@@ -14,10 +14,12 @@ $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
 $radius-xl: 12px;
 $radius-md: 8px;
 
+// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): berlaku ke SELURUH elemen visual dashboard sekarang,
+// bukan cuma tombol putih — outline, bukan shadow.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
-  box-shadow: $shadow-lg;
+  border: 1px solid $line;
   padding: 36px;
   color: $ink;
 }
@@ -48,7 +50,8 @@ $radius-md: 8px;
     &:hover { background: #004a73; }
     &:disabled { background: $line; color: $ink-600; cursor: not-allowed; box-shadow: none; }
   }
-  &--ghost { background: #fff; color: $ink; box-shadow: $shadow-sm; &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); } }
+  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
+  &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
 }
 
 .alert {
@@ -68,11 +71,15 @@ $radius-md: 8px;
 
   &__id { width: 60px; font-weight: 700; }
   &__period { width: 220px; }
-  &__action { flex: 1; text-align: right; }
+  // REQ-RDT-UI-04 (1 Agu, spacing audit): Download + Lihat transparansi buttons were flush
+  // against each other with no gap.
+  &__action { flex: 1; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 }
 
 hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
-.card__subtitle { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: $ink; }
+// REQ-RDT-UI-04 (1 Agu, spacing audit): top margin so this heading doesn't sit flush against
+// whatever button/alert came right before it (e.g. "Muat ulang" / the error alert).
+.card__subtitle { margin: 20px 0 8px; font-size: 15px; font-weight: 700; color: $ink; }
 
 // REQ-RDT-SAP-04 transparency view.
 .transparency-panel {
@@ -92,7 +99,9 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   margin-top: 12px;
 }
 
-.batch-note {
+// ::ng-deep: passed as [extraClass] into <rdt-mention-input> — see shared/mention-input.component
+// .scss's note on why this needs ::ng-deep to reach a child component's own template.
+::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
   padding: 8px 10px;

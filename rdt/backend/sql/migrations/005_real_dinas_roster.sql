@@ -5,11 +5,11 @@
 -- dinas -- deactivated (not deleted) so any existing FK-referenced rows (transactions, audit_log,
 -- dinas_mapping) stay intact. TV/TX/TZ/DFR are real GH units that were simply missing before.
 -- The 17 unchanged codes keep their code (already correct) but get their display name corrected
--- from the placeholder "Dinas <code>" to the real GH name. TA/Corp's no-dedicated-PIC
--- authorization behavior is UNCHANGED (separate business decision, confirmed earlier by project
--- owner) -- this migration only fixes roster membership/names, not authorization. Runs on every
--- server start (no migration-tracking table in this project, see migrate.js) -- every statement
--- here must be idempotent.
+-- from the placeholder "Dinas <code>" to the real GH name. This migration only fixes roster
+-- membership/names, not authorization -- see schema.sql's rdt.dinas seed comment for the current
+-- (REQ-RDT-AUTH-05, corrected 31 Jul 2026) authorization story: only 'Corp' has no dedicated PIC,
+-- TA has its own like any other dinas. Runs on every server start (no migration-tracking table in
+-- this project, see migrate.js) -- every statement here must be idempotent.
 
 UPDATE rdt.dinas SET name = 'Financial & Management Accounting GH' WHERE code = 'TA';
 UPDATE rdt.dinas SET name = 'Widebody Base Maintenance GH' WHERE code = 'TB';

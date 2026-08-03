@@ -162,9 +162,9 @@ Dua file contoh tambahan dari dinas TJ ternyata mengungkap variasi yang jauh leb
 **Sudah diverifikasi (25 Jul)**: grouping sheet detail utama berdasarkan kolom `Review TJ` (kolom ke-57, berisi kode dinas langsung, BUKAN prefix teks kayak Remarks di TB) menghasilkan angka yang **match 100%** ke pivot: TMM=473.933,51 (475 baris), TA=1.653,24 (11 baris), TE=84,36 (1 baris), Ask TA=40.393,29 (3 baris). Tiga sheet breakdown (`TJ-TE`/`TJ-TMM`/`TJ-Scrap`) TERNYATA gak reliable — `TJ-TE` & `TJ-Scrap` cocok ke subset data utama, tapi `TJ-TMM` beda ~150rb dari yang seharusnya (kemungkinan data manual yang basi/gak lengkap). **Keputusan: 3 sheet breakdown itu di-skip, jangan diparse** (REQ-RDT-EXT-09 tidak berlaku ke sheet ini, cukup skip seperti sheet referensi biasa).
 
 **Kode dinas baru yang ditemukan, BELUM ada di `dinas_mapping`/`rdt.dinas`** — perlu keputusan bisnis sebelum di-hardcode:
-- `TA` — sebelumnya kita anggap sudah pensiun/gabung ke `TAB`, tapi muncul lagi di data nyata sebagai target terpisah.
-- `Ask TA` — **SUDAH TERJAWAB 27 Jul**: ini BUKAN dinas, ini penanda "perlu investigasi TAB" — lihat REQ-RDT-LEDGER-10 untuk alur lengkapnya. Jangan dimasukkan ke `dinas_mapping` sebagai dinas biasa.
-- `TMM` — kode 3 huruf, di luar pola 2-huruf (`TB`–`TU`) yang selama ini diasumsikan sebagai roster 20 dinas.
+- `TA` — **KEPUTUSAN FINAL 31 Jul**: `TA` adalah dinas operasional sendiri dengan PIC sendiri, BUKAN sinonim TAB. Lihat REQ-RDT-AUTH-05 untuk detail koreksi ini.
+- `Ask TA` — **SUDAH TERJAWAB 27 Jul**: ini BUKAN dinas, ini penanda "perlu investigasi TAB" — lihat REQ-RDT-LEDGER-10 untuk alur lengkapnya. Jangan dimasukkan ke `dinas_mapping` sebagai dinas biasa. **Beda dari dinas `TA` di atas** — jangan disamakan meski namanya mirip.
+- `TMM` — kode 3 huruf, di luar pola 2-huruf (`TB`–`TU`) yang selama ini diasumsikan sebagai roster 20 dinas. **Ditegaskan ulang 31 Jul oleh TAB**: `TMM` itu **dinas/sub-dinas terpisah dari `TM`**, punya urusan repost yang beda — sistem TIDAK BOLEH punya logic apapun yang menyamakan keduanya (mis. ambil 2 huruf pertama dari kode 3 huruf lalu anggap sama dengan versi 2 hurufnya). Ini larangan eksplisit, bukan sekadar catatan — audit kode yang ada sekarang untuk mastiin gak ada heuristik semacam itu di manapun (parser, mapping, normalisasi).
 - `TZ` **(baru 27 Jul)** — muncul sebagai hasil investigasi kasus "Ask TA" (lihat contoh di REQ-RDT-LEDGER-10), kode 2 huruf tapi di luar rentang alfabet `TB`–`TU` yang diasumsikan sebelumnya. Sama seperti `TMM`, ini kode dinas asli yang masih perlu ditambahkan ke roster resmi.
 
 > **Untuk coding agent**: JANGAN menebak sendiri arti `TA`/`Ask TA`/`TMM` dan langsung menambahkannya ke `dinas_mapping`/`rdt.dinas` — ini pertanyaan bisnis yang masih menunggu jawaban pemilik proyek, bukan keputusan teknis. Untuk sementara, biarkan kode-kode ini masuk status `NEEDS_REVIEW` (REQ-RDT-EXT-01 sudah mendefinisikan status ini untuk prefix tak dikenal) alih-alih ditolak total atau ditebak mapping-nya.
@@ -233,29 +233,65 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 > termasuk riwayat redirect antar dinas kalau ada, mis. "TJ→TE→TL"), sebelum
 > memutuskan approve.
 >
-> `REQ-RDT-SAP-05`: Aksi TAB **"Confirm"** berlaku untuk SATU pasangan itu saja.
-> Aksi ini mensyaratkan TAB mengisi **deskripsi penutup** (teks bebas, WAJIB
-> diisi) yang tersimpan sebagai bagian dari record approval. Status berubah dari
-> `WAITING_TO_REPOST` → lihat REQ-RDT-SAP-07 untuk state machine lengkap.
+> `REQ-RDT-SAP-05` **(REVISI 31 Jul dari presentasi progress — urutan sebelumnya
+> KEBALIK, baca baik-baik)**: Alur yang BENAR (bukan yang sekarang terimplementasi):
+> 1. Begitu pasangan masuk daftar "siap" (semua transaksi resolved), **download file
+>    53-kolom LANGSUNG tersedia** — TIDAK perlu TAB klik "Confirm" dulu buat unlock
+>    download. Status di titik ini otomatis "Waiting to repost" hanya karena statusnya
+>    ready, bukan karena ada aksi TAB.
+> 2. TAB download, lalu posting manual ke SAP DI LUAR sistem ini.
+> 3. TAB balik ke web, dan aksi **"Confirm" yang sebenarnya = memasukkan nomor subdoc
+>    (hasil dari posting SAP) BERSAMAAN dengan deskripsi penutup, dalam SATU aksi**
+>    — bukan dua langkah terpisah (Confirm dulu baru subdoc belakangan seperti
+>    implementasi sekarang). Begitu aksi ini submit, batch baru DIBUAT sekaligus
+>    subdoc pertamanya langsung ke-attach, status langsung jadi "Reposted".
+> 4. Kalau line item pasangan itu > 300 (limit SAP), sisanya pakai alur tambah-subdoc
+>    yang sudah ada (REQ-RDT-SAP-08/11) SETELAH batch pertama itu dibuat di langkah 3.
 >
-> `REQ-RDT-SAP-06`: Setelah TAB confirm, TAB memasukkan **nomor referensi SAP
-> (subdoc)** untuk merampungkan pasangan itu. Export/download tersedia dengan
-> **53 kolom kontrak penuh** (Account s/d Value Date, lihat 3.1.1) untuk transaksi
-> CONFIRMED pasangan itu. Dinas TIDAK butuh rekap fancy dari sistem — sumber
-> (transkrip rapat) menegaskan yang mereka cari cuma nomor **refdoc/subdoc**
-> untuk cross-check ke rekapan internal mereka sendiri, jadi UI harus menonjolkan
-> subdoc, bukan menyembunyikannya di balik file export.
+> **Implikasi teknis**: endpoint export perlu bisa jalan berdasarkan `(dinas_inisiasi,
+> dinas_target)` langsung untuk pasangan yang MASIH DI `/waiting` (belum ada batch
+> sama sekali) — bukan cuma `GET /export/:batchId` yang sekarang (itu butuh batch
+> sudah ada). Endpoint `POST /confirm` yang sekarang (bikin batch + closing_description
+> doang, subdoc menyusul terpisah) perlu digabung jadi satu body yang SEKALIGUS terima
+> `subdoc_number` pertama — hasil akhirnya sama kayak manggil `/confirm` lalu
+> `/:batchId/subdocs` berturutan, tapi user-nya cuma ngisi SATU form, bukan dua
+> langkah.
 >
-> `REQ-RDT-SAP-07` **(baru 30 Jul, state label dinamis)**: Selain `status_konfirmasi`
+> `REQ-RDT-SAP-06`: File download 53 kolom kontrak penuh (Account s/d Value Date,
+> lihat 3.1.1) untuk transaksi CONFIRMED pasangan itu — lihat REQ-RDT-SAP-05 poin 1
+> soal KAPAN tombol ini muncul (lebih awal dari yang terimplementasi sekarang). Dinas
+> TIDAK butuh rekap fancy dari sistem — sumber (transkrip rapat) menegaskan yang
+> mereka cari cuma nomor **refdoc/subdoc** untuk cross-check ke rekapan internal
+> mereka sendiri, jadi UI harus menonjolkan subdoc, bukan menyembunyikannya di balik
+> file export.
+> **Rename tombol (baru 3 Agu)**: tombol yang sebelumnya "Lihat Transparansi" di
+> halaman Wait to Repost diganti jadi **"Confirm Reposted"** — mengklik tombol ini
+> menampilkan data transparansi (REQ-RDT-SAP-04) SEKALIGUS form isi deskripsi
+> penutup + nomor subdoc (satu layar, bukan dua langkah terpisah), dengan tombol
+> **Confirm** di paling bawah yang mengeksekusi (sama seperti pola submit yang sudah
+> ada di Confirmation). "Download" tetap tombol terpisah, tersedia dari sebelum
+> "Confirm Reposted" diklik (lihat REQ-RDT-SAP-05 poin 1).
+> **Pemisahan file otomatis (baru 1 Agu)**: kalau transaksi CONFIRMED dalam satu
+> pasangan lebih dari **300 baris** (limit SAP, sama seperti limit subdoc REQ-RDT-
+> SAP-08), download HARUS otomatis terpecah jadi **beberapa file terpisah, masing-
+> masing maksimum 300 baris DT** — bukan satu file raksasa yang TAB potong manual.
+> Idealnya urutan pemotongan file ini konsisten dengan urutan yang nanti dipakai
+> saat TAB memasukkan subdoc per chunk (REQ-RDT-SAP-11), supaya file 1 = subdoc 1,
+> file 2 = subdoc 2, dst — tidak perlu TAB mencocokkan manual mana baris masuk file
+> mana.
+>
+> `REQ-RDT-SAP-07` **(baru 30 Jul, state label dinamis; alur berubah per REQ-RDT-SAP-05
+> revisi 31 Jul, tapi 3 label ini sendiri TETAP)**: Selain `status_konfirmasi`
 > teknis yang sudah ada, sistem butuh **label status tampilan** yang menunjukkan
-> siapa yang sedang "pegang bola" — dihitung/diturunkan dari status_konfirmasi +
-> tahap repost, BUKAN kolom status baru yang menggantikan yang lama:
+> siapa yang sedang "pegang bola" — dihitung/diturunkan, BUKAN kolom status baru yang
+> menggantikan yang lama:
 > - **`Waiting for confirmation [Role]`** — transaksi masih PENDING di satu atau
 >   lebih dinas target; `[Role]` diisi kode dinas yang belum konfirmasi.
-> - **`Waiting to repost`** — pasangan sudah resolved semua (CONFIRMED/BORNE_BY_
->   INITIATOR), bola sudah pindah ke TAB, menunggu TAB confirm+repost.
-> - **`Reposted by TAB with subdoc [nomor]`** — TAB sudah confirm & memasukkan
->   subdoc. Bisa lebih dari satu nomor (lihat REQ-RDT-SAP-08).
+> - **`Waiting to repost`** — pasangan sudah resolved semua DAN belum ada subdoc sama
+>   sekali (murni computed dari readiness, BUKAN dari ada/tidaknya aksi TAB — lihat
+>   revisi SAP-05).
+> - **`Reposted by TAB with subdoc [nomor]`** — minimal satu subdoc sudah masuk.
+>   Bisa lebih dari satu nomor (lihat REQ-RDT-SAP-08).
 >
 > `REQ-RDT-SAP-08` **(baru 30 Jul, subdoc one-to-many)**: SATU pasangan bisa
 > menghasilkan **LEBIH DARI SATU nomor subdoc** — SAP membatasi maksimum ~300
@@ -308,10 +344,26 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 > yang mereka mulai, DAN `buildChainAwareProgress`/as_initiator view perlu
 > disertain `state_label`.
 >
-> **Open question (periode/bulan berganti)**: pemilik proyek belum final soal
-> bagaimana sistem menangani pergantian periode/bulan repost (kemungkinan besar
-> diarsipkan, tapi mekanismenya belum dijabarkan) — JANGAN desain sendiri, tunggu
-> detail lebih lanjut sebelum implementasi apapun terkait ini.
+> **Open question (periode/bulan berganti) — SEBAGIAN JADI REQUIREMENT 3 Agu**:
+> Bug ditemukan: transaksi periode Juni yang baru di-repost TAB bulan Agustus
+> kearsip di bulan Agustus (waktu aksi repost), PADAHAL harusnya kearsip ke Juni
+> (periode transaksinya). Keputusan:
+>
+> `REQ-RDT-SAP-13` **(baru 3 Agu)**: Saat inisiasi Repost (upload), dinas pengaju
+> HARUS eksplisit menyatakan **periode DT ini untuk bulan/tahun apa** (bukan
+> diasumsikan dari tanggal upload). Arsip di Riwayat Repost TAB/Dinas (REQ-RDT-
+> SAP-10/12) harus mengelompokkan berdasarkan **periode yang dinyatakan ini**,
+> BUKAN tanggal repost/upload sebenarnya.
+>
+> `REQ-RDT-SAP-14` **(baru 3 Agu, tag Overdue)**: Kalau repost oleh TAB terjadi
+> SETELAH periode yang dinyatakan (mis. periode Juni tapi baru di-repost Agustus),
+> tampilkan tag **"Overdue"** berwarna merah di SAMPING tag "Reposted by TAB with
+> subdoc [nomor]" (REQ-RDT-SAP-07) — dua tag berdampingan, bukan menggantikan.
+>
+> Detail lain (cara hitung "terlambat" persisnya, apakah ada grace period, dst)
+> MASIH BELUM final — implementasikan versi paling sederhana dulu (bandingkan
+> bulan/tahun periode vs bulan/tahun repost, telat = periode < bulan-tahun repost),
+> tanya pemilik proyek kalau butuh nuansa lebih rinci.
 >
 > **Migrasi**: model per-dinas-pengaju (29 Jul) dan model batch global (24 Jul)
 > **DIGANTI TOTAL** oleh model per-pasangan ini. Kalau ada kode yang sudah
@@ -339,7 +391,22 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 - `REQ-RDT-COMMENT-01`: Tabel Komentar berelasi dengan tabel Transaksi melalui Foreign Key.
 - `REQ-RDT-COMMENT-02`: Logika parent-child agar komentar tampil terindentasi seperti forum.
 - `REQ-RDT-COMMENT-03`: Sistem harus mendeteksi @mention (referensi ke user/role lain) dalam isi komentar dan mengirim **notifikasi** ke pengguna yang di-mention (mis. badge/counter notifikasi, bisa juga entry di tabel notifikasi baru). @mention **PURELY notifikasi** — tidak memicu perubahan status transaksi atau reassignment otomatis apapun (lihat klarifikasi di REQ-RDT-NAV-03). Format penulisan mention di UI (mis. `@nama` dengan autocomplete) menyusul, tapi minimal parsing teks `@[...]` harus terdeteksi.
+  > **Diperjelas 3 Agu**: mention yang di-resolve ke akun beneran HARUS dirender sebagai
+  > elemen yang nunjuk ke akun itu (mis. chip/link ber-style beda, bisa diklik lihat
+  > profil singkat) — BUKAN cuma teks `@nama` polos tanpa keterhubungan visual/
+  > fungsional ke akun aslinya. Kalau backend udah resolve mention ke `user_id` yang
+  > valid, frontend WAJIB render itu sebagai elemen ter-link, bukan teks mentah.
+  > **Diperluas 3 Agu ke SEMUA field notes/deskripsi**: sistem @mention (parsing +
+  > notifikasi + rendering ter-link) harus jalan di SEMUA tempat yang nerima teks
+  > bebas sebagai catatan/deskripsi — bukan cuma komentar thread biasa, tapi juga:
+  > deskripsi penutup TAB (REQ-RDT-SAP-05), deskripsi/reply saat Confirm/Reject
+  > (`confirmation.js`), dan "Catatan Reviewer" (REQ-RDT-NAV-04). Satu implementasi
+  > @mention yang dipakai ulang di semua field ini, bukan ditulis beda-beda per
+  > tempat.
 - `REQ-RDT-COMMENT-04` **(baru 31 Jul)**: Mention `@TA` harus di-resolve sebagai mention ke **TAB** (bukan dicari sebagai dinas terpisah bernama "TA") — konsisten dengan REQ-RDT-AUTH-04 yang menyatakan TA sudah tergabung ke TAB. Tanpa alias ini, `@TA` tidak menotifikasi siapapun karena tidak ada directory entry dengan `dinas='TA'`.
+  > **DIBATALKAN 31 Jul** — lihat REQ-RDT-AUTH-05: `TA` ternyata dinas mandiri dengan
+  > PIC sendiri, alias ini SALAH dan sudah dihapus dari `mentionRules.js`. Baris ini
+  > dipertahankan di dokumen sebagai jejak sejarah keputusan, BUKAN requirement aktif.
 
 ### 3.6 Audit Trail & Logging Aktivitas
 
@@ -360,8 +427,13 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 
 > **Open question — perlu dikonfirmasi ke tim IT**: nama tabel/skema pengguna yang sudah ada, kolom yang menandakan dinas & role, dan mekanisme mana yang dipakai untuk membaca identitas user yang sedang login (JWT claim, session lookup, atau API internal ke user service).
 
-- `REQ-RDT-AUTH-04` **(koreksi 22 Jul terhadap implementasi saat ini; role `ADMIN_TAB` diganti nama jadi `TAB` per koreksi 24 Jul)**: Konfirmasi transaksi dengan `dinas_target = 'Corp'` HANYA boleh dilakukan oleh role `TAB`. Corp tetap tidak punya PIC dedicated (baris data `dinas_target='Corp'` tidak berubah), tapi yang berhak bertindak atas namanya cuma role `TAB`. Sudah diterapkan di `middleware/auth.js` (`requireDinasAccess`).
-- `REQ-RDT-AUTH-05` **(SUPERSEDED 24 Jul — role `SM_TA`/`GH_TA` dihapus total, koreksi project owner)**: Sistem hanya punya dua role sekarang: `PIC` (dinas operasional) dan `TAB` (menggantikan seluruh urusan yang dulunya dipecah antara `SM_TA`/`GH_TA`/`ADMIN_TAB` — approve semua pengajuan/repost begitu 100% terkonfirmasi, approve pengajuan untuk Corp, dan melihat Dashboard-Detailing untuk SEMUA pasangan dinas termasuk thread komentar). Repost dan Confirmation tidak lagi punya role-gate sama sekali (setiap role yang tersisa sudah diizinkan di keduanya) — kebutuhan pemblokiran role eksplisit (`blockRoles`) yang dulu ada untuk `SM_TA`/`GH_TA` sudah tidak relevan dan sudah dihapus dari kode.
+- `REQ-RDT-AUTH-04` **(koreksi 22 Jul terhadap implementasi saat ini; role `ADMIN_TAB` diganti nama jadi `TAB` per koreksi 24 Jul)**: Konfirmasi transaksi dengan `dinas_target = 'Corp'` HANYA boleh dilakukan oleh role `TAB`. Corp tetap tidak punya PIC dedicated (baris data `dinas_target='Corp'` tidak berubah), tapi yang berhak bertindak atas namanya cuma role `TAB`. Sudah diterapkan di `middleware/auth.js` (`requireDinasAccess`). **Klarifikasi 31 Jul**: kode/nilai dinas tetap `Corp` di database maupun dokumen ini — jangan direname jadi "TAB" di manapun, termasuk label yang ditampilkan ke user (tetap tampil "Corp"). Yang berubah cuma SIAPA yang berwenang bertindak (role TAB), bukan nama dinasnya.
+- `REQ-RDT-AUTH-05` **(SUPERSEDED 24 Jul, lalu DIKOREKSI LAGI 31 Jul — baca urutan di bawah, jangan cuma baca versi terakhir)**:
+  - *24 Jul*: role `SM_TA`/`GH_TA` dihapus, disatukan jadi `TAB` doang. Saat itu diasumsikan `TA` juga ikut lebur ke `TAB` (dianggap entitas yang sama).
+  - *31 Jul, KOREKSI dari presentasi progress*: asumsi itu SALAH. **`TA` adalah dinas OPERASIONAL SENDIRI dengan PIC-nya sendiri** — user TA dan user TAB adalah DUA ORANG/ROLE BERBEDA, bukan sinonim. `dinas_target = 'TA'` harus diperlakukan PERSIS seperti dinas lain (TC, TJ, dst): masuk antrian konfirmasi milik PIC dinas TA sendiri, BUKAN dibundling ke antrian TAB.
+  - Yang TETAP masuk ke TAB (bukan ke dinas manapun): **`Corp`** (REQ-RDT-AUTH-04) dan **`Ask TA`** (kategori investigasi, REQ-RDT-LEDGER-10 — ini beda dari dinas `TA`, jangan disamakan biarpun namanya mirip).
+  - **Dampak ke kode yang PERLU DIBATALKAN**: `DINAS_TOKEN_ALIASES = { TA: 'TAB' }` di `mentionRules.js` (REQ-RDT-COMMENT-04, ditambahkan 31 Jul pagi) itu SEKARANG SALAH dan harus dihapus — `@TA` di komentar harus notify PIC dinas TA yang sungguhan, bukan TAB. `rdt.dinas` seed juga perlu entri `TA` sendiri (kalau belum ada) dengan PIC-nya sendiri di `employee-directory.seed.json`.
+  - Setelah koreksi ini, role yang ada tetap cuma 2 (`PIC`, `TAB`) — yang berubah bukan jumlah role, tapi **dinas TA masuk kategori "punya PIC" seperti dinas biasa**, bukan kategori "TAB yang staffing" seperti Corp/Ask TA.
 
 ### 3.8 Struktur Navigasi (Sidebar) & Home Dashboard
 
@@ -411,6 +483,11 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   - **"Own Repost"**: sub-view kedua, visualisasi serupa tapi untuk transaksi yang
     DIAJUKAN oleh dinas user sendiri ke dinas lain. Section kosong jika user tidak
     mengajukan repost ke dinas manapun.
+  - **Diperjelas 1 Agu**: kartu di KEDUA sub-view ("Need to Confirm" maupun "Own
+    Repost") harus menampilkan **state label** (REQ-RDT-SAP-07: "Waiting for
+    confirmation [Role]" / "Waiting to repost" / "Reposted with subdoc [nomor]")
+    — status repost bukan cuma keliatan di Need Approval/Riwayat, tapi juga di
+    Dashboard, sesuai desain terbaru (lihat referensi Figma di section 3.9).
 - `REQ-RDT-NAV-02a` **(baru 27 Jul, keputusan produk)**: Karena "Need to Confirm" itu
   action item (ada keputusan yang ditunggu) sementara "Own Repost" murni informasional
   (monitoring, tidak perlu tindakan), keduanya TIDAK dianggap berbobot sama:
@@ -440,6 +517,20 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   cuma lewat mekanisme terstruktur `redirect_to`/reassignment yang sudah ada di
   `routes/confirmation.js` & `routes/reassignment.js`. Lihat REQ-RDT-COMMENT-03 untuk
   requirement notifikasi mention.
+  > **Masih salah per 31 Jul (temuan presentasi progress)**: backend (`fetchReassignChainMap`)
+  > sudah benar melacak FULL chain redirect buat keperluan agregasi/grouping kartu
+  > dashboard, TAPI **visual panah/breadcrumb di halaman ini masih nunjukin cuma titik
+  > awal dan akhir** (mis. `TJ → TL`), bukan chain lengkapnya (`TJ → TC → TL` kalau
+  > TC sempet reject-redirect ke TL). Data chain-nya SUDAH ADA di backend (audit_log
+  > REASSIGN/REJECT_REDIRECT) — yang belum ada itu elemen UI yang nge-render
+  > breadcrumb itu jadi rangkaian penuh, bukan cuma dinas_inisiasi+dinas_target.
+  > Perbaiki tampilan header halaman ini (dan di manapun lagi "arrow" pasangan dinas
+  > ditampilkan, mis. kartu Dashboard) supaya nunjukin SELURUH rangkaian dinas yang
+  > pernah disinggahi transaksi itu, bukan cuma titik awal-akhir.
+  > **MASIH BELUM DIBENERIN per 3 Agu** — ini requirement yang SAMA, ditegaskan
+  > ulang karena masih belum kelar sejak 31 Jul. Verifikasi eksplisit setelah
+  > implementasi: tampilkan skrinsyut/contoh nyata kasus reassign 2+ hop, bukan
+  > cuma laporan "sudah dikerjakan" tanpa bukti visual.
 - `REQ-RDT-NAV-04` (halaman **Repost**, node `20:499`): 2 kolom.
   - **Kolom kiri**: "Upload" (drop file/select from device) di atas, "Review" ("Review
     Detailing Transaction Before Upload") di bawah — review detail transaksi hasil
@@ -448,6 +539,34 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
     **Cancel** — aksi final setelah review (Cancel = batalkan, tidak menyimpan apapun).
     Ini menggantikan tombol tunggal "Simpan ke staging" di `ui-demo.html` versi
     sebelumnya — perlu ada opsi batal yang eksplisit.
+  - **Kolom tabel preview/Review (baru 31 Jul, feedback presentasi progress; diperjelas
+    1 Agu)**: urutan kolom yang diminta — **Sub Group** di paling kiri, lalu kolom data
+    yang sudah ada, **Remark** di kanan, dan **kolom baru "Catatan editable oleh
+    reviewer"** di paling kanan (teks bebas yang bisa diisi TAB/reviewer saat masih di
+    tahap review, sebelum upload final — belum jelas disimpan ke kolom transaksi mana,
+    kemungkinan field baru di `rdt.transactions` atau disimpan terpisah; tanya pemilik
+    proyek kalau mau implementasi persisensinya, jangan asumsikan).
+    - **"Sub Group" diperjelas 1 Agu**: ini BUKAN field turunan/hitungan — itu kolom
+      **B** yang benar-benar ada di file DT asli yang diupload. Verifikasi posisi
+      persisnya terhadap file contoh yang ada (`contoh_input/`) sebelum implementasi
+      — ingat temuan 3.1.2 bahwa "Group"/"Sub Group" muncul di POSISI BERBEDA antar
+      dinas (TJ-R1 taruh di depan Account, TM taruh di tengah setelah Acc.Text) —
+      jangan asumsikan kolom B selalu "Sub Group" di SEMUA dinas, cross-check dulu.
+    - **Cakupan kolom preview diperluas 1 Agu, DITEGASKAN LAGI 3 Agu**: tabel
+      preview/Review ini harus menampilkan **SEMUA kolom yang sama seperti yang
+      benar-benar ikut ter-repost** (bukan subset yang disederhanakan) — kalau nanti
+      kolom kontrak berubah/nambah, preview ini ikut nambah juga, jangan di-hardcode
+      terpisah dari sumber kolom yang dipakai proses repost sebenarnya. **Ini berlaku
+      di SEMUA jenis fitur preview di seluruh sistem** (bukan cuma Review sebelum
+      upload Repost) — termasuk transparansi Need Approval, drill-down Dashboard-
+      Detailing, dan preview manapun lagi yang nampilin baris DT.
+    - **Bug ditemukan 3 Agu**: kolom Sub Group MASIH BELUM MUNCUL di preview,
+      padahal ada di file Excel-nya. Verifikasi kenapa — apakah salah posisi kolom
+      (lihat catatan di atas soal posisi beda-beda per dinas), atau kolomnya kelewat
+      di-map di parser/frontend.
+    - **"Catatan Reviewer" (baru 3 Agu)**: kolom ini HARUS **fixed di tempat, TIDAK
+      scrollable** — sekarang keliatannya jadi kotak scroll terpisah, harusnya
+      langsung kebaca penuh tanpa perlu scroll di dalam sel/kolom itu.
 - `REQ-RDT-NAV-05` (halaman **Confirmation**, node `20:712`): tabel `list-yang-harus-
   dikonfirmasi` dengan header "[Dinas Lain] → [User]" (menunjukkan konteks pasangan
   dinas yang sedang dikonfirmasi) dan tombol **Submit** di pojok kanan atas. Tabel:
@@ -462,6 +581,17 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   > status "belum diputuskan/skip", setiap baris yang tampil pasti ke-submit sebagai
   > salah satu dari keduanya. Setiap baris Reject juga punya dropdown opsional
   > "redirect ke dinas lain" (lihat REQ-RDT-LEDGER-07 jalur a).
+  > **Tata letak baris declined/reassigned (baru 3 Agu)**: baris yang statusnya
+  > DECLINED/sedang direassign TETAP ditampilkan di halaman ini (sesuai desain),
+  > TAPI JANGAN ditumpuk sebagai list tambahan di BAWAH tabel utama yang perlu
+  > dikonfirmasi — taruh di **tab/sheet terpisah** (mirip tab sheet Excel di bagian
+  > bawah workbook), MUNCUL HANYA KALAU ADA datanya (kalau kosong, tab ini gak usah
+  > dirender sama sekali, jangan nampilin tab kosong).
+  > **Rename "reply" jadi "comment" + spacing (baru 3 Agu)**: istilah "reply"/"N reply"
+  > yang muncul di kartu (Dashboard, Confirmation, dst) diganti jadi "comment"/"N
+  > comment". Badge jumlah comment dan tag status (state label REQ-RDT-SAP-07) yang
+  > sekarang nempel dempet-dempetan di kartu yang sama harus dikasih jarak (gap) yang
+  > jelas — lihat REQ-RDT-UI-04.
 - `REQ-RDT-NAV-06`: Struktur ini berlaku untuk `ui-demo.html` MAUPUN source Angular di
   `src/frontend/rdt/` — keduanya harus tetap sinkron secara struktur navigasi, sesuai
   aturan sinkronisasi di `src/README.md`. Modul Angular yang sudah ada (`home/`,
@@ -488,6 +618,11 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   ditulis ulang tiap halaman) — pola yang sama seperti komponen pagination di
   REQ-RDT-NAV-07. Parsing paste: pisahkan per baris (newline) DAN per koma, trim
   whitespace tiap nilai, hilangkan duplikat.
+  > **Diperluas 1 Agu**: filter ini harus tersedia di **SEMUA kolom** tabel, bukan
+  > cuma satu kolom tertentu (mis. Account doang) — tiap kolom tabel punya kotak
+  > filter multi-value sendiri, dan kalau lebih dari satu kolom di-filter sekaligus,
+  > gabungannya AND antar kolom (baris harus cocok filter SEMUA kolom yang aktif),
+  > sementara di DALAM satu kolom tetap OR (cocok salah satu nilai yang di-paste).
 - `REQ-RDT-NAV-08` **(baru 23 Jul)**: Sistem harus punya halaman **Login** (username +
   password) dan **Select Platform** sesuai draf Figma awal (node `40:95`/`40:96`),
   MENGGANTIKAN dropdown "Login sebagai" yang sekarang cuma simulasi. Kredensial
@@ -498,6 +633,49 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   `employee-directory.seed.json` (semua PIC 20 dinas + TAB; role SM_TA/GH_TA dihapus 24 Jul)
   harus punya kredensial. Badge user (REQ-RDT-NAV-01) yang diklik memunculkan opsi
   **Logout** yang menghapus sesi dan kembali ke halaman Login.
+- `REQ-RDT-NAV-10` **(baru 31 Jul, rename label tampilan + beberapa id kode terkait,
+  feedback presentasi progress)**: Label yang ditampilkan ke user berubah nama
+  (kode/route internal ikut menyesuaikan SEPERLUNYA, bukan rename total semua
+  identifier internal):
+
+  **Untuk semua dinas (PIC):**
+  | Label lama | Label baru |
+  |---|---|
+  | Own Repost (sub-view Dashboard) | Report Submission / Submission Status |
+  | Repost (nav item) | Upload Detail Transaction |
+  | Confirmation (nav item) | Detail Confirmation |
+  | Riwayat Repost (dinas) | Repost History |
+
+  > **Perlu diklarifikasi ke pemilik proyek** (jangan ditebak): catatan aslinya
+  > bilang *"Need to confirm =/= status repost Confirmation Status"* — kemungkinan
+  > maksudnya ada 2 konsep terpisah yang jangan ketuker: (a) sub-view "Need to
+  > Confirm" di Dashboard tetap namanya itu, TIDAK direname, DAN (b) ada konsep baru
+  > terpisah bernama "Confirmation Status" (mungkin state label REQ-RDT-SAP-07?).
+  > Tapi ini tebakan — tanya ulang ke pemilik proyek sebelum coding agent
+  > mengasumsikan salah satu.
+
+  **Khusus tampilan role TAB:**
+  | Label lama | Label baru |
+  |---|---|
+  | Need to Confirm (dashboard TAB) | Need Identification |
+  | Repost Every PIC | Summary Progress All Dinas |
+  | Repost (nav item, versi TAB) | **Dihapus** — TAB tidak originate repost sendiri (konsisten dengan catatan existing di `dashboard.js`) |
+  | Confirmation (nav item, versi TAB) | Need Identification, dengan sub-item **Corp** dan **TAB** |
+  | Need Approval | Wait to Repost |
+
+  > **TERJAWAB 1 Agu**: bukan duplikasi tak sengaja — dikonfirmasi "Need to Confirm
+  > (TAB)" dan "Confirmation (TAB)" memang DISATUKAN jadi SATU nav item bernama
+  > **"Need Identification"**, dengan sub-item **Corp** dan **TAB**. Jadi nav TAB
+  > yang tadinya punya "Need to Confirm" + "Confirmation" terpisah sekarang jadi
+  > SATU item "Need Identification" saja untuk keduanya.
+  > **Lokasi fitur Share-Cost (section 3.10)**: tempatnya di sidebar ini juga, di
+  > bawah **"Need Identification"** — konsisten karena sama-sama urusan TAB soal
+  > disambiguasi kepemilikan dinas.
+  > **Desain dashboard "Need Identification" (baru 3 Agu)**: tampilannya mengikuti
+  > pola visual/analitikal yang SAMA seperti "Report Submission / Submission Status"
+  > milik dinas-dinas (lihat referensi Figma `Dashboard-SubmissionStatus-RDT` id
+  > `78:242` di section 3.9) — bukan desain bespoke terpisah. Reuse komponen/pola
+  > yang sama, cukup data-nya di-scope ke urusan TAB (Corp, TA, investigasi).
 
 ### 3.9 Pedoman Visual (Design Tokens)
 
@@ -521,6 +699,69 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   **Perlu diselaraskan** ke satu nilai (rekomendasi: pakai `#006298` karena itu yang
   ada di aset logo & Figma terbaru, anggap versi lama sebagai draf awal yang belum
   final) — jangan biarkan dua nilai biru berbeda nyampur di halaman yang beda.
+- `REQ-RDT-UI-03` **(baru 1 Agu, DIPERLUAS 3 Agu)**: Semua item visual di SEMUA jenis
+  dashboard (card, badge, tag status, kotak KPI, dst) TIDAK memakai drop shadow —
+  pakai **outline/border** sebagai penanda visual sebagai gantinya. Sebelumnya cuma
+  berlaku ke tombol putih, sekarang berlaku ke seluruh elemen visual dashboard.
+- `REQ-RDT-UI-04` **(baru 1 Agu)**: Beberapa tombol/elemen aksi yang sekarang
+  berdempetan (jarak antar-elemen terlalu rapat) perlu diberi jarak (margin/gap)
+  yang lebih lega — audit halaman yang paling padat elemennya (Confirmation,
+  Need Approval, Investigation) dan tambah spacing yang konsisten, bukan cuma
+  1-2 tombol yang dibenerin.
+- **Referensi desain dashboard baru (1 Agu)**: dua frame Figma yang sudah dibuat
+  — `Dashboard-SubmissionStatus-RDT` (id `78:242`) untuk dashboard per dinas, dan
+  `Dashboard-SummaryProgressAllDinas-RDT` (id `78:243`) untuk dashboard TAB —
+  SUDAH DIREVISI LEBIH LANJUT oleh pemilik proyek di Figma. Tarik `get_design_context`
+  ke node ini buat versi terbaru sebelum implementasi — JANGAN pakai screenshot/
+  deskripsi lama yang mungkin sudah ketinggalan dari revisi pemilik proyek.
+
+### 3.10 Share-Cost oleh TAB (Split Transaksi)
+
+**Priority:** High secara dampak finansial.
+
+> **STATUS 3 Agu: MULAI DIKERJAKAN dengan asumsi paling AMAN** (pemilik proyek minta
+> jalan "seadanya dulu" tanpa menunggu jawaban formal ke 3 pertanyaan di bawah) —
+> asumsi berikut DIKUNCI sebagai keputusan sementara, dicatat eksplisit di sini biar
+> jelas apa yang diasumsikan vs dikonfirmasi:
+> 1. **Split HANYA untuk baris berstatus `PENDING`** (belum ada `ledger_entries`
+>    sama sekali) — opsi paling aman secara teknis, TIDAK berlaku untuk baris
+>    `CONFIRMED` untuk sekarang. Kalau nanti dibutuhkan buat baris CONFIRMED juga,
+>    itu perlu desain terpisah (pembatalan ledger entry) — jangan diperluas diam-diam.
+> 2. **TAB input manual** besaran tiap baris split (bukan auto-hitung dari sumber
+>    data lain) — opsi paling simpel, bisa diperluas nanti kalau ada kebutuhan
+>    auto-calculate.
+> 3. **Notifikasi ke dinas asal** memakai mekanisme yang sudah ada (REQ-RDT-COMMENT-03
+>    diperluas) — split membuat komentar otomatis di thread pasangan asal yang
+>    menjelaskan alasan split, dinas asal ke-notify lewat jalur normal, dikirim
+>    SETELAH aksi split TAB selesai (bukan minta approval dulu sebelum split).
+
+Ide dari pemilik proyek: TAB bisa "split" satu baris transaksi jadi beberapa baris
+dengan dinas_target berbeda-beda dan nominal yang lebih kecil (jumlahnya tetap sama
+dengan baris asli). Contoh dari pemilik proyek: satu baris DT senilai 100rb yang
+sekarang ada di TH, padahal 65rb dari situ sebenarnya jatah TU — TAB perlu bisa
+reassign dengan cara split: baris asli 100rb dihapus/dinonaktifkan, digantikan baris
+baru (mis. 35rb tetap TH, 65rb pindah TU).
+
+**Kenapa ini beda dari reassignment yang sudah ada**: seluruh mekanisme reassign
+sekarang (REQ-RDT-LEDGER-07, REQ-RDT-LEDGER-10) itu MEMINDAHKAN satu baris utuh ke
+dinas_target lain — nominal tidak pernah berubah, cuma target-nya. Split itu
+MEMBELAH satu baris jadi beberapa baris dengan nominal baru.
+
+**Desain final (jalan dengan asumsi di atas)**:
+- Baris asli ditandai status baru `SPLIT_VOID` dan TIDAK dihitung lagi di
+  agregasi manapun.
+- Baris-baris baru dibuat dengan data disalin dari baris asli (account, remark, dst),
+  nominal & dinas_target sesuai split, status `PENDING` (masuk alur konfirmasi NORMAL
+  dari awal — dinas baru yang confirm/decline, sama seperti hasil investigasi
+  REQ-RDT-LEDGER-10), kolom baru `split_from_transaction_id` menunjuk baris asli.
+- Validasi wajib: SUM nominal seluruh baris hasil split HARUS PERSIS SAMA dengan
+  nominal baris asli — tolak kalau tidak pas, jangan biarkan selisih.
+- Tercatat di audit log dengan action baru `SPLIT_BY_TAB`, menyertakan baris
+  asli & seluruh baris hasil split, plus alasan/catatan TAB (lewat @mention-enabled
+  note field, REQ-RDT-COMMENT-03).
+- UI: di bawah "Need Identification" (lihat REQ-RDT-NAV-10), TAB pilih satu baris,
+  input N baris split (dinas_target + nominal tiap baris), validasi sum real-time
+  sebelum submit.
 
 ---
 

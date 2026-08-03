@@ -30,32 +30,53 @@
   <hr />
   <p class="note" *ngIf="!batches.length">Belum ada pasangan yang di-repost dengan subdoc.</p>
   <p class="note" *ngIf="batches.length && !filteredBatches.length">Tidak ada pasangan yang cocok dengan filter subdoc.</p>
-  <ng-container *ngFor="let b of filteredBatches">
-    <div class="batch-row">
-      <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
-      <div class="batch-row__period">{{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span></div>
-      <div class="batch-row__action" *ngIf="isTab">
-        <button class="btn btn--ghost" type="button" (click)="download(b)">&#8659; Download</button>
-      </div>
-    </div>
-    <div class="note" style="margin-bottom:2px">{{ b.closing_description }}</div>
-    <ul class="subdoc-list">
-      <li *ngFor="let s of b.subdocs">{{ s.subdoc_number }} — {{ s.transaction_ids.length }} baris</li>
-    </ul>
 
-    <div class="subdoc-row" *ngIf="isTab">
-      <input
-        class="subdoc-input"
-        type="text"
-        [(ngModel)]="subdocInputByBatchId[b.id]"
-        placeholder="Nomor subdoc SAP tambahan"
-      />
+  <!-- Project owner request (31 Jul sore): satu "sheet" per bulan-tahun (MM-YYYY), seperti sheet
+       terpisah di satu file Excel — dipisah dari confirmed_at, bukan tab baru per fitur. -->
+  <ng-container *ngIf="monthGroups.length">
+    <div class="month-tabs">
       <button
-        class="btn btn--ghost"
+        *ngFor="let g of monthGroups"
         type="button"
-        [disabled]="!subdocInputByBatchId[b.id]?.trim() || addingSubdocBatchId === b.id"
-        (click)="addSubdoc(b)"
-      >+ Tambah subdoc</button>
+        class="month-tab"
+        [class.month-tab--active]="g.key === activeMonthKey"
+        (click)="selectMonth(g.key)"
+      >{{ g.key }} <span class="month-tab__count">({{ g.batches.length }})</span></button>
+    </div>
+
+    <div class="month-tab-panel">
+      <ng-container *ngFor="let b of activeMonthBatches">
+        <div class="batch-row">
+          <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
+          <div class="batch-row__period">
+            {{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span>
+            <!-- REQ-RDT-SAP-14 (3 Agu): berdampingan dengan state_label, bukan menggantikan. -->
+            <span *ngIf="b.overdue" class="state-label state-label--overdue" [title]="'Periode ' + b.period + ', baru di-repost ' + (b.confirmed_at | idDate)">Overdue</span>
+          </div>
+          <div class="batch-row__action" *ngIf="isTab">
+            <button class="btn btn--ghost" type="button" (click)="download(b)">&#8659; Download</button>
+          </div>
+        </div>
+        <div class="note" style="margin-bottom:2px"><rdt-mention-text [body]="b.closing_description"></rdt-mention-text></div>
+        <ul class="subdoc-list">
+          <li *ngFor="let s of b.subdocs">{{ s.subdoc_number }} — {{ s.transaction_ids.length }} baris</li>
+        </ul>
+
+        <div class="subdoc-row" *ngIf="isTab">
+          <input
+            class="subdoc-input"
+            type="text"
+            [(ngModel)]="subdocInputByBatchId[b.id]"
+            placeholder="Nomor subdoc SAP tambahan"
+          />
+          <button
+            class="btn btn--ghost"
+            type="button"
+            [disabled]="!subdocInputByBatchId[b.id]?.trim() || addingSubdocBatchId === b.id"
+            (click)="addSubdoc(b)"
+          >+ Tambah subdoc</button>
+        </div>
+      </ng-container>
     </div>
   </ng-container>
 </div>

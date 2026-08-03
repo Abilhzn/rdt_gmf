@@ -6,11 +6,18 @@ import { NotificationsService } from '../services/notifications.service';
 import { Notification } from '../services/notification.model';
 import { DashboardService } from '../services/dashboard.service';
 
+// REQ-RDT-NAV-10 (31 Jul, presentation feedback): display-label renames. Only the UNAMBIGUOUS
+// rows from the SRS table are applied here — two rows are explicitly flagged "perlu diklarifikasi,
+// jangan ditebak" (whether the TAB dashboard's "Need to Confirm" sub-view and the TAB Confirmation
+// nav item both become "Need Identification", risking two different nav items with the same
+// name) and are deliberately left UNCHANGED pending the project owner's answer.
 const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
-  repost: 'Repost',
-  confirm: 'Confirmation',
-  'need-approval': 'Need Approval',
+  // 'repost'/'confirm'/'need-approval' are role-aware now (see the NavigationEnd handler below) —
+  // no longer static lookups.
+  // SRS 3.10 (Share-Cost, 3 Agu): TAB-only page, lives under the "Need Identification" sub-nav
+  // (see shell.component.html) — fixed title, no PIC-facing variant exists.
+  'share-cost': 'Share-Cost',
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
@@ -37,9 +44,11 @@ export class ShellComponent implements OnInit {
   // 'need' as a harmless default, matching HomeComponent's own default).
   needToConfirmCount = 0;
   dashboardSubview: 'need' | 'own' = 'need';
-  // REQ-RDT-LEDGER-10 restructure (29 Jul): Confirmation's TAB-only sub-nav (TA/Corp/
-  // Investigation), same pattern as dashboardSubview above.
-  confirmSubTarget: 'TA' | 'Corp' | 'INVESTIGATION' = 'TA';
+  // REQ-RDT-LEDGER-10 restructure (29 Jul): Confirmation's TAB-only sub-nav. Originally
+  // TA/Corp/Investigation; REQ-RDT-AUTH-05 (corrected 31 Jul) removed 'TA' from this sub-nav —
+  // TA has its own dedicated PIC and its own confirmation queue like any other dinas now, it is
+  // NOT one of TAB's staffed no-PIC queues (that's just 'Corp'). Defaults to 'Corp'.
+  confirmSubTarget: 'Corp' | 'INVESTIGATION' = 'Corp';
 
   constructor(
     public currentUser: CurrentUserService,
@@ -74,8 +83,23 @@ export class ShellComponent implements OnInit {
       // REQ-RDT-SAP-12 (31 Jul, expanded): this page is TAB's own archive OR a dinas's own
       // archive of the same underlying data, so its title follows who's looking — same dynamic
       // pattern as Dashboard's "Repost Every PIC" vs "Own Repost" sub-link just below.
+      const isTab = this.currentUser.current?.role === 'TAB';
+      // REQ-RDT-NAV-10: "Riwayat Repost (dinas)" -> "Repost History" (general table) — TAB's own
+      // page keeps its existing "Riwayat Repost TAB" label, not covered by that rename row.
       if (segment === 'repost-history') {
-        this.pageTitle = this.currentUser.current?.role === 'TAB' ? 'Riwayat Repost TAB' : `Riwayat Repost ${this.currentUser.current?.dinas || ''}`;
+        this.pageTitle = isTab ? 'Riwayat Repost TAB' : `Repost History ${this.currentUser.current?.dinas || ''}`;
+      } else if (segment === 'repost') {
+        // "Repost (nav item)" -> "Upload Detail Transaction" (general table). TAB never reaches
+        // this route at all now — see canSeeRepost below — but keep a harmless fallback.
+        this.pageTitle = 'Upload Detail Transaction';
+      } else if (segment === 'confirm') {
+        // "Confirmation (nav item)" -> "Detail Confirmation" for a plain PIC; TERJAWAB 1 Agu for
+        // TAB -> "Need Identification" (also absorbs the Dashboard "Need to Confirm" sub-view —
+        // see dashboardSubview handling below).
+        this.pageTitle = isTab ? 'Need Identification' : 'Detail Confirmation';
+      } else if (segment === 'need-approval') {
+        // "Need Approval" -> "Wait to Repost" (TAB-only table; this route is TAB-only already).
+        this.pageTitle = 'Wait to Repost';
       } else {
         this.pageTitle = (segment && PAGE_TITLES[segment]) || 'Dashboard';
       }
@@ -85,11 +109,14 @@ export class ShellComponent implements OnInit {
       // idea as ui-demo.html's loadDashboard() re-rendering it on every Dashboard load.
       if (segment === 'dashboard') {
         const sub = this.route.firstChild?.firstChild?.snapshot.queryParamMap.get('sub');
-        this.dashboardSubview = sub === 'own' ? 'own' : 'need';
+        // REQ-RDT-NAV-10 (1 Agu sore, reversed): TAB's "Need Identification" Dashboard sub-view
+        // is back (see home.component.ts's isTabRole) — an explicit ?sub= always wins; with none,
+        // TAB still defaults to 'own' (Summary Progress All Dinas). Unchanged for a plain PIC.
+        this.dashboardSubview = sub === 'need' ? 'need' : sub === 'own' ? 'own' : isTab ? 'own' : 'need';
         this.loadDashboardBadge();
       } else if (segment === 'confirm') {
         const target = this.route.firstChild?.firstChild?.snapshot.queryParamMap.get('target');
-        this.confirmSubTarget = target === 'Corp' || target === 'INVESTIGATION' ? target : 'TA';
+        this.confirmSubTarget = target === 'INVESTIGATION' ? target : 'Corp';
       }
     });
     this.loadNotifCount();
@@ -106,15 +133,21 @@ export class ShellComponent implements OnInit {
     });
   }
 
+  // REQ-RDT-NAV-10 (31 Jul): "Repost (nav item, versi TAB) -> Dihapus — TAB tidak originate
+  // repost sendiri" — Repost used to have no role gate at all (every remaining role, PIC/TAB, was
+  // allowed); now hidden specifically for TAB, unchanged for PIC.
+  get canSeeRepost(): boolean {
+    return this.currentUser.current?.role !== 'TAB';
+  }
+
   // Need Approval is TAB-only (project owner correction, 24 Jul 2026 — SM_TA/GH_TA roles
   // removed entirely, role TAB alone now approves every submission once 100% confirmed,
-  // including Corp's). Repost has no role gate at all now — every remaining role (PIC, TAB)
-  // was already allowed.
+  // including Corp's).
   get canSeeNeedApproval(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 
-  // REQ-RDT-LEDGER-10 restructure (29 Jul): TA/Corp/Investigation sub-nav under Confirmation is
+  // REQ-RDT-LEDGER-10 restructure (29 Jul): Corp/Investigation sub-nav under Confirmation is
   // TAB-only, same gate Need Approval already used — a plain PIC only ever has their own single
   // queue, no sub-nav needed (backend's requireRole('TAB') on /api/investigation is the real
   // enforcement either way, this is just UI-level nav visibility).

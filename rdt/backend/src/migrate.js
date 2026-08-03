@@ -30,11 +30,10 @@ async function runMigrations() {
       }
     }
     console.log('Migrations applied');
-    // Seed dinas (21 operational + TA/Corp, no dedicated PIC — see schema.sql's rdt.dinas seed
-    // comment for why TA is a real dinas_target distinct from TAB) if not present. NOTE (29 Jul
-    // 2026): this is the same synthetic placeholder roster as schema.sql's INSERT (see its
-    // comment) — sql/migrations/005_real_dinas_roster.sql runs after this and is the current
-    // source of truth for the real GH names/roster, not this list.
+    // Seed dinas (21 operational dinas, including TA which has its own dedicated PIC — REQ-RDT-AUTH-05
+    // — plus Corp which does not) if not present. NOTE (29 Jul 2026): this is the same synthetic
+    // placeholder roster as schema.sql's INSERT (see its comment) — sql/migrations/005_real_dinas_roster.sql
+    // runs after this and is the current source of truth for the real GH names/roster, not this list.
     const dinasList = [
       ['TA','Dinas TA'],
       ['TB','Dinas TB'],['TC','Dinas TC'],['TD','Dinas TD'],['TE','Dinas TE'],['TF','Dinas TF'],

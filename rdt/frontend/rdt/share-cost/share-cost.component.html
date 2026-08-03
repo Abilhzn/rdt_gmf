@@ -1,0 +1,91 @@
+<div class="page-card">
+  <p class="note">
+    Split satu baris PENDING jadi beberapa baris dengan dinas_target &amp; nominal berbeda-beda
+    (jumlah nominal hasil split harus persis sama dengan baris asli). Baris asli akan ditandai
+    SPLIT_VOID dan tidak lagi dihitung di agregasi manapun; baris hasil split masuk alur
+    konfirmasi normal dari awal (dinas baru yang confirm/decline). Hanya untuk baris PENDING —
+    baris yang sudah CONFIRMED tidak bisa di-split di versi ini.
+  </p>
+  <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <ng-container *ngIf="!selected">
+    <div class="search-row">
+      <input
+        class="search-input"
+        type="text"
+        [(ngModel)]="query"
+        (keydown.enter)="search()"
+        placeholder="Cari Account / Ref.Doc / Remark..."
+      />
+      <button class="btn btn--ghost" type="button" (click)="search()">Cari</button>
+    </div>
+
+    <p class="note" *ngIf="!loading && !candidates.length">Tidak ada baris PENDING yang cocok.</p>
+    <div class="table-scroll" *ngIf="candidates.length">
+      <table class="rows">
+        <thead>
+          <tr>
+            <th>Dinas Pengaju</th>
+            <th>Dinas Target</th>
+            <th>Account</th>
+            <th>Ref.Doc</th>
+            <th class="rows__num">Nominal</th>
+            <th>Remark</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of candidates">
+            <td>{{ row.dinas_inisiasi }}</td>
+            <td>{{ row.dinas_target }}</td>
+            <td>{{ row.account }}</td>
+            <td>{{ row.ref_doc }}</td>
+            <td class="rows__num">{{ row.nominal | number: '1.2-2' }}</td>
+            <td class="rows__remark" [title]="row.remark || ''">{{ row.remark }}</td>
+            <td><button class="btn btn--ghost" type="button" (click)="selectRow(row)">Split</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="selected">
+    <div class="split-original card">
+      <h3 class="card__subtitle">Baris asli</h3>
+      <div class="split-original__grid">
+        <span>{{ selected.dinas_inisiasi }} → {{ selected.dinas_target }}</span>
+        <span>{{ selected.account }}</span>
+        <span *ngIf="selected.ref_doc">Ref.Doc {{ selected.ref_doc }}</span>
+        <span class="split-original__nominal">{{ selected.nominal | number: '1.2-2' }}</span>
+      </div>
+    </div>
+
+    <h3 class="card__subtitle">Baris hasil split</h3>
+    <div class="split-row" *ngFor="let r of splitRows; let i = index">
+      <select [(ngModel)]="r.dinas_target">
+        <option value="">Pilih dinas...</option>
+        <option *ngFor="let d of dinasOptions" [value]="d.code">{{ d.code }}</option>
+      </select>
+      <input type="number" step="0.01" [(ngModel)]="r.nominal" placeholder="Nominal" />
+      <button class="btn btn--ghost" type="button" (click)="removeSplitRow(i)" [disabled]="splitRows.length <= 2">Hapus</button>
+    </div>
+    <div class="card__actions">
+      <button class="btn btn--ghost" type="button" (click)="addSplitRow()">+ Tambah baris</button>
+    </div>
+
+    <div class="split-sum" [class.split-sum--mismatch]="!sumMatches">
+      Total baris split: {{ sumNominal | number: '1.2-2' }} / Baris asli: {{ selected.nominal | number: '1.2-2' }}
+      <span *ngIf="!sumMatches"> — selisih {{ sumDiff | number: '1.2-2' }}, harus 0 sebelum submit</span>
+    </div>
+
+    <label class="batch-note-label">
+      Alasan split (wajib, bisa @mention)
+      <rdt-mention-input [(ngModel)]="note" [rows]="2" extraClass="batch-note" placeholder="mis. dari 100rb ini, 65rb sebenarnya jatah @TU..."></rdt-mention-input>
+    </label>
+
+    <div class="card__actions">
+      <button class="btn btn--ghost" type="button" (click)="cancelSelection()">Batal</button>
+      <button class="btn btn--primary" type="button" [disabled]="!canSubmit()" (click)="submit()">Submit Split</button>
+    </div>
+  </ng-container>
+</div>

@@ -1,14 +1,20 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
 // REQ-RDT-SAP-03..10 (SRS.md 3.3, 30 Jul) — Need Approval per PASANGAN (dinas_inisiasi,
 // dinas_target). See routes/exportBatches.js's header comment for the full design rationale
-// (WAITING/CONFIRMED/archived-with-subdoc are the only states, WAITING is computed not stored,
-// no EXPORTED state, one batch = exactly one pair). state_label (REQ-RDT-SAP-07) is a derived
-// display string from the backend (rules/stateLabel.js), never stored/computed here.
+// (WAITING is computed not stored, one batch = exactly one pair). state_label (REQ-RDT-SAP-07)
+// is a derived display string from the backend (rules/stateLabel.js), never stored/computed here.
+//
+// REQ-RDT-SAP-05 REVISED 31 Jul (presentation feedback): confirm() now bundles the first
+// subdoc_number into the same call as closing_description — a batch is created WITH its first
+// subdoc already attached, so there's no more "confirmed, no subdoc yet" intermediate state (the
+// old GET /confirmed + getConfirmed()/ConfirmedBatch were removed accordingly — every batch this
+// service can create is immediately a Batch with >=1 subdoc). Download also no longer needs a
+// batch to exist first — see getExportPair().
 
 export interface WaitingEntry {
   dinas_inisiasi: string;
@@ -17,7 +23,7 @@ export interface WaitingEntry {
   state_label: string;
 }
 
-export interface ConfirmedBatch {
+export interface Batch {
   id: number;
   dinas_inisiasi: string;
   dinas_target: string;
@@ -26,6 +32,13 @@ export interface ConfirmedBatch {
   confirmed_at: string;
   created_at: string;
   state_label: string;
+  /** REQ-RDT-SAP-13 (3 Agu): "YYYY-MM" declared at Repost time (rdt.uploads.period), derived
+   * server-side from this batch's transactions — null for legacy batches confirmed before this
+   * field existed. History groups by THIS, not `confirmed_at`. */
+  period: string | null;
+  /** REQ-RDT-SAP-14 (3 Agu): true when `confirmed_at`'s year-month is LATER than `period` —
+   * simplest version per SRS, no grace period. Only ever true when `period` is known. */
+  overdue: boolean;
 }
 
 // REQ-RDT-SAP-11 — one subdoc entry with the transaction ids it actually covers, not just the
@@ -37,15 +50,21 @@ export interface SubdocDetail {
   transaction_ids: number[];
 }
 
-// REQ-RDT-SAP-10 "Riwayat Repost TAB/Dinas" — a ConfirmedBatch plus the subdoc(s) that archived
-// it (SAP-11: full linkage, not just the bare numbers — subdoc_numbers stays as a flat
-// convenience list derived from `subdocs`).
-export interface HistoryBatch extends ConfirmedBatch {
+// REQ-RDT-SAP-10 "Riwayat Repost TAB/Dinas" — a Batch plus the subdoc(s) that archived it
+// (SAP-11: full linkage, not just the bare numbers — subdoc_numbers stays as a flat convenience
+// list derived from `subdocs`).
+export interface HistoryBatch extends Batch {
   subdocs: SubdocDetail[];
   subdoc_numbers: string[];
 }
 
+// REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): backend now sends every contract
+// column (SELECT *), not a hand-picked subset — index signature so the dynamic-column renderer
+// (need-approval.component.ts's previewColumns, same pattern as repost-budgeting) can read any of
+// them by key. The named fields below stay because the component still reads them directly for
+// non-dynamic purposes (Reassign column, filtering).
 export interface TransparencyRow {
+  [key: string]: string | number | boolean | null | undefined;
   id: number;
   account: string;
   nominal: number;
@@ -90,15 +109,6 @@ export class ExportBatchService {
       }));
   }
 
-  getConfirmed(): Observable<ConfirmedBatch[]> {
-    return this.http
-      .get<{ ok: boolean; batches: ConfirmedBatch[]; error?: string }>(`${this.base}/confirmed`, { headers: this.currentUser.authHeaders() })
-      .pipe(map((res) => {
-        if (!res.ok) throw new Error(res.error || 'gagal memuat batch terkonfirmasi');
-        return res.batches;
-      }));
-  }
-
   // REQ-RDT-SAP-10 — archived batches (>=1 subdoc). from/to are optional YYYY-MM-DD period bounds
   // against confirmed_at.
   getHistory(from?: string, to?: string): Observable<HistoryBatch[]> {
@@ -126,11 +136,14 @@ export class ExportBatchService {
       }));
   }
 
-  confirm(dinasInisiasi: string, dinasTarget: string, closingDescription: string): Observable<number> {
+  // REQ-RDT-SAP-05 (revised 31 Jul): one form, one call — closing_description AND the first
+  // subdoc_number together. transactionIds is optional (>300-line overflow: cover only a subset
+  // with this first subdoc, add the rest afterward via addSubdoc() from Riwayat Repost TAB).
+  confirm(dinasInisiasi: string, dinasTarget: string, closingDescription: string, subdocNumber: string, transactionIds?: number[]): Observable<number> {
     return this.http
       .post<{ ok: boolean; batch_id: number; error?: string }>(
         `${this.base}/confirm`,
-        { dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, closing_description: closingDescription },
+        { dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, closing_description: closingDescription, subdoc_number: subdocNumber, transaction_ids: transactionIds },
         { headers: this.currentUser.authHeaders() }
       )
       .pipe(map((res) => {
@@ -167,10 +180,24 @@ export class ExportBatchService {
       }));
   }
 
-  downloadExport(batchId: number): Observable<Blob> {
+  // REQ-RDT-SAP-06 auto-split (1 Agu): returns the full response, not just the Blob — >300 rows
+  // comes back as a .zip instead of .xlsx, and the caller needs Content-Disposition's filename
+  // (via confirmation.service.ts's filenameFromResponse) to know which one it got.
+  downloadExport(batchId: number): Observable<HttpResponse<Blob>> {
     return this.http.get(`${this.base}/export/${batchId}`, {
       headers: this.currentUser.authHeaders(),
       responseType: 'blob',
+      observe: 'response',
+    });
+  }
+
+  // REQ-RDT-SAP-05 (revised 31 Jul) — download directly off a still-unbatched pair (no batch/
+  // confirm needed yet), for the "Waiting to repost" list.
+  getExportPair(dinasInisiasi: string, dinasTarget: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.base}/export-pair/${encodeURIComponent(dinasInisiasi)}/${encodeURIComponent(dinasTarget)}`, {
+      headers: this.currentUser.authHeaders(),
+      responseType: 'blob',
+      observe: 'response',
     });
   }
 }

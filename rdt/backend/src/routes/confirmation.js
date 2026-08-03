@@ -2,6 +2,7 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireDinasAccess } = require('../middleware/auth');
 const { validateReassignTarget } = require('../rules/reassignmentRules');
+const { resolveMentionedUserIds } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
@@ -119,11 +120,11 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
     const trimmedDescription = description && String(description).trim();
     if (trimmedDescription) {
       // Gap found in 31 Jul code review: this reply used to be posted with no notification at
-      // all — unlike a plain manual comment (resolveMentionedUserIds) and unlike TAB's
-      // closing_description (fans out to the whole target dinas). Fixed the same way TAB's does:
-      // this description is inherently addressed to the dinas_inisiasi whose submission it's
-      // replying to, so notify that dinas's PIC(s) directly rather than requiring an explicit
-      // @mention for something that's already implied by context.
+      // all. Fixed 31 Jul: notify the dinas_inisiasi PIC(s) directly — this description is
+      // inherently addressed to them, no @mention should be required for something already
+      // implied by context. REQ-RDT-COMMENT-03 (diperluas 3 Agu): ALSO parse @mentions in the
+      // text now (resolveMentionedUserIds), same as every other note field — someone outside
+      // dinas_inisiasi explicitly mentioned (e.g. TAB, or a third dinas) wasn't notified before.
       const directory = await loadDirectory();
       for (const [dinasInisiasi, fallbackTransactionId] of initiatorTransactionId) {
         const parentRes = await client.query(
@@ -139,9 +140,14 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
           [parent ? parent.transaction_id : fallbackTransactionId, parent ? parent.id : null, userId, trimmedDescription]
         );
         const commentId = commentRes.rows[0].id;
-        const recipientIds = Object.keys(directory).filter(
-          (id) => String(directory[id].dinas).toUpperCase() === String(dinasInisiasi).toUpperCase() && id !== userId
-        );
+        // REQ-RDT-COMMENT-03 (diperluas 3 Agu): implicit dinas_inisiasi recipients (context) PLUS
+        // anyone explicitly @mentioned in the text (e.g. a third dinas not otherwise involved) —
+        // same union pattern as index.js's Repost description and dashboard.js's manual comments.
+        const recipientIds = new Set(resolveMentionedUserIds(trimmedDescription, directory));
+        Object.keys(directory).forEach((id) => {
+          if (String(directory[id].dinas).toUpperCase() === String(dinasInisiasi).toUpperCase()) recipientIds.add(id);
+        });
+        recipientIds.delete(userId);
         for (const recipientId of recipientIds) {
           await client.query(
             'INSERT INTO rdt.notifications (recipient_user_id, comment_id) VALUES ($1, $2)',

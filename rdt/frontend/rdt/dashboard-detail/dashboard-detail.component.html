@@ -1,6 +1,10 @@
 <div class="page-card">
   <div class="view-header-row">
-    <div class="context-badge">{{ initiatorDinas }} → {{ targetLabel }}</div>
+    <!-- REQ-RDT-NAV-03: full redirect breadcrumb (e.g. "TJ → TC → TL"), not just the two
+         endpoints — see breadcrumb getter. -->
+    <div class="context-badge">
+      <ng-container *ngFor="let d of breadcrumb; let last = last">{{ d }}<span *ngIf="!last"> → </span></ng-container>
+    </div>
     <button class="btn btn--ghost" type="button" (click)="backToDashboard()">‹ Kembali ke Dashboard</button>
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
@@ -17,6 +21,30 @@
     </div>
   </div>
 
+  <!-- REQ-RDT-NAV-03 (3 Agu, re-flagged still-open): the header breadcrumb above only shows a
+       chain when EVERY transaction in the pair took the identical redirect path — with more than
+       a handful of transactions that's almost never true, so it silently falls back to the plain
+       2-point display for the whole pair. Nothing else on this page showed a per-transaction
+       chain at all. This table is that: one row per redirected transaction with its OWN full
+       path, only rendered when at least one exists. -->
+  <ng-container *ngIf="redirectedTransactions.length">
+    <h3 class="thread-title">Transaksi yang pernah di-redirect ({{ redirectedTransactions.length }})</h3>
+    <table class="redirect-table">
+      <thead>
+        <tr><th>Account</th><th class="redirect-table__num">Nominal</th><th>Rangkaian dinas</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let t of redirectedTransactions">
+          <td>{{ t.account }}</td>
+          <td class="redirect-table__num">{{ t.nominal | number: '1.2-2' }}</td>
+          <td>
+            <ng-container *ngFor="let d of t.chain; let last = last">{{ d }}<span *ngIf="!last"> → </span></ng-container>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </ng-container>
+
   <h3 class="thread-title">Diskusi</h3>
   <div>
     <div
@@ -28,33 +56,22 @@
       <div class="thread-comment__body">
         <span class="thread-comment__name">{{ row.comment.author_display_name }}</span>
         <span class="thread-comment__meta">{{ row.comment.created_at | idDate }}</span>
-        <p class="thread-comment__text">{{ row.comment.body }}</p>
+        <!-- REQ-RDT-COMMENT-03 (diperjelas 3 Agu): mention yang ke-resolve dirender ter-link,
+             bukan teks polos — lihat shared/mention-text.component.ts. -->
+        <p class="thread-comment__text"><rdt-mention-text [body]="row.comment.body"></rdt-mention-text></p>
         <button class="btn btn--link" type="button" (click)="setReplyTarget(row.comment)">Balas</button>
       </div>
     </div>
   </div>
   <p class="note" *ngIf="loaded && !threadRows.length">Belum ada komentar pada pasangan dinas ini.</p>
 
-  <div class="mention-wrap">
-    <textarea
-      #commentInput
-      class="repost-desc"
-      rows="3"
-      placeholder="Tulis komentar... ketik @ untuk mention dinas/user"
-      [(ngModel)]="commentBody"
-      (input)="onCommentInput()"
-      (keydown)="onCommentKeydown($event)"
-      (blur)="closeMentions()"
-    ></textarea>
-    <ul class="mention-list" *ngIf="showMentions">
-      <li
-        *ngFor="let opt of mentionSuggestions; let i = index"
-        [class.mention-list__item--active]="i === highlightedMentionIndex"
-        (mouseenter)="highlightedMentionIndex = i"
-        (mousedown)="insertMention(opt)"
-      >@{{ opt.token }} — {{ opt.label }}</li>
-    </ul>
-  </div>
+  <!-- REQ-RDT-COMMENT-03 (diperluas 3 Agu): satu implementasi @mention dipakai ulang. -->
+  <rdt-mention-input
+    [(ngModel)]="commentBody"
+    [rows]="3"
+    extraClass="repost-desc"
+    placeholder="Tulis komentar... ketik @ untuk mention dinas/user"
+  ></rdt-mention-input>
   <div class="actions" *ngIf="replyTo" style="align-items:center">
     <span class="note" style="margin:0">Membalas {{ replyTo.author_display_name }}</span>
     <button class="btn btn--link" type="button" (click)="clearReplyTarget()">Batal balas</button>
