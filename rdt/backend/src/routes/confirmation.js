@@ -25,13 +25,33 @@ router.get('/:dinas', requireDinasAccess('dinas'), async (req, res) => {
     // file" button per distinct source upload (REQ-RDT-LEDGER-09) without a separate endpoint.
     const r = await client.query(
       `SELECT t.id, t.sheet_name, t.raw_row_index, t.account, t.nominal, t.category, t.remark, t.ref_doc, t.dinas_inisiasi,
-              t.upload_id, u.original_filename AS upload_filename
+              t.reassign_count, t.upload_id, u.original_filename AS upload_filename
        FROM rdt.transactions t
        JOIN rdt.uploads u ON u.id = t.upload_id
        WHERE t.dinas_target=$1 AND t.status_konfirmasi=$2`,
       [dinas, 'PENDING']
     );
-    res.json({ ok: true, rows: r.rows });
+    // A5/B2 (3 Agu): chain arrow was missing everywhere except Dashboard-Detailing — attach each
+    // row's own redirect breadcrumb (initiator -> every intermediate hop -> current target, same
+    // fetchReassignChainMap logic dashboard.js uses) so this queue's badge/rows can show it too.
+    const reassignedIds = r.rows.filter((t) => t.reassign_count > 0).map((t) => t.id);
+    let chainMap = {};
+    if (reassignedIds.length) {
+      const auditRes = await client.query(
+        `SELECT transaction_id, detail FROM rdt.audit_log
+         WHERE transaction_id = ANY($1) AND action IN ('REASSIGN', 'REJECT_REDIRECT')
+         ORDER BY transaction_id, id ASC`,
+        [reassignedIds]
+      );
+      for (const row of auditRes.rows) {
+        const fromDinas = row.detail && row.detail.from_dinas;
+        if (!fromDinas) continue;
+        if (!chainMap[row.transaction_id]) chainMap[row.transaction_id] = [];
+        if (!chainMap[row.transaction_id].includes(fromDinas)) chainMap[row.transaction_id].push(fromDinas);
+      }
+    }
+    const rows = r.rows.map((t) => ({ ...t, chain: [t.dinas_inisiasi, ...(chainMap[t.id] || []), dinas] }));
+    res.json({ ok: true, rows });
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
   finally { try { await client.end(); } catch (e) {} }
 });

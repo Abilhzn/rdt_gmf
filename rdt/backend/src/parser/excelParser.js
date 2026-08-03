@@ -204,6 +204,11 @@ function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas,
     } else if (exclusions.prefixes.includes(rawPrefix)) {
       status = 'EXCLUDED';
     }
+    // B3 fix (3 Agu) — same bug as buildDetailRow: don't let the resolution branch below
+    // silently overwrite an already-correct EXCLUDED verdict back to NEEDS_INVESTIGATION/
+    // NEEDS_REVIEW just because the excluded prefix isn't ALSO independently resolvable as a
+    // dinas code (which exclusions.config.json prefixes like "AUAK" never are, by definition).
+    const preResolvedExcluded = status === 'EXCLUDED';
 
     // REQ-RDT-LEDGER-10: same "Ask TA" exact-string carve-out as buildDetailRow — this is the
     // same literal pivot column that appears in the real file (see SRS 3.1.2), just reached via
@@ -223,7 +228,7 @@ function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas,
         dinasTarget = rp;
       } else if (subDinasBase) {
         dinasTarget = subDinasBase;
-      } else {
+      } else if (!preResolvedExcluded) {
         status = 'NEEDS_REVIEW';
         reason_if_invalid = `Unknown pivot column label: ${rawPrefix}`;
       }
@@ -284,6 +289,16 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
   } else if (rawPrefix && exclusions.prefixes.includes(rawPrefix)) {
     status = 'EXCLUDED';
   }
+  // B3 fix (3 Agu, found investigating "TB shows 4,346 EXCLUDED vs 469 real rows"): the branch
+  // below resolves dinasTarget for whatever the status ended up being above, and on failure to
+  // resolve it unconditionally OVERWROTE status to NEEDS_REVIEW/NEEDS_INVESTIGATION — silently
+  // undoing the EXCLUDED verdict just set. A self-repost prefix (e.g. "TB") happened to survive
+  // this only because the uploader's own code is also a valid dinas in allowedCodes; an
+  // exclusions.config.json prefix that ISN'T a dinas (e.g. "AUAK", an internal SAP cost-object
+  // code) is never resolvable that way, so it always got clobbered back to NEEDS_REVIEW — making
+  // the exclusions list dead for exactly the case it exists for. Captured before the resolution
+  // branch so status downgrades below can be skipped once a row is already correctly excluded.
+  const preResolvedExcluded = status === 'EXCLUDED';
 
   if (nominal === null || Number.isNaN(nominal)) {
     status = 'INVALID';
@@ -313,7 +328,7 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
       // whose Review-column fallback is literally "Ask TA" is still an investigation signal, not
       // an unmapped-code NEEDS_REVIEW case.
       if (reviewFallbackRaw === 'Ask TA') {
-        status = 'NEEDS_INVESTIGATION';
+        if (!preResolvedExcluded) status = 'NEEDS_INVESTIGATION';
       } else {
         let resolvedFromReview = null;
         if (reviewFallbackRaw) {
@@ -325,7 +340,7 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
         }
         if (resolvedFromReview) {
           dinasTarget = resolvedFromReview;
-        } else {
+        } else if (!preResolvedExcluded) {
           status = 'NEEDS_REVIEW';
           reason_if_invalid = prefixFromReview
             ? `Unknown Review value: ${rawPrefix}`
@@ -333,7 +348,7 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
         }
       }
     }
-  } else if (!rawPrefix && status !== 'INVALID') {
+  } else if (!rawPrefix && status !== 'INVALID' && !preResolvedExcluded) {
     status = 'NEEDS_REVIEW';
     reason_if_invalid = 'Missing Remarks — tidak bisa menentukan dinas target';
   }

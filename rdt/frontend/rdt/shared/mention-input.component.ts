@@ -1,4 +1,4 @@
-import { Component, ElementRef, Input, ViewChild, forwardRef } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, Input, ViewChild, forwardRef } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { MentionOption, MentionService } from '../services/mention.service';
 
@@ -38,7 +38,7 @@ import { MentionOption, MentionService } from '../services/mention.service';
   styleUrls: ['./mention-input.component.scss'],
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MentionInputComponent), multi: true }],
 })
-export class MentionInputComponent implements ControlValueAccessor {
+export class MentionInputComponent implements ControlValueAccessor, AfterViewInit {
   @Input() rows = 3;
   @Input() placeholder = 'Ketik @ untuk mention dinas atau orang...';
   /** Extra CSS class(es) merged onto the textarea, so each call site can keep its own
@@ -57,9 +57,31 @@ export class MentionInputComponent implements ControlValueAccessor {
 
   constructor(private mentionSvc: MentionService) {}
 
-  writeValue(v: string): void { this.value = v || ''; }
+  writeValue(v: string): void {
+    this.value = v || '';
+    // A pre-filled value (writeValue can run before ngAfterViewInit, e.g. an already-typed
+    // Catatan Reviewer note surviving a page filter change) needs the same auto-grow as typing —
+    // inputEl may not exist yet on the very first call, ngAfterViewInit below covers that case.
+    // Skip when empty: an empty textarea has nothing to measure, and forcing an inline height at
+    // that point risks fighting the [rows] attribute's own natural sizing for no benefit.
+    if (this.inputEl && this.value) setTimeout(() => this.autoGrow(this.inputEl!.nativeElement));
+  }
   registerOnChange(fn: (v: string) => void): void { this.onChangeFn = fn; }
   registerOnTouched(fn: () => void): void { this.onTouchedFn = fn; }
+
+  ngAfterViewInit(): void {
+    if (this.inputEl && this.value) this.autoGrow(this.inputEl.nativeElement);
+  }
+
+  // REQ-RDT-NAV-04 (3 Agu, "Catatan Reviewer" bug): field must be fully readable with NO scroll —
+  // a fixed row-count textarea with overflow:hidden either clips long text or needs a scrollbar,
+  // both violate that. Auto-growing the height to fit content on every keystroke (the standard
+  // "shadow textarea" trick, minus the shadow element since we can just measure scrollHeight
+  // directly) means overflow:hidden never actually hides anything.
+  private autoGrow(el: HTMLTextAreaElement): void {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
 
   /** For call sites that used to auto-focus their own <textarea> (e.g. clicking "Balas" on a
    * comment) — the textarea now lives inside this component, not directly reachable via the
@@ -72,6 +94,7 @@ export class MentionInputComponent implements ControlValueAccessor {
     const el = ev.target as HTMLTextAreaElement;
     this.value = el.value;
     this.onChangeFn(this.value);
+    this.autoGrow(el);
     const cursor = el.selectionStart ?? el.value.length;
     const upToCursor = el.value.slice(0, cursor);
     const match = /@([\w-]*)$/.exec(upToCursor);

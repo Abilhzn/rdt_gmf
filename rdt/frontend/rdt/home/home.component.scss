@@ -128,6 +128,36 @@ $radius-md: 8px;
   &__notif { margin-top: 12px; font-size: 12px; color: $danger-600; font-weight: 600; }
 }
 
+// A2 (3 Agu, Figma 78:242 re-pull): 2-column bar-mode body — left column (state-label pill +
+// comment count, stacked) sits BESIDE the bar+legend column, not below a full-width bar. Fixes
+// the "clearly different" layout gap flagged against the reference (previously one long stacked
+// column reading visibly taller than the reference's compact 2-column card).
+.pair-card__bar-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.pair-card__bar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 0 0 260px;
+  min-width: 200px;
+
+  // Reset the standalone-context spacing (margin-top on the pill, margin-bottom on the reply
+  // count) — this column's own `gap` already provides consistent spacing between the two.
+  .pair-card__state-label { margin-top: 0; }
+  .pair-card__reply { margin-bottom: 0; }
+}
+
+.pair-card__bar-right {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
 .dinas-circle {
   --pct: 0;
   --ring-color: #{$accent};
@@ -189,18 +219,25 @@ $radius-md: 8px;
     &--red { background: $red; }
   }
 
-  // REQ-RDT-NAV-02: __body takes the icon's row; __note is forced onto its OWN row below (flex-
-  // basis:100%) instead of sharing a row with a label that can wrap to 2 lines — sharing a row
-  // let the note collide with the label's second line (e.g. "Reposted100.0%").
   &__body { flex: 1 1 auto; min-width: 0; }
   &__value { font-size: 24px; font-weight: 700; color: $ink-900; line-height: 1.2; }
-  &__label { font-size: 12px; color: $ink-500; margin-top: 2px; }
+  // P4.6 follow-up (A2, Figma 78:242 re-pull): label and note share ONE row (label left, note
+  // right-aligned), matching the reference — previously the note was forced onto a separate row
+  // below the label, which reads as a 3rd stacked line instead of the reference's 2-line card.
+  &__meta-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+  }
+  &__label { font-size: 12px; color: $ink-500; }
 
   &__note {
-    flex: 0 0 100%;
-    margin-left: 50px;
     font-size: 11px;
     font-weight: 600;
+    white-space: nowrap;
 
     &--blue { color: $accent; }
     &--green { color: $green; }

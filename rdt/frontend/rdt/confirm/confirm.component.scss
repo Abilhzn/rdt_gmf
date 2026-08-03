@@ -192,6 +192,10 @@ input[type='checkbox'] {
   tbody tr:hover td { background: #f5f9fb; }
 }
 
+// A5 (3 Agu): per-row redirect breadcrumb in the "Dinas Pengaju" column — smaller/tighter than
+// the plain dinas code it replaces since it can be 3+ segments long (e.g. "TJ → TE → TL").
+.chain-cell { font-size: 11.5px; font-weight: 600; color: $accent; white-space: nowrap; }
+
 .select-all-col { text-align: center; }
 .select-all-label {
   display: flex;

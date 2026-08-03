@@ -14,22 +14,35 @@
       <span class="pair-card__count">{{ d.total }}</span>
     </div>
 
+    <!-- A2 (3 Agu, Figma 78:242 re-pull): the reference's bar-mode card is a 2-COLUMN body —
+         LEFT column stacks title (above)/state-label pill/comment-count, RIGHT column holds the
+         segmented bar+percent with the legend below it — NOT a single stacked column with the
+         bar spanning full width and the pill/comment tacked on at the very bottom. Previous
+         version put everything in one vertical stack, which reads visibly different/taller than
+         the reference despite using the same tokens. -->
     <ng-container *ngIf="useBar; else donutBody">
-      <div class="pair-card__bar-row">
-        <div class="segment-bar">
-          <span class="segment-bar__seg segment-bar__seg--confirmed" [style.width.%]="barSegments(d).confirmedPct"></span>
-          <span class="segment-bar__seg segment-bar__seg--open" [style.width.%]="barSegments(d).openPct"></span>
-          <span class="segment-bar__seg segment-bar__seg--declined" [style.width.%]="barSegments(d).declinedPct"></span>
+      <div class="pair-card__bar-body">
+        <div class="pair-card__bar-left">
+          <div class="pair-card__state-label" [ngClass]="stateLabelClass(d.state_label)" *ngIf="d.state_label">{{ d.state_label }}</div>
+          <span class="pair-card__reply">{{ d.reply_count || 0 }} comment</span>
         </div>
-        <span class="pair-card__percent" [style.color]="ringColor(d.percent)">{{ d.percent | number: '1.1-1' }}%</span>
+        <div class="pair-card__bar-right">
+          <div class="pair-card__bar-row">
+            <div class="segment-bar">
+              <span class="segment-bar__seg segment-bar__seg--confirmed" [style.width.%]="barSegments(d).confirmedPct"></span>
+              <span class="segment-bar__seg segment-bar__seg--open" [style.width.%]="barSegments(d).openPct"></span>
+              <span class="segment-bar__seg segment-bar__seg--declined" [style.width.%]="barSegments(d).declinedPct"></span>
+            </div>
+            <span class="pair-card__percent" [style.color]="ringColor(d.percent)">{{ d.percent | number: '1.1-1' }}%</span>
+          </div>
+          <div class="segment-legend">
+            <span>Total {{ d.total }}</span>
+            <span class="segment-legend__dot segment-legend__dot--confirmed"></span>Confirmed {{ d.resolved }}
+            <span class="segment-legend__dot segment-legend__dot--open"></span>Open {{ d.open || 0 }}
+            <span class="segment-legend__dot segment-legend__dot--declined"></span>Declined {{ d.declined_pending_action || 0 }}
+          </div>
+        </div>
       </div>
-      <div class="segment-legend">
-        <span>Total {{ d.total }}</span>
-        <span class="segment-legend__dot segment-legend__dot--confirmed"></span>Confirmed {{ d.resolved }}
-        <span class="segment-legend__dot segment-legend__dot--open"></span>Open {{ d.open || 0 }}
-        <span class="segment-legend__dot segment-legend__dot--declined"></span>Declined {{ d.declined_pending_action || 0 }}
-      </div>
-      <span class="pair-card__reply">{{ d.reply_count || 0 }} comment</span>
     </ng-container>
     <ng-template #donutBody>
       <div class="pair-card__body">
@@ -41,11 +54,12 @@
         </div>
         <span class="pair-card__reply">{{ d.reply_count || 0 }} comment</span>
       </div>
+      <!-- REQ-RDT-NAV-02 (diperjelas 1 Agu): state_label sekarang tampil di kartu Dashboard juga,
+           bukan cuma Need Approval/Riwayat Repost. Donut mode keeps its own state-label position
+           below the body — bar mode's pill moved into pair-card__bar-left above (A2). -->
+      <div class="pair-card__state-label" [ngClass]="stateLabelClass(d.state_label)" *ngIf="d.state_label">{{ d.state_label }}</div>
     </ng-template>
 
-    <!-- REQ-RDT-NAV-02 (diperjelas 1 Agu): state_label sekarang tampil di kartu Dashboard juga,
-         bukan cuma Need Approval/Riwayat Repost. -->
-    <div class="pair-card__state-label" [ngClass]="stateLabelClass(d.state_label)" *ngIf="d.state_label">{{ d.state_label }}</div>
     <div class="pair-card__notif" *ngIf="d.declined_pending_action">
       {{ d.declined_pending_action }} transaksi ditolak, perlu tindak lanjut
     </div>
@@ -61,33 +75,41 @@
         <span class="kpi-card__icon kpi-card__icon--blue">≡</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.total_transaksi }}</div>
-          <div class="kpi-card__label">Total Transaksi Diajukan</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Total Transaksi Diajukan</span>
+            <span class="kpi-card__note kpi-card__note--blue">{{ kpis.pasangan_count }} pasangan dinas</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--blue">{{ kpis.pasangan_count }} pasangan dinas</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--blue">Rp</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.total_nilai | number: '1.0-0' }}</div>
-          <div class="kpi-card__label">Total Nilai Diajukan</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Total Nilai Diajukan</span>
+            <span class="kpi-card__note kpi-card__note--blue">periode ini</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--blue">periode ini</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--amber">⏱</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.open_count }}</div>
-          <div class="kpi-card__label">Open / Menunggu</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Open / Menunggu</span>
+            <span class="kpi-card__note kpi-card__note--amber" *ngIf="kpis.open_count">▲ perlu follow up</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--amber" *ngIf="kpis.open_count">▲ perlu follow up</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--green">✓</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.resolved_count }}</div>
-          <div class="kpi-card__label">Selesai / Reposted</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Selesai / Reposted</span>
+            <span class="kpi-card__note kpi-card__note--green" *ngIf="kpis.total_transaksi">{{ (kpis.resolved_count || 0) / kpis.total_transaksi * 100 | number: '1.1-1' }}% dari total</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--green" *ngIf="kpis.total_transaksi">{{ (kpis.resolved_count || 0) / kpis.total_transaksi * 100 | number: '1.1-1' }}% dari total</span>
       </div>
     </ng-container>
     <ng-template #tabKpis>
@@ -95,41 +117,51 @@
         <span class="kpi-card__icon kpi-card__icon--blue">≡</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.dinas_aktif }}</div>
-          <div class="kpi-card__label">Dinas Aktif</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Dinas Aktif</span>
+            <span class="kpi-card__note kpi-card__note--blue">periode ini</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--blue">periode ini</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--blue">Σ</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.total_transaksi }}</div>
-          <div class="kpi-card__label">Total Transaksi</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Total Transaksi</span>
+            <span class="kpi-card__note kpi-card__note--blue">seluruh sistem</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--blue">seluruh sistem</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--red">?</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.butuh_investigasi }}</div>
-          <div class="kpi-card__label">Butuh Investigasi</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Butuh Investigasi</span>
+            <span class="kpi-card__note kpi-card__note--red" *ngIf="kpis.butuh_investigasi">⚠ Ask TA</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--red" *ngIf="kpis.butuh_investigasi">⚠ Ask TA</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--amber">⏱</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.waiting_to_repost }}</div>
-          <div class="kpi-card__label">Waiting to Repost</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Waiting to Repost</span>
+            <span class="kpi-card__note kpi-card__note--amber" *ngIf="kpis.waiting_to_repost">siap diproses</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--amber" *ngIf="kpis.waiting_to_repost">siap diproses</span>
       </div>
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--green">✓</span>
         <div class="kpi-card__body">
           <div class="kpi-card__value">{{ kpis.reposted }}</div>
-          <div class="kpi-card__label">Reposted</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Reposted</span>
+            <span class="kpi-card__note kpi-card__note--green">periode ini</span>
+          </div>
         </div>
-        <span class="kpi-card__note kpi-card__note--green">periode ini</span>
       </div>
     </ng-template>
   </div>

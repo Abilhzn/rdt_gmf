@@ -193,6 +193,18 @@ export class ConfirmComponent implements OnInit {
     // REQ-RDT-NAV-10 (TERJAWAB 1 Agu): sub-nav label for this queue is now "TAB", not
     // "Investigation/Ask TA" — matches the sidebar rename (shell.component.html).
     if (this.isInvestigation) return 'TAB';
+    // A5 (3 Agu): chain arrow was missing everywhere except Dashboard-Detailing — when this
+    // queue is scoped to one specific initiator (via Dashboard's ?from= param) and every loaded
+    // row agrees on the same redirect path, show the full breadcrumb instead of a flat 2-point
+    // label. Unscoped ("Semua dinas") or a mixed-path queue falls back to the plain label, same
+    // "only show when unambiguous" rule dashboard.js's chain fields already use.
+    if (this.filterFromDinas && this.pendingRows.length) {
+      const scoped = this.pendingRows.filter((r) => r.dinas_inisiasi === this.filterFromDinas);
+      const firstChain = scoped[0]?.chain;
+      if (firstChain && firstChain.length > 2 && scoped.every((r) => JSON.stringify(r.chain) === JSON.stringify(firstChain))) {
+        return firstChain.join(' → ');
+      }
+    }
     const from = this.filterFromDinas || 'Semua dinas';
     const target = this.selectedTarget === this.dinas ? user.display_name : this.selectedTarget;
     return `${from} → ${target}`;

@@ -132,6 +132,24 @@ export class DashboardDetailComponent implements OnInit {
     return '#f2b400';
   }
 
+  // B2 (3 Agu): card clicks now land here first (see HomeComponent.onCardClick) instead of
+  // jumping straight to Confirmation — this is the one-click path onward to actually act (the
+  // checkbox+Submit flow), shown only while there's something PENDING on this pair to act on.
+  // Same relative-routing hop HomeComponent's now-removed goToConfirmFrom used to do (this
+  // component is ALSO nested inside HomeModule, per the class header comment, so the same
+  // "count URL segments, not routeConfig entries" quirk applies here too).
+  get canGoToConfirm(): boolean {
+    return !!this.progress && this.progress.open > 0;
+  }
+
+  goToConfirm(): void {
+    const shellRoute = this.route.parent?.parent || this.route;
+    this.router.navigate(['confirm'], {
+      relativeTo: shellRoute,
+      queryParams: { from: this.initiatorDinas, target: this.targetDinas },
+    });
+  }
+
   backToDashboard(): void {
     // Three '../' — relative '../' pops ONE URL SEGMENT at a time, not one routeConfig entry
     // (verified empirically): this route's path 'detail/:initiator/:target' consumes 3 segments

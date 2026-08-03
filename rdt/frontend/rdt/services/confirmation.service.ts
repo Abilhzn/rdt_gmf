@@ -18,6 +18,9 @@ export interface PendingRow {
    * button for the original file per distinct upload. */
   upload_id?: number;
   upload_filename?: string;
+  /** A5 (3 Agu): this row's own full redirect breadcrumb (initiator -> every intermediate hop ->
+   * current target) — a plain 2-point [dinas_inisiasi, dinas_target] when never reassigned. */
+  chain?: string[];
 }
 
 export interface DeclinedOutcomeRow {

@@ -1,0 +1,23 @@
+Archive:  export-pair.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+    64827  2026-08-03 08:07   chunk-1.xlsx
+     7901  2026-08-03 08:07   chunk-2.xlsx
+---------                     -------
+    72728                     2 files
+
+HTTP response headers from GET /api/export-batches/export-pair/TJ/TMM (as demo-tab):
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: application/zip
+Content-Disposition: attachment; filename="TJ-TMM_2026-08-03.zip"
+Date: Mon, 03 Aug 2026 08:11:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Content-Length: 72948
+
+
+Row counts per chunk (verified via exceljs):
+chunk-1.xlsx -> data rows: 300
+chunk-2.xlsx -> data rows: 3

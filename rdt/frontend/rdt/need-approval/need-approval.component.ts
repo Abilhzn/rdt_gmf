@@ -49,6 +49,12 @@ export class NeedApprovalComponent implements OnInit {
   // REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account.
   transparencyColumnFilters: Record<string, string[]> = {};
 
+  // B4 (3 Agu): transparency table had no pagination at all — a dinas with hundreds/thousands of
+  // rows dumped the entire table unpaginated. Same 100/page convention as confirm.component's
+  // pendingRows (REQ-RDT-NAV-07 shared pager).
+  readonly pageSize = 100;
+  transparencyPage = 1;
+
   // REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): transparansi HARUS tampilkan SEMUA
   // kolom yang benar-benar ikut ter-repost — satu sumber (CONTRACT_FIELDS via GET
   // /api/contract-fields) sama persis yang dipakai repost-budgeting.component's previewColumns,
@@ -64,9 +70,19 @@ export class NeedApprovalComponent implements OnInit {
     return this.transparencyRows.filter((r) => matchesAllColumnFilters(r, this.transparencyColumnFilters, (row, key) => (row as any)[key]));
   }
 
+  get pagedTransparencyRows(): TransparencyRow[] {
+    const start = (this.transparencyPage - 1) * this.pageSize;
+    return this.filteredTransparencyRows.slice(start, start + this.pageSize);
+  }
+
+  onTransparencyPageChange(p: number): void {
+    this.transparencyPage = p;
+  }
+
   onTransparencyColumnFilterChange(key: string, values: string[]): void {
     if (values.length) this.transparencyColumnFilters[key] = values;
     else delete this.transparencyColumnFilters[key];
+    this.transparencyPage = 1;
   }
 
   constructor(
@@ -118,6 +134,7 @@ export class NeedApprovalComponent implements OnInit {
     this.subdocNumber = '';
     this.transparencyRows = [];
     this.transparencyColumnFilters = {};
+    this.transparencyPage = 1;
     this.exportBatches.getTransparency(dinasInisiasi, dinasTarget).subscribe({
       next: (rows) => { this.transparencyRows = rows; },
       error: (err) => { this.transparencyError = err?.message || 'Gagal memuat transparansi'; },

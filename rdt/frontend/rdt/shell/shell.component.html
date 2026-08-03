@@ -114,7 +114,10 @@
               style="cursor:pointer"
               (click)="goToNotifDetail(n)"
             >
-              <div class="notif-item__body">{{ n.author_display_name }}: {{ n.body }}</div>
+              <!-- REQ-RDT-COMMENT-03 (diperluas 3 Agu): mention terlink harus jalan di SEMUA
+                   tempat notes/komentar tampil — notif bell sebelumnya masih render body mentah,
+                   satu-satunya tempat yang kelewat dari sweep P3. -->
+              <div class="notif-item__body">{{ n.author_display_name }}: <rdt-mention-text [body]="n.body"></rdt-mention-text></div>
               <div class="notif-item__meta">{{ n.dinas_inisiasi }} → {{ n.dinas_target }} · {{ n.created_at | idDate }}</div>
             </div>
             <p class="note" *ngIf="!notifications.length">Tidak ada notifikasi.</p>

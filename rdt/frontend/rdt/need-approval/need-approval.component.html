@@ -30,8 +30,16 @@
         <!-- REQ-RDT-SAP-06 (rename 3 Agu): "Lihat Transparansi" -> "Confirm Reposted" — klik
              menampilkan transparansi SEKALIGUS form deskripsi+subdoc, satu layar (lihat
              .transparency-panel di bawah), bukan dua langkah terpisah. Tombol Confirm yang
-             benar-benar mengeksekusi tetap di paling bawah panel itu, tidak berubah. -->
-        <button class="btn btn--ghost" type="button" (click)="openTransparency(w.dinas_inisiasi, w.dinas_target)">
+             benar-benar mengeksekusi tetap di paling bawah panel itu, tidak berubah.
+             B4 (3 Agu bug fix): label sudah berubah jadi "Tutup" saat panel terbuka, tapi click
+             handler-nya tetap manggil openTransparency lagi (reset+reload panel yang sama),
+             BUKAN closeTransparency — jadi panel tidak pernah benar-benar tertutup lewat tombol
+             ini. Sekarang toggle beneran ke closeTransparency saat sudah terbuka. -->
+        <button
+          class="btn btn--ghost"
+          type="button"
+          (click)="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target) ? closeTransparency() : openTransparency(w.dinas_inisiasi, w.dinas_target)"
+        >
           {{ expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target) ? 'Tutup' : 'Confirm Reposted' }}
         </button>
       </div>
@@ -55,7 +63,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let t of filteredTransparencyRows">
+            <tr *ngFor="let t of pagedTransparencyRows">
               <ng-container *ngFor="let col of previewColumns">
                 <td *ngIf="col.key === 'status_konfirmasi'">{{ t.status_konfirmasi }}</td>
                 <td *ngIf="col.numeric" class="rows__num">{{ getCellValue(t, col.key) | number: '1.2-2' }}</td>
@@ -67,6 +75,14 @@
           </tbody>
         </table>
       </div>
+      <!-- B4 (3 Agu): 100 baris/halaman, sama seperti Detail Confirmation (REQ-RDT-NAV-07). -->
+      <rdt-pagination
+        *ngIf="transparencyRows.length"
+        [page]="transparencyPage"
+        [totalItems]="filteredTransparencyRows.length"
+        [pageSize]="pageSize"
+        (pageChange)="onTransparencyPageChange($event)"
+      ></rdt-pagination>
 
       <!-- REQ-RDT-SAP-05 (revised 31 Jul): ONE form — deskripsi penutup + nomor subdoc pertama
            sekaligus. Submit ini SEKALIGUS bikin batch dan attach subdoc pertamanya. -->
@@ -91,6 +107,9 @@
           [title]="canConfirm() ? '' : 'Deskripsi penutup dan nomor subdoc wajib diisi'"
           (click)="confirmPair(w.dinas_inisiasi, w.dinas_target)"
         >Confirm {{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</button>
+        <!-- B4 (3 Agu): panel harus bisa ditutup/dibatalkan tanpa wajib mengisi/menyelesaikan
+             form Confirm — closeTransparency() tidak menyentuh data apapun, cuma menutup panel. -->
+        <button class="btn btn--ghost" type="button" [disabled]="confirming" (click)="closeTransparency()">✕ Batal</button>
       </div>
     </div>
   </ng-container>

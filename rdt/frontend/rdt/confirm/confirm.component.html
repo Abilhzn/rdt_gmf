@@ -124,7 +124,14 @@
           </thead>
           <tbody>
             <tr *ngFor="let r of pagedPendingRows">
-              <td>{{ r.dinas_inisiasi }}</td>
+              <!-- A5 (3 Agu): chain arrow was missing everywhere except Dashboard-Detailing — the
+                   aggregate badge above can only show a breadcrumb when EVERY row in the current
+                   filter agrees on the same path (see badgeText), so a reassigned row sitting in a
+                   mixed queue still needs its OWN chain visible here, per row. -->
+              <td [title]="r.chain && r.chain.length > 2 ? r.chain.join(' → ') : ''">
+                <span *ngIf="r.chain && r.chain.length > 2; else plainInisiasi" class="chain-cell">{{ r.chain.join(' → ') }}</span>
+                <ng-template #plainInisiasi>{{ r.dinas_inisiasi }}</ng-template>
+              </td>
               <td>{{ r.account }}</td>
               <td>{{ r.ref_doc }}</td>
               <td class="rows__num">{{ r.nominal | number: '1.2-2' }}</td>

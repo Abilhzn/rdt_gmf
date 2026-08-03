@@ -90,19 +90,22 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  // Single delegated click handler for the shared #pairCard template (see home.component.html) —
-  // 'need' cards drill into Confirmation, 'own' cards drill into Dashboard-Detailing.
+  // B2 (3 Agu, SRS clarified): BOTH 'need' and 'own' cards now drill into Dashboard-Detailing —
+  // previously 'need' cards went straight to Confirmation instead, which meant the richer status
+  // view (chain breadcrumb, full thread, redirect history) only ever showed up for the initiator's
+  // OWN view, never for the confirming dinas clicking from their own "Need to Confirm" list. The
+  // actual Confirm/Reject ACTION is still one click away via the "Confirm Reposted" button
+  // dashboard-detail.component now shows when there's something PENDING on that pair (see
+  // DashboardDetailComponent.goToConfirm) — this only changes what the CARD CLICK itself lands on.
   onCardClick(kind: 'need' | 'own', d: DinasProgress): void {
-    if (kind === 'need') {
+    if (kind === 'need' && d.target_dinas === 'INVESTIGATION') {
       // REQ-RDT-LEDGER-10 (29 Jul): the Investigation/Ask TA pseudo-card (see
       // dashboard.js's fetchInvestigationCounts) goes straight to Confirmation's Investigation
-      // sub-tab — it isn't a real (initiator, target) pair, so goToConfirmFrom's ?from= filter
-      // doesn't apply here.
-      if (d.target_dinas === 'INVESTIGATION') { this.goToInvestigation(); return; }
-      this.goToConfirmFrom(d.dinas, d.target_dinas);
-    } else {
-      this.goToDetail(d);
+      // sub-tab — it isn't a real (initiator, target) pair, so Dashboard-Detailing doesn't apply.
+      this.goToInvestigation();
+      return;
     }
+    this.goToDetail(kind, d);
   }
 
   // REQ-RDT-LEDGER-10: same pseudo-card sentinel appears on both panels — 'need' shape has it at
@@ -116,14 +119,17 @@ export class HomeComponent implements OnInit {
   // into the UI as a "dinas name" — REQ-RDT-LEDGER-10 restructure (29 Jul) reuses the same
   // "Investigation/Ask TA" label the Confirmation sub-nav already uses.
   //
-  // REQ-RDT-NAV-03 (31 Jul): 'own' cards (buildChainAwareProgress) carry a full redirect
-  // breadcrumb in d.chain (e.g. ['TJ','TC','TL']) when every transaction under the card agrees
-  // on the same path — render that instead of just the two endpoints when present. 'need' cards
-  // (buildNeedToConfirmProgress) never redirect on dinas_inisiasi, so they stay two-point.
+  // REQ-RDT-NAV-03 (31 Jul, A5 fix 3 Agu): both 'own' (buildChainAwareProgress) AND 'need'
+  // (buildNeedToConfirmProgress) cards now carry a full redirect breadcrumb in d.chain (e.g.
+  // ['TJ','TC','TL']) when every transaction under the card agrees on the same path — render
+  // that instead of just the two endpoints when present. Previously 'need' cards were hardcoded
+  // to stay two-point on the (mistaken) assumption they never see a redirect — but a 'need' card
+  // groups by the CURRENT dinas_target, which is exactly what a chain member sees, so the same
+  // "SRS 3 Agu: chain arrow missing everywhere except Dashboard-Detailing" bug applied here too.
   pairTitle(kind: 'need' | 'own', d: DinasProgress): string {
     const label = (code: string | undefined) => (code === 'INVESTIGATION' ? 'Investigation/Ask TA' : code);
-    if (kind === 'need') return `${d.dinas} → ${label(d.target_dinas) || this.myDinas || ''}`;
     if (d.chain?.length) return d.chain.map((c) => label(c)).join(' → ');
+    if (kind === 'need') return `${d.dinas} → ${label(d.target_dinas) || this.myDinas || ''}`;
     if (this.isGlobalView) return `${d.dinas} → ${label(d.target_dinas)}`;
     return `${this.myDinas || ''} → ${label(d.dinas)}`;
   }
@@ -131,23 +137,6 @@ export class HomeComponent implements OnInit {
   goToInvestigation(): void {
     const shellRoute = this.route.parent?.parent || this.route;
     this.router.navigate(['confirm'], { relativeTo: shellRoute, queryParams: { target: 'INVESTIGATION' } });
-  }
-
-  // targetDinas (28 Jul bug fix): the REAL queue this pair sits under (see DinasProgress.target_dinas)
-  // — without it, Confirmation always defaulted to the viewer's own dinas, so TAB clicking a
-  // TA-targeted card landed on an empty TAB queue instead of TA's.
-  //
-  // BUG FIX (28 Jul, live report — "kenapa error?"): the string token '../../confirm' threw
-  // NG04002 "Cannot match any routes" every time this was clicked — counting '../' hops by hand
-  // across a lazy-loaded module boundary (HomeModule) doesn't reliably land where the comment
-  // above (now corrected) assumed it would. Walking the ActivatedRoute OBJECT tree up to the
-  // shell (this.route.parent = 'dashboard', .parent.parent = the shell's own '' route) and
-  // resolving 'confirm' relative to THAT is unambiguous regardless of nesting/lazy boundaries.
-  goToConfirmFrom(dinas: string, targetDinas?: string): void {
-    const queryParams: Record<string, string> = { from: dinas };
-    if (targetDinas) queryParams['target'] = targetDinas;
-    const shellRoute = this.route.parent?.parent || this.route;
-    this.router.navigate(['confirm'], { relativeTo: shellRoute, queryParams });
   }
 
   // REQ-RDT-NAV-03: drill-down needs a real (initiator, target) PAIR. The personal view's cards
@@ -160,10 +149,14 @@ export class HomeComponent implements OnInit {
   // home.module.ts) — NOT '../detail': HomeComponent's own route consumes zero URL segments
   // (path ''), so Angular resolves siblings directly relative to it without an extra '../' hop
   // (verified empirically — '../detail' overshot past the 'dashboard' lazy-module mount entirely).
-  goToDetail(d: DinasProgress): void {
+  // B2 (3 Agu): now takes `kind` since 'need' cards route here too (see onCardClick) — their row
+  // shape is ALREADY (dinas=initiator, target_dinas=target), same as 'own'+global, and different
+  // from personal 'own' cards (dinas=target, this viewer's own dinas is the implicit initiator).
+  goToDetail(kind: 'need' | 'own', d: DinasProgress): void {
     const myDinas = this.currentUser.current?.dinas;
-    const initiator = this.isGlobalView ? d.dinas : myDinas;
-    const target = this.isGlobalView ? d.target_dinas : d.dinas;
+    const usesRowAsIs = kind === 'need' || this.isGlobalView;
+    const initiator = usesRowAsIs ? d.dinas : myDinas;
+    const target = usesRowAsIs ? d.target_dinas : d.dinas;
     if (!initiator || !target) return;
     this.router.navigate(['detail', initiator, target], { relativeTo: this.route });
   }

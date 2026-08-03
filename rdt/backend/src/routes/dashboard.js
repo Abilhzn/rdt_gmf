@@ -269,7 +269,7 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
 // Need-to-Confirm view has nothing to do with investigation, that's TAB's queue alone.
 async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInvestigation) {
   const txRes = await client.query(
-    `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi
+    `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, t.reassign_count
      FROM rdt.transactions t
      WHERE UPPER(t.dinas_target) = ANY($1)
        AND t.status_konfirmasi = ANY($2)
@@ -278,16 +278,28 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
   );
   const transactions = txRes.rows;
   const replyCounts = await fetchReplyCounts(client, transactions.map((t) => t.id));
+  // A5 (3 Agu, chain arrow still missing everywhere except Dashboard-Detailing): this query groups
+  // by the CURRENT dinas_target, unlike buildChainAwareProgress's "group by ORIGINAL target"
+  // rule — but the card still needs each transaction's own intermediate hops to render a full
+  // breadcrumb instead of a plain 2-point dinas_inisiasi->dinas_target label. Same
+  // fetchReassignChainMap + "only expose chain when every transaction in the group agrees"
+  // pattern as buildChainAwareProgress, just keyed differently.
+  const reassignedIds = transactions.filter((t) => t.reassign_count > 0).map((t) => t.id);
+  const chainMap = await fetchReassignChainMap(client, reassignedIds);
 
   const agg = {};
   for (const t of transactions) {
     const key = `${t.dinas_inisiasi} ${t.dinas_target}`;
-    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, pending: 0, declined: 0, reply_count: 0 };
-    agg[key].total += 1;
-    if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) agg[key].resolved += 1;
-    if (t.status_konfirmasi === 'PENDING') agg[key].pending += 1;
-    if (t.status_konfirmasi === 'DECLINED') agg[key].declined += 1;
-    agg[key].reply_count += replyCounts[t.id] || 0;
+    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, pending: 0, declined: 0, reply_count: 0, chain: undefined, chainConsistent: true, chainSeeded: false };
+    const a = agg[key];
+    a.total += 1;
+    if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) a.resolved += 1;
+    if (t.status_konfirmasi === 'PENDING') a.pending += 1;
+    if (t.status_konfirmasi === 'DECLINED') a.declined += 1;
+    a.reply_count += replyCounts[t.id] || 0;
+    const fullChain = [t.dinas_inisiasi, ...(chainMap[t.id] || []), t.dinas_target];
+    if (!a.chainSeeded) { a.chain = fullChain; a.chainSeeded = true; }
+    else if (JSON.stringify(fullChain) !== JSON.stringify(a.chain)) a.chainConsistent = false;
   }
   // REQ-RDT-SAP-07 state label: this query is already scoped to export_batch_id IS NULL and keyed
   // by the CURRENT dinas_target (no chain-collapsing like buildChainAwareProgress does), so it's
@@ -310,6 +322,9 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       reply_count: a.reply_count,
       state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target_dinas }),
+      // A5 (3 Agu): full redirect breadcrumb, only present when every transaction under this
+      // card agrees on the exact same path — same rule buildChainAwareProgress uses.
+      chain: a.chainConsistent && a.chain && a.chain.length > 2 ? a.chain : undefined,
     };
   });
   if (includeInvestigation) rows.push(...(await fetchInvestigationCounts(client, null)));
@@ -400,10 +415,27 @@ router.get('/detail/:initiatorDinas/:targetDinas', async (req, res) => {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    const progressList = await buildChainAwareProgress(client, { initiatorDinas, groupBy: 'target' });
-    const progress = progressList.find((p) => String(p.dinas).toUpperCase() === String(targetDinas).toUpperCase())
-      || { dinas: targetDinas, total: 0, resolved: 0, percent: 0, declined_pending_action: 0 };
     const transactions = await getPairTransactions(client, initiatorDinas, targetDinas);
+    // B2 fix (3 Agu): this used to look up a pre-aggregated row from buildChainAwareProgress,
+    // which groups by each transaction's ORIGINAL target — but a 'need' card (buildNeedToConfirmProgress)
+    // links here using the CURRENT target, so for any pair reached via redirect the lookup found
+    // no match and silently fell back to an all-zero progress object (0%, canGoToConfirm always
+    // false). getPairTransactions already resolves the exact chain-inclusive set for this
+    // initiator/target pair (see its header comment: "the transaction list and the percent agree"
+    // — that invariant only holds if percent is computed from this same set), so aggregate
+    // directly off `transactions` instead of a separately-keyed lookup.
+    const total = transactions.length;
+    const resolved = transactions.filter((t) => RESOLVED_STATUSES.includes(t.status_konfirmasi)).length;
+    const pending = transactions.filter((t) => t.status_konfirmasi === 'PENDING').length;
+    const declined = transactions.filter((t) => t.status_konfirmasi === 'DECLINED').length;
+    const progress = {
+      dinas: targetDinas,
+      total,
+      resolved,
+      open: pending,
+      declined_pending_action: declined,
+      percent: total > 0 ? Math.round((resolved / total) * 1000) / 10 : 0,
+    };
     const comments = await getPairCommentThread(client, transactions.map((t) => t.id));
     res.json({ ok: true, initiator_dinas: initiatorDinas, target_dinas: targetDinas, progress, transactions, comments });
   } catch (err) {

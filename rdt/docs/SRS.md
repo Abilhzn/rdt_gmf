@@ -113,6 +113,14 @@ Membaca unggahan file Excel dari pengguna (sheet rekapitulasi + sheet detail), m
 - `REQ-RDT-EXT-03`: Sistem harus memvalidasi isi data pada setiap baris yang diekstrak: kelengkapan kolom wajib (kolom kontrak minimum, lihat 3.1.1), format numerik pada kolom nominal, serta deteksi duplikasi transaksi. **Nilai nominal negatif adalah sah** apabila baris teridentifikasi sebagai reversal/accrual (mis. remark mengandung "Reverse accrue") — jangan menolak nominal negatif secara buta. Baris yang gagal validasi ditolak secara spesifik (bukan seluruh file) dan dilaporkan ke pengguna beserta alasannya.
 - `REQ-RDT-EXT-04`: Normalisasi kode dinas harus disimpan sebagai **tabel mapping di database** (bukan hardcode). Contoh mapping yang sudah terverifikasi dari data nyata: `TCR` → `TC`, `TJ Plant` → `TJ`. Mapping harus bisa ditambah oleh TAB tanpa perubahan kode.
 - `REQ-RDT-EXT-05`: Aturan eksklusi baris (baris yang tidak dijadikan transaksi lintas dinas) harus eksplisit dan configurable. Dari data nyata: baris dengan prefix Remarks = kode dinas pengunggah sendiri (internal), `AUAK`, dan `PO` di-exclude dari rekap tagihan lintas dinas. Baris yang di-exclude tetap boleh disimpan sebagai data mentah (untuk audit), tapi tidak berstatus PENDING.
+  > **Bug data ditemukan 3 Agu**: repost TB nunjukin 4.346 baris EXCLUDED, padahal
+  > file Excel sumbernya SENDIRI cuma punya 469 baris DT. Angka EXCLUDED yang jauh
+  > lebih besar dari total baris file itu ANEH dan butuh investigasi — kemungkinan
+  > parser salah baca sheet (misalnya ikut nge-parse sheet referensi/lookup yang
+  > harusnya di-skip per 3.1.1 poin 3, atau salah hitung baris kosong/formula
+  > sebagai baris data). JANGAN diasumsikan ini "normal" — telusuri dari mana
+  > 4.346 baris itu benar-benar berasal sebelum melanjutkan fitur lain yang
+  > bergantung pada angka ini.
 - `REQ-RDT-EXT-06`: Parser harus membaca **nilai hasil kalkulasi (computed values)**, bukan string formula — sebagian besar kolom setelah `Value Date` di file nyata berisi formula `XLOOKUP`/referensi sel, bukan nilai statis. Pastikan library pembaca Excel yang dipakai (mis. exceljs/SheetJS di Node.js) dikonfigurasi membaca cached values.
 - `REQ-RDT-EXT-07` **(baru 22 Jul, menggantikan asumsi nama sheet pivot sebelumnya)**: Sheet pivot/summary diidentifikasi dengan salah satu dari dua aturan (OR, bukan AND): (a) nama sheet mengandung kata "summary" secara case-insensitive (mis. "Summary", "summary", nama gabungan yang memuat kata itu), ATAU (b) sel `A3` pada sheet tersebut berisi teks "Sum of In PCLC". Sheet yang cocok salah satu aturan ini di-skip dari ekstraksi transaksi (bukan sumber data, cuma agregasi tampilan) — sesuai definisi di 3.1.1 poin 1. Jangan bergantung pada pola nama sheet spesifik dinas (mis. "DT TB - June 2026") karena terbukti tidak konsisten antar dinas.
 - `REQ-RDT-EXT-08` **(baru 22 Jul)**: Sistem harus menyimpan file Excel ASLI yang diunggah (byte utuh, bukan cuma hasil ekstraksi) ke penyimpanan file server (mis. `src/uploads/`), dengan path/nama file direferensikan dari kolom baru `original_file_path` di `rdt.uploads`. Ini diperlukan untuk REQ-RDT-LEDGER-09 (download file asli dengan formula hidup) — tanpa ini, formula pada file asli hilang permanen setelah parsing karena parser cuma membaca computed values (REQ-RDT-EXT-06).
@@ -271,6 +279,15 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 > **Confirm** di paling bawah yang mengeksekusi (sama seperti pola submit yang sudah
 > ada di Confirmation). "Download" tetap tombol terpisah, tersedia dari sebelum
 > "Confirm Reposted" diklik (lihat REQ-RDT-SAP-05 poin 1).
+> **Dua bug ditemukan 3 Agu**:
+> 1. Layar "Confirm Reposted" menampilkan SEMUA baris transaksi sekaligus (mis. 447
+>    baris) tanpa pagination — harus pakai pagination yang sama (REQ-RDT-NAV-07,
+>    100/halaman) seperti tabel lain, bukan nampilin semuanya jadi satu scroll
+>    panjang.
+> 2. Layar ini TIDAK BISA DITUTUP tanpa menyelesaikan Confirm — ini bug, HARUS ada
+>    cara batal/tutup (tombol Cancel/X) yang bisa dipencet kapan saja tanpa
+>    mewajibkan isi deskripsi+subdoc dulu, sama seperti pola Cancel di halaman
+>    Repost (REQ-RDT-NAV-04).
 > **Pemisahan file otomatis (baru 1 Agu)**: kalau transaksi CONFIRMED dalam satu
 > pasangan lebih dari **300 baris** (limit SAP, sama seperti limit subdoc REQ-RDT-
 > SAP-08), download HARUS otomatis terpecah jadi **beberapa file terpisah, masing-
@@ -403,6 +420,13 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   > (`confirmation.js`), dan "Catatan Reviewer" (REQ-RDT-NAV-04). Satu implementasi
   > @mention yang dipakai ulang di semua field ini, bukan ditulis beda-beda per
   > tempat.
+  > **Bug privasi ditemukan 3 Agu**: satu pesan bisa nge-mention BANYAK dinas
+  > sekaligus (mis. broadcast dari TJ yang nge-tag TA dan TMM di pesan yang sama).
+  > Notifikasi HARUS tetap privat per akun — user TA TIDAK BOLEH bisa lihat bahwa
+  > TMM juga dapet notifikasi dari pesan yang sama, walau keduanya di-mention di
+  > pesan yang identik. Query/tampilan notifikasi HARUS di-scope ketat ke
+  > `recipient_user_id = user yang sedang login`, jangan pernah expose daftar
+  > penerima lain dari komentar/notifikasi yang sama.
 - `REQ-RDT-COMMENT-04` **(baru 31 Jul)**: Mention `@TA` harus di-resolve sebagai mention ke **TAB** (bukan dicari sebagai dinas terpisah bernama "TA") — konsisten dengan REQ-RDT-AUTH-04 yang menyatakan TA sudah tergabung ke TAB. Tanpa alias ini, `@TA` tidak menotifikasi siapapun karena tidak ada directory entry dengan `dinas='TA'`.
   > **DIBATALKAN 31 Jul** — lihat REQ-RDT-AUTH-05: `TA` ternyata dinas mandiri dengan
   > PIC sendiri, alias ini SALAH dan sudah dihapus dari `mentionRules.js`. Baris ini
@@ -531,6 +555,15 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   > ulang karena masih belum kelar sejak 31 Jul. Verifikasi eksplisit setelah
   > implementasi: tampilkan skrinsyut/contoh nyata kasus reassign 2+ hop, bukan
   > cuma laporan "sudah dikerjakan" tanpa bukti visual.
+  > **Diperjelas 3 Agu, ditemukan dari perbandingan langsung**: halaman
+  > `/rdt/dashboard/detail/:from/:target` (Dashboard-Detailing) SUDAH benar
+  > menampilkan detail state termasuk reassign, TAPI level detail/visualisasi yang
+  > SAMA hilang dari dua tempat lain yang menampilkan pasangan dinas yang SAMA:
+  > halaman Dashboard utama (`/rdt/dashboard?sub=need`) dan halaman Confirm
+  > (`/rdt/confirm?from=...&target=...`). Klik kartu di Dashboard utama HARUS
+  > mengarah LANGSUNG ke `/rdt/dashboard/detail/:from/:target` (bukan ke halaman
+  > lain yang lebih sederhana) — konsistensi visualisasi status di ketiga tempat
+  > ini penting, bukan cuma di satu halaman detail doang.
 - `REQ-RDT-NAV-04` (halaman **Repost**, node `20:499`): 2 kolom.
   - **Kolom kiri**: "Upload" (drop file/select from device) di atas, "Review" ("Review
     Detailing Transaction Before Upload") di bawah — review detail transaksi hasil
@@ -563,7 +596,12 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
     - **Bug ditemukan 3 Agu**: kolom Sub Group MASIH BELUM MUNCUL di preview,
       padahal ada di file Excel-nya. Verifikasi kenapa — apakah salah posisi kolom
       (lihat catatan di atas soal posisi beda-beda per dinas), atau kolomnya kelewat
-      di-map di parser/frontend.
+      di-map di parser/frontend. **Petunjuk tambahan 3 Agu**: kolom Sub Group
+      TERNYATA SUDAH MUNCUL dengan benar di halaman "Wait to Repost"/"Confirm
+      Reposted" milik TAB — artinya datanya BENAR ada & ke-parse, bug-nya spesifik
+      di komponen preview Repost doang (kemungkinan kolom itu di-hardcode/di-skip
+      di komponen frontend preview, bukan masalah parser backend). Bandingkan kedua
+      komponen itu buat nemuin bedanya.
     - **"Catatan Reviewer" (baru 3 Agu)**: kolom ini HARUS **fixed di tempat, TIDAK
       scrollable** — sekarang keliatannya jadi kotak scroll terpisah, harusnya
       langsung kebaca penuh tanpa perlu scroll di dalam sel/kolom itu.

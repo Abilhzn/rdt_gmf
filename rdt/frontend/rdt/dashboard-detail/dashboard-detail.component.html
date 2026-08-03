@@ -5,7 +5,13 @@
     <div class="context-badge">
       <ng-container *ngFor="let d of breadcrumb; let last = last">{{ d }}<span *ngIf="!last"> → </span></ng-container>
     </div>
-    <button class="btn btn--ghost" type="button" (click)="backToDashboard()">‹ Kembali ke Dashboard</button>
+    <div class="view-header-row__actions">
+      <!-- B2 (3 Agu): card clicks land here now instead of jumping straight to Confirmation —
+           this is the one-click path onward to actually Confirm/Reject, shown only while there's
+           still something PENDING on this pair. -->
+      <button class="btn btn--primary" type="button" *ngIf="canGoToConfirm" (click)="goToConfirm()">Confirm Reposted →</button>
+      <button class="btn btn--ghost" type="button" (click)="backToDashboard()">‹ Kembali ke Dashboard</button>
+    </div>
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
