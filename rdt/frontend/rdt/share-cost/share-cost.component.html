@@ -4,7 +4,9 @@
     (jumlah nominal hasil split harus persis sama dengan baris asli). Baris asli akan ditandai
     SPLIT_VOID dan tidak lagi dihitung di agregasi manapun; baris hasil split masuk alur
     konfirmasi normal dari awal (dinas baru yang confirm/decline). Hanya untuk baris PENDING —
-    baris yang sudah CONFIRMED tidak bisa di-split di versi ini.
+    baris yang sudah CONFIRMED tidak bisa di-split di versi ini. Kandidat pencarian di bawah
+    ini dibatasi ke baris yang dinas_target-nya sudah langsung "TAB" (bukan Corp, bukan dinas
+    biasa) — bukan sembarang baris PENDING di sistem.
   </p>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 

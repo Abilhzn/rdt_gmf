@@ -144,7 +144,10 @@
                       (valuesChange)="onColumnFilterChange(col.key, $event)"
                     ></rdt-multi-value-filter>
                   </th>
-                  <th>Catatan Reviewer</th>
+                  <!-- REQ-RDT-UI-08/NAV-04 (4 Agu, 3rd report of the same bug): pin this column
+                       via position: sticky so it stays reachable without scrolling the whole
+                       53+-column table horizontally every time — see .reviewer-note-col below. -->
+                  <th class="reviewer-note-col">Catatan Reviewer</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,17 +162,20 @@
                     <td *ngIf="col.key === 'remark'" class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
                     <!-- REQ-RDT-EXT-09 point 3: PIVOT_DERIVED rows are a synthetic one-row-per-
                          pivot-cell aggregate with NO per-row Sub Group/document/cost-center data —
-                         flagging this next to Sheet explains why those columns are blank on these
-                         rows specifically, instead of reading as the Sub Group bug recurring. -->
-                    <td *ngIf="col.key === 'sheet'">
+                         flagging this next to Sub Group explains why the rest of the row is blank
+                         on these rows specifically, instead of reading as a data bug. REQ-RDT-UI-08
+                         (4 Agu) removed the Sheet column this badge used to sit next to — Sub Group
+                         is the next-best anchor since it's the column the comment above already
+                         points at as "would otherwise look buggy". -->
+                    <td *ngIf="col.key === 'sub_group'">
                       {{ getCellValue(r, col.key) ?? '—' }}
                       <span *ngIf="r.granularity === 'PIVOT_DERIVED'" class="granularity-badge" title="Baris agregat dari pivot, bukan baris transaksi individual — Sub Group dan kolom detail lain tidak tersedia untuk baris ini.">Agregat Pivot</span>
                     </td>
-                    <td *ngIf="col.key !== 'status_konfirmasi' && col.key !== 'remark' && col.key !== 'sheet' && !col.numeric">
+                    <td *ngIf="col.key !== 'status_konfirmasi' && col.key !== 'remark' && col.key !== 'sub_group' && !col.numeric">
                       {{ getCellValue(r, col.key) ?? '—' }}
                     </td>
                   </ng-container>
-                  <td>
+                  <td class="reviewer-note-col">
                     <!-- REQ-RDT-NAV-04 (3 Agu): was a fixed-width single-line <input> — text
                          longer than the visible width just scrolled sideways inside the box
                          instead of being readable. A wrapping, non-resizable textarea reads in
@@ -205,7 +211,10 @@
            salah ke Agustus). Riwayat Repost TAB/Dinas mengelompokkan berdasarkan nilai ini. -->
       <label class="repost-desc-label">
         Periode DT ini (wajib)
-        <input type="month" class="repost-desc" [(ngModel)]="period" required />
+        <!-- REQ-RDT-UI-07 (4 Agu): native <input type="month"> rendered as a long scrollable
+             month/year list — replaced with Prev/Next-by-year navigation, see
+             shared/period-picker.component.ts. -->
+        <rdt-period-picker [(value)]="period"></rdt-period-picker>
       </label>
       <label class="repost-desc-label">
         Keterangan (opsional)

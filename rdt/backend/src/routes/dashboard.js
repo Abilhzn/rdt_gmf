@@ -32,7 +32,7 @@
 const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
-const { resolveMentionedUserIds } = require('../rules/mentionRules');
+const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 const { deriveStateLabel } = require('../rules/stateLabel');
 
@@ -497,8 +497,11 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
     const commentId = insertRes.rows[0].id;
 
     // REQ-RDT-COMMENT-03: purely notify-only, no transaction/reassignment side effects.
+    // Privacy bug fix (4 Agu): a mention of a dinas outside THIS pair must not leak a notification
+    // that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
     const directory = await loadDirectory();
-    const mentionedUserIds = resolveMentionedUserIds(body, directory).filter((id) => id !== req.rdtUser.id);
+    const mentionedUserIds = filterMentionsToPair(resolveMentionedUserIds(body, directory), directory, [initiatorDinas, targetDinas])
+      .filter((id) => id !== req.rdtUser.id);
     for (const recipientId of mentionedUserIds) {
       await client.query(
         'INSERT INTO rdt.notifications (recipient_user_id, comment_id) VALUES ($1, $2)',

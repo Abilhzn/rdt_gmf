@@ -1,7 +1,7 @@
 const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
-const { resolveMentionedUserIds } = require('../rules/mentionRules');
+const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
@@ -13,11 +13,14 @@ const router = express.Router();
 // unwind) -- CONFIRMED rows would need a separate ledger-reversal design, out of scope here.
 router.use(requireUser, requireRole('TAB'));
 
-// GET /api/share-cost/candidates?q=... — PENDING rows TAB can pick from. Split isn't scoped to
-// Corp/TAB's own queues (the SRS example is an ordinary dinas-to-dinas misattribution), so this
-// deliberately looks across ALL pending rows system-wide, not just the caller's own queue.
+// GET /api/share-cost/candidates?q=... — PENDING rows TAB can pick from.
+// PERSEMPIT SCOPE (4 Agu, revisi rencana pemilik proyek): originally unscoped ("any PENDING row
+// system-wide" — see git history for the old comment) — now ONLY rows whose dinas_target is
+// ALREADY DIRECTLY 'TAB' (not Corp, not a plain dinas, not an unassigned Ask TA/investigation
+// row) are share-cost candidates. 'TAB' is now a legitimate dinas_target VALUE a parsed Remarks
+// prefix can resolve to (see config/dinas.codes.json), not just a role — see section 3.10.
 // `q` optionally filters by account/ref_doc/remark substring (case-insensitive) so TAB can find
-// the one row they mean without paging through the entire PENDING backlog.
+// the one row they mean without paging through the entire TAB-targeted PENDING backlog.
 router.get('/candidates', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const q = req.query.q ? String(req.query.q).trim() : '';
@@ -25,7 +28,7 @@ router.get('/candidates', async (req, res) => {
   try {
     await client.connect();
     const params = [];
-    let where = `t.status_konfirmasi = 'PENDING'`;
+    let where = `t.status_konfirmasi = 'PENDING' AND t.dinas_target = 'TAB'`;
     if (q) {
       params.push(`%${q}%`);
       where += ` AND (t.account ILIKE $${params.length} OR t.ref_doc ILIKE $${params.length} OR t.remark ILIKE $${params.length})`;
@@ -155,7 +158,11 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
     );
     const commentId = commentRes.rows[0].id;
     const directory = await loadDirectory();
-    const recipientIds = new Set(resolveMentionedUserIds(commentBody, directory));
+    // Privacy bug fix (4 Agu): this comment is posted on the ORIGINAL pair's thread — a mention
+    // of a NEW split-target dinas (or any other dinas outside this pair) must not leak a
+    // notification revealing this pair to them. See mentionRules.js's filterMentionsToPair.
+    const mentioned = filterMentionsToPair(resolveMentionedUserIds(commentBody, directory), directory, [original.dinas_inisiasi, original.dinas_target]);
+    const recipientIds = new Set(mentioned);
     Object.keys(directory).forEach((id) => {
       if (String(directory[id].dinas).toUpperCase() === String(original.dinas_target).toUpperCase()) recipientIds.add(id);
     });

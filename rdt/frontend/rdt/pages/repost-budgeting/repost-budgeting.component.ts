@@ -74,18 +74,18 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     });
   }
 
-  // REQ-RDT-NAV-04: Sub Group leftmost, then the existing meta columns (Sheet/Baris), then EVERY
-  // contract field in its contract order (In PCLC swapped for the specially-formatted Nominal
-  // cell at that same position — see PreviewColumn.numeric), then the existing operational
-  // columns (Dinas target/Kategori/Status), Remark, and finally Catatan Reviewer.
+  // REQ-RDT-NAV-04: Sub Group leftmost, then EVERY contract field in its contract order (In PCLC
+  // swapped for the specially-formatted Nominal cell at that same position — see
+  // PreviewColumn.numeric), then the existing operational columns (Dinas target/Kategori/Status),
+  // Remark, and finally Catatan Reviewer.
+  // REQ-RDT-UI-08 (4 Agu): Sheet/Baris (raw_row_index) dropped — technical parser metadata, not
+  // real DT data, not useful to the reviewing user.
   private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
     const contractCols: PreviewColumn[] = fields.map((f) =>
       f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Nominal', numeric: true } : { key: f.key, label: f.label },
     );
     return [
       { key: 'sub_group', label: 'Sub Group' },
-      { key: 'sheet', label: 'Sheet' },
-      { key: 'row', label: 'Baris' },
       ...contractCols,
       { key: 'dinas_target', label: 'Dinas target' },
       { key: 'category', label: 'Kategori' },

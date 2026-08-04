@@ -34,4 +34,28 @@ function resolveMentionedUserIds(body, directory) {
   return Array.from(userIds);
 }
 
-module.exports = { extractMentionTokens, resolveMentionedUserIds };
+// Privacy bug (reported 3 Agu, STILL LEAKING 4 Agu — this is the actual root-cause fix): every
+// call site that builds a comment's recipient list unions resolveMentionedUserIds(fullText, ...)
+// with an implicit pair-scoped recipient, but never restricted the MENTION side to that same
+// pair. A broadcast description that @mentions multiple dinas at once (e.g. a Repost upload
+// touching both TA and TMM, description "@TA @TMM tolong konfirmasi") creates ONE comment PER
+// pair, but resolveMentionedUserIds resolves the WHOLE shared text every time — so TMM's PIC
+// ends up on the TJ->TA comment's recipient list too, and vice versa. Since GET /api/notifications
+// joins through to the comment's own transaction to show dinas_inisiasi/dinas_target, that
+// mis-scoped recipient row is exactly how TA's (correctly recipient_user_id-scoped) notification
+// feed ends up showing a TJ->TMM entry — TA can see TMM also got notified from the same message,
+// which is precisely what REQ-RDT-COMMENT-03 says must never happen. The fix has to happen at
+// RECIPIENT SELECTION time, not at query time (the query was already correctly scoped) — every
+// mentioned user must belong to the pair the comment is actually anchored to (or be TAB, who
+// legitimately oversees every pair) before being added as a recipient.
+function filterMentionsToPair(userIds, directory, allowedDinasCodes) {
+  const allowedUpper = new Set(allowedDinasCodes.filter(Boolean).map((d) => String(d).toUpperCase()));
+  return userIds.filter((id) => {
+    const entry = directory[id];
+    if (!entry) return false;
+    if (entry.role === 'TAB') return true;
+    return allowedUpper.has(String(entry.dinas).toUpperCase());
+  });
+}
+
+module.exports = { extractMentionTokens, resolveMentionedUserIds, filterMentionsToPair };

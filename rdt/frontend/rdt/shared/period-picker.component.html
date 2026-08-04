@@ -1,0 +1,23 @@
+<div class="period-picker">
+  <button type="button" class="period-picker__trigger" (click)="toggle()">
+    <span>{{ displayLabel }}</span>
+    <span class="period-picker__caret">▾</span>
+  </button>
+
+  <div class="period-picker__panel" *ngIf="open">
+    <div class="period-picker__year-row">
+      <button type="button" class="period-picker__arrow" (click)="prevYear()" aria-label="Tahun sebelumnya">‹</button>
+      <span class="period-picker__year">{{ panelYear }}</span>
+      <button type="button" class="period-picker__arrow" (click)="nextYear()" aria-label="Tahun berikutnya">›</button>
+    </div>
+    <div class="period-picker__month-grid">
+      <button
+        type="button"
+        class="period-picker__month"
+        *ngFor="let label of monthLabels; let i = index"
+        [class.period-picker__month--selected]="isSelected(i + 1)"
+        (click)="pickMonth(i + 1)"
+      >{{ label }}</button>
+    </div>
+  </div>
+</div>

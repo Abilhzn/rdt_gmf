@@ -2,7 +2,7 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
 const { validateReassignTarget } = require('../rules/reassignmentRules');
-const { resolveMentionedUserIds } = require('../rules/mentionRules');
+const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
@@ -41,7 +41,10 @@ async function postPairComment(client, dinasInisiasi, dinasTarget, fallbackTrans
   // anyone explicitly @mentioned.
   const commentId = commentRes.rows[0].id;
   const directory = await loadDirectory();
-  const recipientIds = new Set(resolveMentionedUserIds(body, directory));
+  // Privacy bug fix (4 Agu): a mention of a dinas outside THIS pair must not leak a notification
+  // that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
+  const mentioned = filterMentionsToPair(resolveMentionedUserIds(body, directory), directory, [dinasInisiasi, dinasTarget]);
+  const recipientIds = new Set(mentioned);
   Object.keys(directory).forEach((id) => {
     if (String(directory[id].dinas).toUpperCase() === String(dinasTarget).toUpperCase()) recipientIds.add(id);
   });

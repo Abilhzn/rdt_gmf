@@ -16,6 +16,7 @@ const fs = require('fs');
 
 const { parseExcelFile, CONTRACT_FIELDS } = require('./parser/excelParser');
 const { flagDuplicates } = require('./persist/duplicateCheck');
+const { evaluateSupersede } = require('./persist/supersedeCheck');
 const { saveOriginalFile } = require('./persist/originalFile');
 const confirmationRouter = require('./routes/confirmation');
 const reassignmentRouter = require('./routes/reassignment');
@@ -27,7 +28,7 @@ const investigationRouter = require('./routes/investigation');
 const shareCostRouter = require('./routes/shareCost');
 const { requireUser } = require('./middleware/auth');
 const { loadDirectory } = require('./dataUserClient');
-const { resolveMentionedUserIds } = require('./rules/mentionRules');
+const { resolveMentionedUserIds, filterMentionsToPair } = require('./rules/mentionRules');
 const { Client } = require('pg');
 
 const app = express();
@@ -353,11 +354,66 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
     const rawCount = body.rows.length;
     try {
       await client.query('BEGIN');
+
+      // REQ-RDT-EXT-10 (4 Agu): a re-upload for a (dinas_inisiasi, periode) pair that already has
+      // an ACTIVE upload must supersede it, not accumulate alongside it — lock candidates first so
+      // two concurrent persists for the same dinas+period can't both pass the block-check below.
+      const priorRes = await client.query(
+        `SELECT id FROM rdt.uploads WHERE dinas_code=$1 AND period=$2 AND status='ACTIVE' FOR UPDATE`,
+        [uploader, period]
+      );
+      const priorUploadIds = priorRes.rows.map((r) => r.id);
+      let supersedeOutcome = { blocked: false, blockingCount: 0, blockingIds: [], supersedeIds: [] };
+      if (priorUploadIds.length) {
+        // has_ledger_entry, not status_konfirmasi, decides block-vs-supersede (see
+        // persist/supersedeCheck.js header comment for why a status whitelist was rejected).
+        const priorTxnRes = await client.query(
+          `SELECT t.id, t.status_konfirmasi,
+                  EXISTS (SELECT 1 FROM rdt.ledger_entries le WHERE le.transaction_id = t.id) AS has_ledger_entry
+           FROM rdt.transactions t WHERE t.upload_id = ANY($1)`,
+          [priorUploadIds]
+        );
+        supersedeOutcome = evaluateSupersede(priorTxnRes.rows);
+        if (supersedeOutcome.blocked) {
+          await client.query('ROLLBACK');
+          if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+          return res.status(409).json({
+            ok: false,
+            error: `Upload sebelumnya untuk dinas ${uploader} periode ${period} (upload id ${priorUploadIds.join(', ')}) punya ${supersedeOutcome.blockingCount} transaksi yang sudah tercatat di ledger (CONFIRMED) — tidak bisa otomatis diganti. Tinjau/selesaikan transaksi tersebut secara manual dulu sebelum repost ulang periode ini.`,
+            blocking_transaction_ids: supersedeOutcome.blockingIds,
+            prior_upload_ids: priorUploadIds,
+          });
+        }
+      }
+
       const upRes = await client.query(
         `INSERT INTO rdt.uploads (dinas_code, uploaded_by_user_id, original_filename, description, row_count_total, period) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
         [uploader, uploadedBy, originalFilename, description, rawCount, period]
       );
       const uploadId = upRes.rows[0].id;
+
+      if (priorUploadIds.length) {
+        await client.query(
+          `UPDATE rdt.uploads SET status='SUPERSEDED', superseded_at=now(), superseded_by_upload_id=$1 WHERE id = ANY($2)`,
+          [uploadId, priorUploadIds]
+        );
+        if (supersedeOutcome.supersedeIds.length) {
+          await client.query(
+            `UPDATE rdt.transactions SET status_konfirmasi='SUPERSEDED', updated_at=now() WHERE id = ANY($1)`,
+            [supersedeOutcome.supersedeIds]
+          );
+        }
+        await client.query(
+          `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,NULL,$2,$3,$4,$5)`,
+          [uploadedBy, 'UPLOAD_SUPERSEDED', 'ACTIVE', 'SUPERSEDED', JSON.stringify({
+            dinas_inisiasi: uploader,
+            period,
+            prior_upload_ids: priorUploadIds,
+            new_upload_id: uploadId,
+            superseded_transaction_count: supersedeOutcome.supersedeIds.length,
+          })]
+        );
+      }
 
       // REQ-RDT-EXT-08: save the original workbook byte-for-byte (if the client attached one)
       // and link it to this upload row, so REQ-RDT-LEDGER-09's download-with-live-formulas has
@@ -481,7 +537,12 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
             [transactionId, uploadedBy, trimmedDescription]
           );
           const commentId = commentRes.rows[0].id;
-          const recipientIds = new Set(resolveMentionedUserIds(trimmedDescription, directory));
+          // Privacy bug fix (4 Agu, mentionRules.js's filterMentionsToPair header comment): this
+          // loop creates ONE comment per distinct target dinas from the SAME shared description —
+          // a mention elsewhere in that text (e.g. a different pair's dinas) must not leak into
+          // THIS pair's recipient list.
+          const mentioned = filterMentionsToPair(resolveMentionedUserIds(trimmedDescription, directory), directory, [uploader, targetDinas]);
+          const recipientIds = new Set(mentioned);
           Object.keys(directory).forEach((id) => {
             if (String(directory[id].dinas).toUpperCase() === String(targetDinas).toUpperCase()) recipientIds.add(id);
           });
@@ -494,7 +555,14 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
 
       await client.query('COMMIT');
       const duplicatesFlagged = rowsToInsert.filter((r, i) => r.status_konfirmasi === 'NEEDS_REVIEW' && body.rows[i].status_konfirmasi === 'PENDING').length;
-      return res.json({ ok: true, inserted: rowsToInsert.length, upload_id: uploadId, duplicates_flagged: duplicatesFlagged });
+      return res.json({
+        ok: true,
+        inserted: rowsToInsert.length,
+        upload_id: uploadId,
+        duplicates_flagged: duplicatesFlagged,
+        superseded_upload_ids: priorUploadIds,
+        superseded_transaction_count: supersedeOutcome.supersedeIds.length,
+      });
     } catch (err) {
       await client.query('ROLLBACK');
       // If the failure happened before saveOriginalFile() ran, the temp file is still sitting

@@ -19,14 +19,36 @@ async function runMigrations() {
     const schemaSql = fs.readFileSync(path.join(__dirname, '..', 'sql', 'schema.sql'), 'utf8');
     await client.query(schemaSql);
 
+    // Bug found 4 Agu: this runner used to re-execute EVERY migration file on EVERY server
+    // start, every time, forever, relying on each file's own SQL being idempotent (IF NOT
+    // EXISTS / DROP...ADD CONSTRAINT). That assumption breaks the moment an EARLIER migration's
+    // CHECK constraint is narrower than a LATER one's and real data using the later, wider set
+    // already exists (e.g. migration 004's status_konfirmasi list predates 'SUPERSEDED' from
+    // migration 013 — once a real SUPERSEDED row exists, re-running 004's ADD CONSTRAINT on the
+    // next boot fails validation against it, even though 013 immediately re-widens it right
+    // after). Track which files have already run in a small table instead, so each migration
+    // executes exactly once ever, not once per boot — schema.sql stays re-run every time
+    // (it's already written to be safely re-appliable via IF NOT EXISTS/ON CONFLICT). A fresh
+    // install's tracking table starts empty and every migration runs once, in order, same as
+    // always. An EXISTING database (this dev DB included) needs this table seeded once with
+    // whichever migration files were already applied before this fix existed — see
+    // scripts/backfillMigrationsApplied.js, run once by hand, not automatically here (auto-
+    // guessing "table doesn't exist yet -> everything already applied" would be WRONG on a
+    // genuinely fresh install with an empty database). See tools/backfillMigrationsApplied.js.
+    await client.query(`CREATE TABLE IF NOT EXISTS rdt._migrations_applied (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`);
+
     // Changes made after schema.sql was first applied live as separate files in
     // sql/migrations/, run in filename order — schema.sql itself is not edited retroactively.
     const migrationsDir = path.join(__dirname, '..', 'sql', 'migrations');
     if (fs.existsSync(migrationsDir)) {
+      const appliedRes = await client.query('SELECT filename FROM rdt._migrations_applied');
+      const applied = new Set(appliedRes.rows.map((r) => r.filename));
       const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
       for (const file of files) {
+        if (applied.has(file)) continue;
         const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
         await client.query(sql);
+        await client.query('INSERT INTO rdt._migrations_applied (filename) VALUES ($1)', [file]);
       }
     }
     console.log('Migrations applied');

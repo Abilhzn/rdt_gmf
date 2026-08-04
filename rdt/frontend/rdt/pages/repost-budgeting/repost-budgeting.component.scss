@@ -249,6 +249,25 @@ $radius-md: 8px;
 // ---------- tables ----------
 .table-scroll { overflow-x: auto; }
 
+// REQ-RDT-UI-08/NAV-04 (4 Agu, 3rd report of the same bug): "Catatan Reviewer" is the rightmost
+// of 50+ columns — pin it via position: sticky so it's always reachable without scrolling the
+// whole table horizontally every time, instead of the wrapping-textarea-only fix from 3 Agu
+// (that fixed scrolling INSIDE the cell, not having to scroll the TABLE to reach the cell at
+// all, which is what's still being reported). Solid backgrounds + a shadow on the left edge are
+// required for a sticky column to read correctly — otherwise scrolling content shows through.
+.reviewer-note-col {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #fff;
+  box-shadow: -4px 0 6px -4px rgba(0, 0, 0, 0.25);
+}
+
+thead .reviewer-note-col {
+  z-index: 3;
+  background: $page-bg;
+}
+
 .matrix,
 .rows {
   width: 100%;

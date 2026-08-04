@@ -1,0 +1,95 @@
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
+// shell.component.scss for the "why literal, not just structural" note. Same tokens as this
+// component's siblings (pagination.component.scss, multi-value-filter.component.scss).
+
+$ink: #000;
+$ink-600: #52616e;
+$accent: #006298;
+$line: #cccccc;
+$radius-md: 8px;
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.35);
+
+.period-picker {
+  position: relative;
+  display: inline-block;
+}
+
+.period-picker__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  background: #fff;
+  color: $ink;
+  font-size: 13.5px;
+  font-family: inherit;
+  padding: 8px 12px;
+  cursor: pointer;
+
+  &:hover { border-color: $accent; }
+}
+
+.period-picker__caret { color: $ink-600; font-size: 11px; margin-left: auto; }
+
+.period-picker__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 220px;
+  background: #fff;
+  border-radius: $radius-md;
+  box-shadow: $shadow-lg;
+  padding: 10px;
+}
+
+.period-picker__year-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.period-picker__year { font-size: 14px; font-weight: 700; color: $ink; }
+
+.period-picker__arrow {
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  background: #fff;
+  color: $ink;
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover { border-color: $accent; color: $accent; }
+}
+
+.period-picker__month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.period-picker__month {
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  background: #fff;
+  color: $ink;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 8px 0;
+  cursor: pointer;
+
+  &:hover { border-color: $accent; }
+
+  &--selected {
+    background: $accent;
+    border-color: $accent;
+    color: #fff;
+    font-weight: 700;
+  }
+}

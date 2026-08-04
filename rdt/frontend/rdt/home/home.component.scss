@@ -9,31 +9,16 @@ $danger-600: #b3261e;
 $danger-050: #fdecea;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-// REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu) — literal colors from that mockup for the KPI
-// cards / segmented progress bar / rollup table (green=confirmed, amber=open, red=declined,
-// same "literal, not just structural" rationale as the rest of this file's tokens).
-$ink-900: #1a1f26;
-$ink-500: #666b75;
-$page-bg-2: #f6f7f9;
-$green: #1c9966;
-$green-bg: rgba(28, 153, 102, 0.14);
-$amber: #d98c1a;
-$amber-bg: rgba(217, 140, 26, 0.14);
-$red: #d14040;
-$red-bg: rgba(209, 64, 64, 0.14);
-$bar-track: #ebedf0;
 // REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px, not Figma's literal 32px — project owner
 // asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-xl.
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual
-// dashboard (sebelumnya cuma tombol putih).
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
-  border: 1px solid $line;
+  box-shadow: $shadow-lg;
   padding: 36px;
 }
 
@@ -52,13 +37,11 @@ $radius-md: 8px;
   cursor: pointer;
   border: none;
 
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
-  // penanda visual sebagai gantinya.
   &--ghost {
     background: #fff;
     color: $ink;
-    border: 1px solid $line;
-    &:hover { border-color: $accent; }
+    box-shadow: $shadow-sm;
+    &:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
   }
 }
 
@@ -78,16 +61,30 @@ $radius-md: 8px;
 // via home.component.html's #pairCard ng-template. ----------
 .pair-card-list { display: flex; flex-direction: column; gap: 16px; }
 
+// REQ-RDT-NAV-03 (5 Agu): .pair-card is now the OUTER flex row, so the whole thing (main content
+// + divider + expanded chain detail) reads as ONE wider card sharing a single shadow/radius when
+// expanded — matches the approved mockup's "kartu jadi lebih lebar saat expand" note — rather
+// than the detail panel looking like a separate floating box.
 .pair-card {
   background: #fff;
   border-radius: $radius-lg;
-  border: 1px solid $line;
-  padding: 20px 28px 24px;
+  box-shadow: $shadow-lg;
+  display: flex;
+  align-items: stretch;
 
-  &--clickable {
-    cursor: pointer;
-    &:hover { border-color: $accent; }
+  &__main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 20px 28px 24px;
+    position: relative;
+
+    &--clickable {
+      cursor: pointer;
+    }
   }
+  // Hover feedback moves to the outer card so it still fires correctly even though the click
+  // handler itself lives on __main.
+  &:has(.pair-card__main--clickable):hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6); }
 
   &__header {
     display: flex;
@@ -103,59 +100,50 @@ $radius-md: 8px;
   &__count { background: #f2f2f2; border: 1px solid #000; border-radius: $radius-md; padding: 5px 14px; font-size: 14px; font-weight: 700; flex: 0 0 auto; }
 
   &__body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  // P4.5 (3 Agu): badge & tag sat flush together with only the tag's own margin-top for
-  // spacing — this display:block + margin-bottom gives a guaranteed gap regardless of layout
-  // (bar-row's plain span flow vs donut's flex row).
-  &__reply { display: block; font-size: 14px; color: $ink-600; margin-bottom: 10px; }
-  // REQ-RDT-NAV-02 (diperjelas 1 Agu): sama persis .state-label yang sudah dipakai di Need
-  // Approval/Riwayat Repost — satu tone konsisten di semua tempat state_label muncul.
-  &__state-label {
-    display: inline-block;
-    margin-top: 12px;
-    padding: 2px 8px;
-    border-radius: $radius-md;
-    background: #f2f2f2;
-    color: $ink-600;
-    font-size: 11.5px;
-    font-weight: 600;
-
-    // P4.6 (Figma 78:242 re-pull): amber = waiting on a dinas to confirm, blue = waiting for
-    // TAB to repost, green = already reposted/has a subdoc — matches the KPI row's own tones.
-    &--amber { background: rgba(217, 140, 26, 0.14); color: #d98c1a; }
-    &--blue { background: rgba(0, 98, 152, 0.14); color: $accent; }
-    &--green { background: rgba(28, 153, 102, 0.14); color: #1c9966; }
-  }
+  &__reply { font-size: 14px; color: $ink-600; }
   &__notif { margin-top: 12px; font-size: 12px; color: $danger-600; font-weight: 600; }
-}
 
-// A2 (3 Agu, Figma 78:242 re-pull): 2-column bar-mode body — left column (state-label pill +
-// comment count, stacked) sits BESIDE the bar+legend column, not below a full-width bar. Fixes
-// the "clearly different" layout gap flagged against the reference (previously one long stacked
-// column reading visibly taller than the reference's compact 2-column card).
-.pair-card__bar-body {
-  display: flex;
-  align-items: flex-start;
-  gap: 28px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
+  // ---------- REQ-RDT-NAV-03 progress-redirect badge + sideways expand (5 Agu) ----------
+  &__chain-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    border: 1px solid $accent;
+    border-radius: 999px;
+    background: #fff;
+    color: $accent;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-family: inherit;
 
-.pair-card__bar-left {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  flex: 0 0 260px;
-  min-width: 200px;
+    &:hover { background: rgba(0, 98, 152, 0.08); }
+  }
+  &__chain-badge-caret { font-size: 9px; }
 
-  // Reset the standalone-context spacing (margin-top on the pill, margin-bottom on the reply
-  // count) — this column's own `gap` already provides consistent spacing between the two.
-  .pair-card__state-label { margin-top: 0; }
-  .pair-card__reply { margin-bottom: 0; }
-}
+  &__chain-divider { flex: 0 0 auto; width: 1px; align-self: stretch; background: $line; margin: 16px 0; }
 
-.pair-card__bar-right {
-  flex: 1 1 320px;
-  min-width: 0;
+  &__chain-detail {
+    flex: 0 0 220px;
+    padding: 20px 24px 24px 20px;
+  }
+  &__chain-detail-title { font-size: 13px; font-weight: 700; color: $ink; margin-bottom: 14px; }
+
+  &__chain-hop {
+    margin-bottom: 14px;
+    &:last-child { margin-bottom: 0; }
+  }
+  &__chain-hop-label { display: block; font-size: 12px; color: $ink-600; margin-bottom: 4px; }
+  &__chain-hop-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: $line;
+    overflow: hidden;
+  }
+  &__chain-hop-bar-fill { display: block; height: 100%; background: $accent; border-radius: 4px; }
+  &__chain-hop-count { display: block; font-size: 11px; color: $ink-600; margin-top: 3px; text-align: right; }
 }
 
 .dinas-circle {
@@ -180,146 +168,4 @@ $radius-md: 8px;
   }
 
   .pct-label { position: relative; z-index: 1; font-weight: 700; font-size: 15px; color: $ink; }
-}
-
-// ---------- KPI summary row (Figma 78:242/78:243, 1 Agu) — 4 cards (PIC) or 5 (TAB), same card
-// shell either way. ----------
-.kpi-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
-  margin-bottom: 24px;
-}
-
-.kpi-card {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 4px 12px;
-  background: #fff;
-  border-radius: $radius-lg;
-  border: 1px solid $line;
-  padding: 16px;
-
-  &__icon {
-    flex: 0 0 auto;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-weight: 700;
-    font-size: 14px;
-
-    &--blue { background: $accent; }
-    &--green { background: $green; }
-    &--amber { background: $amber; }
-    &--red { background: $red; }
-  }
-
-  &__body { flex: 1 1 auto; min-width: 0; }
-  &__value { font-size: 24px; font-weight: 700; color: $ink-900; line-height: 1.2; }
-  // P4.6 follow-up (A2, Figma 78:242 re-pull): label and note share ONE row (label left, note
-  // right-aligned), matching the reference — previously the note was forced onto a separate row
-  // below the label, which reads as a 3rd stacked line instead of the reference's 2-line card.
-  &__meta-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    margin-top: 2px;
-    flex-wrap: wrap;
-  }
-  &__label { font-size: 12px; color: $ink-500; }
-
-  &__note {
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-
-    &--blue { color: $accent; }
-    &--green { color: $green; }
-    &--amber { color: $amber; }
-    &--red { color: $red; }
-  }
-}
-
-// ---------- segmented progress bar (Figma 78:242/78:243) — replaces the donut ring on 'own'
-// pair cards + the rollup table's Progress column. ----------
-.pair-card__bar-row { display: flex; align-items: center; gap: 16px; }
-.pair-card__percent { font-size: 22px; font-weight: 700; flex: 0 0 auto; }
-
-.segment-bar {
-  flex: 1 1 auto;
-  height: 16px;
-  border-radius: 6px;
-  background: $bar-track;
-  overflow: hidden;
-  display: flex;
-
-  &--table { height: 12px; }
-
-  &__seg {
-    height: 100%;
-    &--confirmed { background: $green; }
-    &--open { background: $amber; }
-    &--declined { background: $red; }
-  }
-}
-
-.segment-legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: $ink-500;
-
-  &__dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-left: 4px;
-
-    &--confirmed { background: $green; }
-    &--open { background: $amber; }
-    &--declined { background: $red; }
-  }
-}
-
-// ---------- per-dinas rollup table (Figma 78:243, TAB-only) ----------
-.table-scroll { overflow-x: auto; }
-
-.rollup-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-
-  th, td { padding: 10px 12px; text-align: left; white-space: nowrap; }
-  thead th { color: $ink-500; font-size: 12px; font-weight: 600; border-bottom: 1px solid $line; }
-  tbody tr { border-bottom: 1px solid #f2f2f5; }
-  tbody tr:last-child { border-bottom: none; }
-
-  &__dinas { font-weight: 700; color: $ink-900; }
-  &__num { text-align: right; font-variant-numeric: tabular-nums; }
-  &__num--confirmed { color: $green; }
-  &__num--open { color: $amber; font-weight: 700; }
-  &__num--declined { color: $red; }
-  &__percent { color: $accent; font-weight: 700; }
-  &__progress-col { width: 220px; }
-}
-
-.rollup-status {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 13px;
-  font-size: 11px;
-  font-weight: 600;
-
-  &--investigation { background: $red-bg; color: $red; }
-  &--reposted { background: $green-bg; color: $green; }
 }

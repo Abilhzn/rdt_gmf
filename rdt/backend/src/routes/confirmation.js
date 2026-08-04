@@ -2,7 +2,7 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireDinasAccess } = require('../middleware/auth');
 const { validateReassignTarget } = require('../rules/reassignmentRules');
-const { resolveMentionedUserIds } = require('../rules/mentionRules');
+const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
@@ -163,7 +163,11 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
         // REQ-RDT-COMMENT-03 (diperluas 3 Agu): implicit dinas_inisiasi recipients (context) PLUS
         // anyone explicitly @mentioned in the text (e.g. a third dinas not otherwise involved) —
         // same union pattern as index.js's Repost description and dashboard.js's manual comments.
-        const recipientIds = new Set(resolveMentionedUserIds(trimmedDescription, directory));
+        // Privacy bug fix (4 Agu): this loop runs once per distinct dinas_inisiasi in the submit
+        // batch, all sharing the SAME description text — a mention meant for one pair must not
+        // leak into another pair's recipient list (see mentionRules.js's filterMentionsToPair).
+        const mentioned = filterMentionsToPair(resolveMentionedUserIds(trimmedDescription, directory), directory, [dinasInisiasi, dinas]);
+        const recipientIds = new Set(mentioned);
         Object.keys(directory).forEach((id) => {
           if (String(directory[id].dinas).toUpperCase() === String(dinasInisiasi).toUpperCase()) recipientIds.add(id);
         });

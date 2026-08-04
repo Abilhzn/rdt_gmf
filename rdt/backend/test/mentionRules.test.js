@@ -1,9 +1,10 @@
-const { extractMentionTokens, resolveMentionedUserIds } = require('../src/rules/mentionRules');
+const { extractMentionTokens, resolveMentionedUserIds, filterMentionsToPair } = require('../src/rules/mentionRules');
 
 const directory = {
   'demo-pic-tc': { dinas: 'TC', role: 'PIC', display_name: 'PIC TC (demo)' },
   'demo-pic-tj': { dinas: 'TJ', role: 'PIC', display_name: 'PIC TJ (demo)' },
   'demo-ta': { dinas: 'TA', role: 'PIC', display_name: 'TA (demo)' },
+  'demo-tmm': { dinas: 'TMM', role: 'PIC', display_name: 'TMM (demo)' },
   'demo-tab': { dinas: 'TAB', role: 'TAB', display_name: 'TAB (demo)' },
 };
 
@@ -56,5 +57,32 @@ describe('resolveMentionedUserIds', () => {
 
   test('@TA resolution is case-insensitive', () => {
     expect(resolveMentionedUserIds('cc @ta tolong cek', directory)).toEqual(['demo-ta']);
+  });
+});
+
+// Privacy bug (3 Agu, still leaking 4 Agu): a broadcast description mentioning multiple dinas at
+// once (e.g. a Repost upload touching both TJ->TA and TJ->TMM, description "@TA @TMM tolong
+// konfirmasi") must NOT let TA's PIC see the TJ->TMM comment (or vice versa) just because both
+// were named in the same shared text — see mentionRules.js's header comment on this function.
+describe('filterMentionsToPair', () => {
+  test('drops a mentioned user whose dinas is not part of the pair', () => {
+    const mentioned = resolveMentionedUserIds('@TA @TMM tolong konfirmasi', directory);
+    expect(mentioned.sort()).toEqual(['demo-ta', 'demo-tmm']);
+    // this comment is anchored to the TJ->TA pair specifically
+    expect(filterMentionsToPair(mentioned, directory, ['TJ', 'TA'])).toEqual(['demo-ta']);
+  });
+
+  test('keeps a mentioned user whose dinas IS part of the pair', () => {
+    const mentioned = resolveMentionedUserIds('@TA @TMM tolong konfirmasi', directory);
+    expect(filterMentionsToPair(mentioned, directory, ['TJ', 'TMM'])).toEqual(['demo-tmm']);
+  });
+
+  test('always keeps a TAB-role user regardless of pair', () => {
+    const mentioned = resolveMentionedUserIds('@TAB tolong cek', directory);
+    expect(filterMentionsToPair(mentioned, directory, ['TJ', 'TA'])).toEqual(['demo-tab']);
+  });
+
+  test('drops an id with no matching directory entry', () => {
+    expect(filterMentionsToPair(['ghost-user'], directory, ['TJ', 'TA'])).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { DashboardService, DinasProgress, DashboardKpis, PerDinasRollupRow } from '../services/dashboard.service';
+import { DashboardService, DinasProgress } from '../services/dashboard.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
 // REQ-RDT-NAV-02/02a — rebuilt to match the updated Figma (nodes 1:2 "Need to Confirm" / 69:209
@@ -9,6 +9,16 @@ import { CurrentUserService } from '@auth/services/current-user.service';
 // the `sub` query param (?sub=need|own) so it's linkable/shareable and ShellComponent's sidebar
 // sub-links (a sibling, not an ancestor of this component) can read it too — see
 // ShellComponent.dashboardSubview.
+//
+// REQ-RDT-UI-05 (4 Agu, project owner rollback request): the KPI-card/segmented-bar restyle
+// pulled from Figma 78:242/78:243 (and its later re-pull) is reverted — this file and its
+// template/styles are back to the donut-ring pair-card design from before that reference (see
+// git commit ce06ff2, the last commit before the restyle landed). Two real bug fixes landed in
+// this file AFTER the restyle and are intentionally NOT reverted along with the visual design
+// (explicit project owner call, since neither touches layout/styling): the A5 chain-arrow fix in
+// pairTitle() below, and the B2 card-click-routing groundwork in resolvePair()/goToDetail() below
+// — B2's own "always Dashboard-Detailing" behavior itself is superseded by REQ-RDT-NAV-03 revisi
+// (4 Agu), see onCardClick() below.
 @Component({
   selector: 'rdt-home',
   standalone: false,
@@ -25,12 +35,10 @@ export class HomeComponent implements OnInit {
    * submissions — TAB doesn't originate reposts itself. */
   isGlobalView = false;
 
-  // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): KPI summary row + (TAB only) the per-dinas
-  // rollup table — both only ever shown on the 'own' sub-view (Report Submission / Summary
-  // Progress All Dinas), matching the two Figma frames this was pulled from. 'need' (Need to
-  // Confirm) keeps its pre-existing donut-card look — no updated design was provided for it.
-  kpis: DashboardKpis | null = null;
-  perDinasRollup: PerDinasRollupRow[] = [];
+  /** REQ-RDT-NAV-03 (5 Agu): which card's chain-detail badge is expanded, at most one at a time —
+   * keyed the same way pairTitle/onCardClick distinguish cards (kind + the pair's own dinas
+   * codes), since 'need' and 'own' lists can both be on screen depending on subview. */
+  expandedChainKey: string | null = null;
 
   constructor(
     private dashboard: DashboardService,
@@ -41,13 +49,7 @@ export class HomeComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe((params) => {
-      // REQ-RDT-NAV-10 (1 Agu sore, reversed): TAB's "Need Identification" Dashboard sub-view is
-      // back — an explicit ?sub=need/own always wins; with no query param, TAB still LANDS on
-      // 'own' (Summary Progress All Dinas) by default, same as right after the merge, just no
-      // longer the ONLY option. Unchanged for a plain PIC (?sub= unset defaults to 'need').
-      const isTab = this.currentUser.current?.role === 'TAB';
-      const sub = params.get('sub');
-      this.subview = sub === 'need' ? 'need' : sub === 'own' ? 'own' : isTab ? 'own' : 'need';
+      this.subview = params.get('sub') === 'own' ? 'own' : 'need';
     });
     this.currentUser.user$.subscribe(() => this.load());
   }
@@ -56,18 +58,10 @@ export class HomeComponent implements OnInit {
     return this.currentUser.current?.dinas;
   }
 
-  // REQ-RDT-NAV-10 (1 Agu sore, project owner request): TAB's "Need Identification" Dashboard
-  // sub-view was retired when the merge with the Confirmation nav item happened — restored here,
-  // now styled like Report Submission/Summary Progress (segmented bar + KPI row) instead of the
-  // old donut. Unchanged for a plain PIC (donut, no KPI row, label stays "Need to Confirm").
-  get isTabRole(): boolean {
-    return this.currentUser.current?.role === 'TAB';
-  }
-
   load(): void {
     this.errorMessage = '';
     this.loaded = false;
-    if (!this.currentUser.current) { this.asInitiator = []; this.needToConfirm = []; this.kpis = null; this.perDinasRollup = []; return; }
+    if (!this.currentUser.current) { this.asInitiator = []; this.needToConfirm = []; return; }
     this.dashboard.getSummary().subscribe({
       next: (summary) => {
         this.asInitiator = summary.as_initiator;
@@ -77,35 +71,30 @@ export class HomeComponent implements OnInit {
       },
       error: (err) => { this.errorMessage = err?.error?.error || err?.message || 'Gagal memuat dashboard'; },
     });
-    this.dashboard.getKpis().subscribe({
-      next: (kpis) => { this.kpis = kpis; },
-      error: () => { /* KPI row is supplementary — don't block the rest of the page on it */ },
-    });
-    // Only TAB's global view has the per-dinas rollup table (backend also enforces TAB-only).
-    if (this.currentUser.current.role === 'TAB') {
-      this.dashboard.getPerDinasRollup().subscribe({
-        next: (rows) => { this.perDinasRollup = rows; },
-        error: () => { /* supplementary — see KPI note above */ },
-      });
-    }
   }
 
-  // B2 (3 Agu, SRS clarified): BOTH 'need' and 'own' cards now drill into Dashboard-Detailing —
-  // previously 'need' cards went straight to Confirmation instead, which meant the richer status
-  // view (chain breadcrumb, full thread, redirect history) only ever showed up for the initiator's
-  // OWN view, never for the confirming dinas clicking from their own "Need to Confirm" list. The
-  // actual Confirm/Reject ACTION is still one click away via the "Confirm Reposted" button
-  // dashboard-detail.component now shows when there's something PENDING on that pair (see
-  // DashboardDetailComponent.goToConfirm) — this only changes what the CARD CLICK itself lands on.
+  // REQ-RDT-NAV-03 REVISI (4 Agu, supersedes B2 from 3 Agu): NOT always Dashboard-Detailing
+  // anymore — routing now depends on whether the pair still has anything PENDING. Still
+  // outstanding -> straight to the action page (Confirm). Fully resolved -> the read-only
+  // summary/history page (Dashboard-Detailing). B2's original motivation (a 'need' card used to
+  // lose the rich status view — chain breadcrumb, full thread — that 'own'/Dashboard-Detailing
+  // had) still holds for the RESOLVED case, which is exactly when this now lands there.
   onCardClick(kind: 'need' | 'own', d: DinasProgress): void {
     if (kind === 'need' && d.target_dinas === 'INVESTIGATION') {
       // REQ-RDT-LEDGER-10 (29 Jul): the Investigation/Ask TA pseudo-card (see
       // dashboard.js's fetchInvestigationCounts) goes straight to Confirmation's Investigation
-      // sub-tab — it isn't a real (initiator, target) pair, so Dashboard-Detailing doesn't apply.
+      // sub-tab — it isn't a real (initiator, target) pair, so this pending/resolved split
+      // doesn't apply.
       this.goToInvestigation();
       return;
     }
-    this.goToDetail(kind, d);
+    const pair = this.resolvePair(kind, d);
+    if (!pair) return;
+    if ((d.open || 0) > 0) {
+      this.goToConfirmFrom(pair.initiator, pair.target);
+    } else {
+      this.goToDetail(pair.initiator, pair.target);
+    }
   }
 
   // REQ-RDT-LEDGER-10: same pseudo-card sentinel appears on both panels — 'need' shape has it at
@@ -119,13 +108,13 @@ export class HomeComponent implements OnInit {
   // into the UI as a "dinas name" — REQ-RDT-LEDGER-10 restructure (29 Jul) reuses the same
   // "Investigation/Ask TA" label the Confirmation sub-nav already uses.
   //
-  // REQ-RDT-NAV-03 (31 Jul, A5 fix 3 Agu): both 'own' (buildChainAwareProgress) AND 'need'
-  // (buildNeedToConfirmProgress) cards now carry a full redirect breadcrumb in d.chain (e.g.
-  // ['TJ','TC','TL']) when every transaction under the card agrees on the same path — render
-  // that instead of just the two endpoints when present. Previously 'need' cards were hardcoded
-  // to stay two-point on the (mistaken) assumption they never see a redirect — but a 'need' card
-  // groups by the CURRENT dinas_target, which is exactly what a chain member sees, so the same
-  // "SRS 3 Agu: chain arrow missing everywhere except Dashboard-Detailing" bug applied here too.
+  // REQ-RDT-NAV-03 (31 Jul, A5 fix 3 Agu, KEPT through the REQ-RDT-UI-05 design rollback): both
+  // 'own' (buildChainAwareProgress) AND 'need' (buildNeedToConfirmProgress) cards now carry a
+  // full redirect breadcrumb in d.chain (e.g. ['TJ','TC','TL']) when every transaction under the
+  // card agrees on the same path — render that instead of just the two endpoints when present.
+  // Previously 'need' cards were hardcoded to stay two-point on the (mistaken) assumption they
+  // never see a redirect — but a 'need' card groups by the CURRENT dinas_target, which is exactly
+  // what a chain member sees, so the same "chain arrow missing" bug applied here too.
   pairTitle(kind: 'need' | 'own', d: DinasProgress): string {
     const label = (code: string | undefined) => (code === 'INVESTIGATION' ? 'Investigation/Ask TA' : code);
     if (d.chain?.length) return d.chain.map((c) => label(c)).join(' → ');
@@ -134,30 +123,79 @@ export class HomeComponent implements OnInit {
     return `${this.myDinas || ''} → ${label(d.dinas)}`;
   }
 
+  // REQ-RDT-NAV-03 (5 Agu, project owner-approved mockup): badge collapsed by default, click
+  // expands sideways. At most one card expanded at a time (clicking a second one closes the
+  // first) — same "one at a time" convention as need-approval.component's expandedPairKey.
+  private chainKey(kind: 'need' | 'own', d: DinasProgress): string {
+    return `${kind}:${d.dinas}:${d.target_dinas || ''}`;
+  }
+
+  isChainExpanded(kind: 'need' | 'own', d: DinasProgress): boolean {
+    return this.expandedChainKey === this.chainKey(kind, d);
+  }
+
+  toggleChainExpand(kind: 'need' | 'own', d: DinasProgress): void {
+    const key = this.chainKey(kind, d);
+    this.expandedChainKey = this.expandedChainKey === key ? null : key;
+  }
+
+  // Every hop in d.chain except the LAST is trivially "every transaction under this card moved
+  // past it" (100%) — d.chain is only ever populated with more than 2 points when EVERY
+  // transaction in the card agrees on the exact same full path (dashboard.js's
+  // buildChainAwareProgress chainConsistent check), so chain-membership alone already proves
+  // every one of them traversed and left each intermediate dinas. The LAST hop (current target)
+  // is the only one with a real in-progress fraction, and that's exactly d.resolved/d.total —
+  // the same numbers already driving the card's own percent ring, not a separate computation.
+  chainHops(d: DinasProgress): { from: string; to: string; resolved: number; total: number }[] {
+    if (!d.chain || d.chain.length < 3) return [];
+    const total = d.total || 0;
+    const hops: { from: string; to: string; resolved: number; total: number }[] = [];
+    for (let i = 0; i < d.chain.length - 1; i++) {
+      const isLast = i === d.chain.length - 2;
+      hops.push({ from: d.chain[i], to: d.chain[i + 1], resolved: isLast ? (d.resolved || 0) : total, total });
+    }
+    return hops;
+  }
+
   goToInvestigation(): void {
     const shellRoute = this.route.parent?.parent || this.route;
     this.router.navigate(['confirm'], { relativeTo: shellRoute, queryParams: { target: 'INVESTIGATION' } });
   }
 
-  // REQ-RDT-NAV-03: drill-down needs a real (initiator, target) PAIR. The personal view's cards
-  // ARE exactly that (my own dinas -> d.dinas). TAB's global view (29 Jul restructure) is NOW
-  // ALSO pair-shaped (dashboard.js's buildChainAwareProgress groupBy:'pair' — d.dinas is the
-  // INITIATOR, d.target_dinas the target) instead of the old initiator-only aggregate that
-  // deliberately blocked this click ("scope cut, not an oversight") — project owner asked TAB be
-  // able to drill in from "Repost Every PIC" to see which target dinas per initiator is still
-  // outstanding. 'detail/...' is a sibling of HomeComponent's own '' route within HomeModule (see
-  // home.module.ts) — NOT '../detail': HomeComponent's own route consumes zero URL segments
-  // (path ''), so Angular resolves siblings directly relative to it without an extra '../' hop
-  // (verified empirically — '../detail' overshot past the 'dashboard' lazy-module mount entirely).
-  // B2 (3 Agu): now takes `kind` since 'need' cards route here too (see onCardClick) — their row
-  // shape is ALREADY (dinas=initiator, target_dinas=target), same as 'own'+global, and different
-  // from personal 'own' cards (dinas=target, this viewer's own dinas is the implicit initiator).
-  goToDetail(kind: 'need' | 'own', d: DinasProgress): void {
+  // B2 (3 Agu): 'need' shape is ALREADY (dinas=initiator, target_dinas=target), same as
+  // 'own'+global (TAB's pair-grouped global view, dashboard.js's buildChainAwareProgress
+  // groupBy:'pair'). Personal 'own' cards (a plain PIC's own submissions) are the opposite:
+  // dinas=target, this viewer's own dinas is the implicit initiator.
+  private resolvePair(kind: 'need' | 'own', d: DinasProgress): { initiator: string; target: string } | null {
     const myDinas = this.currentUser.current?.dinas;
     const usesRowAsIs = kind === 'need' || this.isGlobalView;
     const initiator = usesRowAsIs ? d.dinas : myDinas;
     const target = usesRowAsIs ? d.target_dinas : d.dinas;
-    if (!initiator || !target) return;
+    if (!initiator || !target) return null;
+    return { initiator, target };
+  }
+
+  // targetDinas (28 Jul bug fix): the REAL queue this pair sits under — without it, Confirmation
+  // always defaulted to the viewer's own dinas, so TAB clicking a TA-targeted card landed on an
+  // empty TAB queue instead of TA's.
+  //
+  // BUG FIX (28 Jul, live report — "kenapa error?"): the string token '../../confirm' threw
+  // NG04002 "Cannot match any routes" every time this was clicked — counting '../' hops by hand
+  // across a lazy-loaded module boundary (HomeModule) doesn't reliably land where the comment
+  // above (now corrected) assumed it would. Walking the ActivatedRoute OBJECT tree up to the
+  // shell (this.route.parent = 'dashboard', .parent.parent = the shell's own '' route) and
+  // resolving 'confirm' relative to THAT is unambiguous regardless of nesting/lazy boundaries.
+  goToConfirmFrom(dinas: string, targetDinas: string): void {
+    const shellRoute = this.route.parent?.parent || this.route;
+    this.router.navigate(['confirm'], { relativeTo: shellRoute, queryParams: { from: dinas, target: targetDinas } });
+  }
+
+  // REQ-RDT-NAV-03: drill-down needs a real (initiator, target) PAIR (see resolvePair above).
+  // 'detail/...' is a sibling of HomeComponent's own '' route within HomeModule (see
+  // home.module.ts) — NOT '../detail': HomeComponent's own route consumes zero URL segments
+  // (path ''), so Angular resolves siblings directly relative to it without an extra '../' hop
+  // (verified empirically — '../detail' overshot past the 'dashboard' lazy-module mount entirely).
+  goToDetail(initiator: string, target: string): void {
     this.router.navigate(['detail', initiator, target], { relativeTo: this.route });
   }
 
@@ -167,40 +205,5 @@ export class HomeComponent implements OnInit {
     if (percent >= 100) return '#006298';
     if (percent < 50) return '#b3261e';
     return '#f2b400';
-  }
-
-  // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): 3-segment horizontal bar (Confirmed/Open/
-  // Declined) replacing the donut ring on the 'own' sub-view's pair cards. "Confirmed" here means
-  // `resolved` (CONFIRMED+BORNE_BY_INITIATOR combined, same definition `percent` already uses
-  // elsewhere in the app) — Figma's mockup label doesn't distinguish BORNE_BY_INITIATOR out, and
-  // introducing a second "confirmed" definition just for this bar would contradict the number
-  // shown right next to it.
-  barSegments(d: DinasProgress): { confirmedPct: number; openPct: number; declinedPct: number } {
-    const total = d.total || 0;
-    if (!total) return { confirmedPct: 0, openPct: 0, declinedPct: 0 };
-    const declined = d.declined_pending_action || 0;
-    const open = d.open || 0;
-    return {
-      confirmedPct: (d.resolved / total) * 100,
-      openPct: (open / total) * 100,
-      declinedPct: (declined / total) * 100,
-    };
-  }
-
-  // REQ-RDT-NAV-02 (Figma 78:243): status pill tone for the per-dinas rollup table.
-  rollupStatusClass(row: PerDinasRollupRow): string {
-    return row.status ? `rollup-status--${row.status.kind}` : '';
-  }
-
-  // P4.6 (3 Agu, Figma 78:242 re-pull): state_label pill is color-coded by status in the
-  // reference design (amber "Waiting for confirmation X", blue "Waiting to repost", green
-  // "Reposted..."/subdoc) — was a single flat gray tone before. Matched on the label TEXT
-  // (see backend's stateLabel.js — it's a derived string, not a stored enum) rather than
-  // duplicating deriveStateLabel's branching here.
-  stateLabelClass(label: string): string {
-    if (label.startsWith('Waiting for confirmation')) return 'pair-card__state-label--amber';
-    if (label.startsWith('Waiting to repost')) return 'pair-card__state-label--blue';
-    if (label.startsWith('Reposted')) return 'pair-card__state-label--green';
-    return '';
   }
 }

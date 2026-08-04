@@ -113,14 +113,73 @@ Membaca unggahan file Excel dari pengguna (sheet rekapitulasi + sheet detail), m
 - `REQ-RDT-EXT-03`: Sistem harus memvalidasi isi data pada setiap baris yang diekstrak: kelengkapan kolom wajib (kolom kontrak minimum, lihat 3.1.1), format numerik pada kolom nominal, serta deteksi duplikasi transaksi. **Nilai nominal negatif adalah sah** apabila baris teridentifikasi sebagai reversal/accrual (mis. remark mengandung "Reverse accrue") — jangan menolak nominal negatif secara buta. Baris yang gagal validasi ditolak secara spesifik (bukan seluruh file) dan dilaporkan ke pengguna beserta alasannya.
 - `REQ-RDT-EXT-04`: Normalisasi kode dinas harus disimpan sebagai **tabel mapping di database** (bukan hardcode). Contoh mapping yang sudah terverifikasi dari data nyata: `TCR` → `TC`, `TJ Plant` → `TJ`. Mapping harus bisa ditambah oleh TAB tanpa perubahan kode.
 - `REQ-RDT-EXT-05`: Aturan eksklusi baris (baris yang tidak dijadikan transaksi lintas dinas) harus eksplisit dan configurable. Dari data nyata: baris dengan prefix Remarks = kode dinas pengunggah sendiri (internal), `AUAK`, dan `PO` di-exclude dari rekap tagihan lintas dinas. Baris yang di-exclude tetap boleh disimpan sebagai data mentah (untuk audit), tapi tidak berstatus PENDING.
-  > **Bug data ditemukan 3 Agu**: repost TB nunjukin 4.346 baris EXCLUDED, padahal
-  > file Excel sumbernya SENDIRI cuma punya 469 baris DT. Angka EXCLUDED yang jauh
-  > lebih besar dari total baris file itu ANEH dan butuh investigasi — kemungkinan
-  > parser salah baca sheet (misalnya ikut nge-parse sheet referensi/lookup yang
-  > harusnya di-skip per 3.1.1 poin 3, atau salah hitung baris kosong/formula
-  > sebagai baris data). JANGAN diasumsikan ini "normal" — telusuri dari mana
-  > 4.346 baris itu benar-benar berasal sebelum melanjutkan fitur lain yang
-  > bergantung pada angka ini.
+  > **Bug data ditemukan 3 Agu, MEMBURUK 4 Agu**: repost TB nunjukin 4.346 baris
+  > EXCLUDED (3 Agu), lalu di percobaan berikutnya (4 Agu) NAIK jadi **7.856**,
+  > padahal file Excel sumbernya SENDIRI cuma punya 469 baris DT. Angka yang
+  > MEMBESAR di percobaan berikutnya (bukan cuma salah hitung statis) itu sinyal
+  > kuat ada AKUMULASI yang gak di-reset antar percobaan repost — kemungkinan:
+  > data lama gak dibersihkan sebelum parse ulang, atau upload berkali-kali
+  > numpuk hasil parsing sebelumnya alih-alih ganti/replace. **INI PRIORITAS
+  > MUTLAK NOMOR 1** di atas semua requirement lain di dokumen ini — investigasi
+  > dan pahami akar masalahnya SAMPAI TUNTAS sebelum menyentuh fitur/bug lain
+  > manapun, karena ini bug INTEGRITAS DATA finansial yang aktif memburuk, bukan
+  > sekadar kosmetik. Laporkan akar masalahnya ke pemilik proyek SEBELUM
+  > memperbaiki, jangan langsung tembak solusi.
+  > **DIINVESTIGASI & SELESAI 4 Agu — BUKAN bug, false alarm**: 8.373 total baris
+  > = 469 PENDING + 48 NEEDS_REVIEW + 7.856 EXCLUDED (4.346 self-repost TB→TB +
+  > 3.510 prefix AUAK/PO). Kenaikan dari 4.346→7.856 ternyata konsekuensi BENAR
+  > dari fix sebelumnya (commit `3c2d8f5`) yang membetulkan baris AUAK/PO yang
+  > tadinya salah kehitung sebagai NEEDS_REVIEW, sekarang benar masuk EXCLUDED
+  > sesuai aturan asli. `/api/parse` (preview) juga terkonfirmasi cuma parse
+  > in-memory, gak pernah nyentuh database — gak ada jalur akumulasi lintas
+  > upload untuk angka preview ini. Ditutup, tidak perlu tindakan lebih lanjut
+  > untuk angka EXCLUDED preview itu sendiri.
+  >
+  > **Temuan sampingan 4 Agu yang BENERAN perlu ditindaklanjuti**: `/api/persist`
+  > (commit ke database, beda dari `/api/parse` preview) TIDAK PERNAH invalidate
+  > upload sebelumnya dari dinas yang sama sebelum insert yang baru — fully
+  > additive, terbukti `rdt.uploads` untuk TB punya 4 baris upload terpisah yang
+  > semuanya masih "hidup". Kalau upload kedua untuk PERIODE YANG SAMA (REQ-RDT-
+  > SAP-13) betulan di-persist, transaksi lama nyangkut selamanya dan bisa
+  > ke-agregasi dobel di query dashboard yang belum di-scope per `upload_id`.
+  >
+  > `REQ-RDT-EXT-10` **(baru 4 Agu, keputusan default — pola sama seperti share-cost
+  > section 3.10, PENDING-only demi keamanan)**: Saat `/api/persist` menerima upload
+  > baru untuk `(dinas_inisiasi, periode)` yang SUDAH PUNYA upload aktif sebelumnya:
+  > 1. Upload lama ditandai **`SUPERSEDED`** (kolom `status` baru di `rdt.uploads`,
+  >    BUKAN dihapus — tetap ada untuk audit trail).
+  > 2. Transaksi dari upload lama yang MASIH `PENDING` ikut di-supersede/dikeluarkan
+  >    dari agregasi aktif (dashboard, antrian konfirmasi, dst).
+  > 3. Transaksi dari upload lama yang SUDAH `CONFIRMED`/punya `ledger_entries`
+  >    JANGAN disentuh otomatis — itu komitmen finansial yang sudah terjadi. Kalau
+  >    ada baris CONFIRMED di upload yang mau di-supersede, STOP, laporkan konflik
+  >    ini ke pemilik proyek dulu sebelum lanjut (jangan asumsikan solusinya).
+  > 4. Semua query agregasi (`dashboard.js` dan lainnya) HARUS di-scope supaya cuma
+  >    menghitung transaksi dari upload berstatus aktif (bukan `SUPERSEDED`).
+  >
+  > **IMPLEMENTED 4 Agu**: poin 2/3 di atas DIKOREKSI project owner sebelum eksekusi —
+  > bukan whitelist status (`PENDING` vs `CONFIRMED`) yang menentukan block-vs-supersede,
+  > tapi FAKTA langsung: apakah transaksi itu punya baris di `rdt.ledger_entries` atau
+  > tidak (diverifikasi ke kode: hanya `routes/confirmation.js`'s jalur CONFIRMED yang
+  > pernah menulis `ledger_entries`; `BORNE_BY_INITIATOR` TIDAK, sesuai komentar header
+  > `reassignment.js` sendiri). Jadi: ada `ledger_entries` -> blokir (409, tidak ada yang
+  > disentuh); tidak ada -> aman disupersede — ini otomatis mencakup PENDING/DECLINED/
+  > BORNE_BY_INITIATOR/NEEDS_REVIEW/NEEDS_INVESTIGATION sekaligus tanpa hardcode nama
+  > status satu-satu. Baris yang sudah inert (EXCLUDED/INVALID/SPLIT_VOID) sengaja TIDAK
+  > ikut di-flip walau juga tak punya `ledger_entries` — statusnya tetap aslinya karena
+  > tak pernah dihitung di query agregasi manapun, jadi flip cuma akan menghapus info
+  > diagnostik tanpa mengubah perilaku apapun. Poin 4 diimplementasikan lewat status baru
+  > `SUPERSEDED` (migrasi 013) yang sengaja tidak masuk whitelist status manapun di
+  > `dashboard.js`/`exportBatches.js`/`confirmation.js`/`investigation.js` (diverifikasi
+  > satu-satu) — sama seperti pola `SPLIT_VOID` (section 3.10) — jadi TIDAK ADA perubahan
+  > query di file-file itu. Diverifikasi via `test/supersedeCheck.test.js` (6 test) +
+  > `npm test` (61/61 hijau) + 3 skenario live lewat backend sungguhan: (a) re-persist TJ
+  > periode yang sama dengan upload CONFIRMED aktif -> 409, DB tidak berubah sama sekali;
+  > (b) re-persist TB ke upload lama yang kosong (0 transaksi nyata) -> sukses, upload
+  > lama jadi SUPERSEDED; (c) re-persist TB lagi ke upload yang sekarang punya baris
+  > PENDING/NEEDS_REVIEW sungguhan -> 517 baris ikut ter-flip ke SUPERSEDED, baris
+  > EXCLUDED (7.856) tidak tersentuh, dan query bergaya dashboard cuma menghitung upload
+  > aktif terbaru (tidak dobel lagi).
 - `REQ-RDT-EXT-06`: Parser harus membaca **nilai hasil kalkulasi (computed values)**, bukan string formula — sebagian besar kolom setelah `Value Date` di file nyata berisi formula `XLOOKUP`/referensi sel, bukan nilai statis. Pastikan library pembaca Excel yang dipakai (mis. exceljs/SheetJS di Node.js) dikonfigurasi membaca cached values.
 - `REQ-RDT-EXT-07` **(baru 22 Jul, menggantikan asumsi nama sheet pivot sebelumnya)**: Sheet pivot/summary diidentifikasi dengan salah satu dari dua aturan (OR, bukan AND): (a) nama sheet mengandung kata "summary" secara case-insensitive (mis. "Summary", "summary", nama gabungan yang memuat kata itu), ATAU (b) sel `A3` pada sheet tersebut berisi teks "Sum of In PCLC". Sheet yang cocok salah satu aturan ini di-skip dari ekstraksi transaksi (bukan sumber data, cuma agregasi tampilan) — sesuai definisi di 3.1.1 poin 1. Jangan bergantung pada pola nama sheet spesifik dinas (mis. "DT TB - June 2026") karena terbukti tidak konsisten antar dinas.
 - `REQ-RDT-EXT-08` **(baru 22 Jul)**: Sistem harus menyimpan file Excel ASLI yang diunggah (byte utuh, bukan cuma hasil ekstraksi) ke penyimpanan file server (mis. `src/uploads/`), dengan path/nama file direferensikan dari kolom baru `original_file_path` di `rdt.uploads`. Ini diperlukan untuk REQ-RDT-LEDGER-09 (download file asli dengan formula hidup) — tanpa ini, formula pada file asli hilang permanen setelah parsing karena parser cuma membaca computed values (REQ-RDT-EXT-06).
@@ -427,6 +486,45 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   > pesan yang identik. Query/tampilan notifikasi HARUS di-scope ketat ke
   > `recipient_user_id = user yang sedang login`, jangan pernah expose daftar
   > penerima lain dari komentar/notifikasi yang sama.
+  > **MASIH BOCOR per 4 Agu (dilaporkan ulang, ke-2 kalinya)**: bug ini SAMA
+  > PERSIS dengan yang dilaporkan 3 Agu, BELUM diperbaiki. Ini prioritas tinggi
+  > (kebocoran privasi antar dinas), bukan sekadar UX — audit SEMUA endpoint yang
+  > mengembalikan data notifikasi/komentar, pastikan tidak ada satupun yang
+  > mengembalikan daftar penerima lain selain user yang sedang login.
+  >
+  > **AKAR MASALAH DITEMUKAN & DIPERBAIKI 4 Agu**: bug sebelumnya (B1) SUDAH benar
+  > men-scope QUERY notifikasi (`WHERE recipient_user_id = $1`) — itu bukan yang
+  > bocor. Akar masalah sebenarnya ada di SISI PENULISAN: 6 tempat berbeda yang
+  > membangun daftar penerima komentar (`index.js` fan-out deskripsi Repost per
+  > pasangan, `confirmation.js`, `dashboard.js` komentar manual, `investigation.js`,
+  > `shareCost.js`, `exportBatches.js`) semua resolve SEMUA `@mention` di teks
+  > SECARA MENTAH lewat `resolveMentionedUserIds`, tanpa membatasi ke pasangan
+  > (dinas_inisiasi, dinas_target) yang komentar itu SUNGGUH tertuju. Jadi satu
+  > deskripsi broadcast "@TA @TMM" yang memicu komentar TERPISAH untuk pasangan
+  > TJ→TA dan TJ→TMM membuat PIC TA ikut jadi recipient komentar TJ→TMM juga (dan
+  > sebaliknya) — begitu PIC TA buka notifikasinya sendiri (query-nya sudah benar,
+  > cuma nunjukin notifikasi MILIK dia), salah satu barisnya nunjukin pasangan
+  > TJ→TMM, membocorkan bahwa TMM juga di-notify dari pesan yang sama.
+  > Fix: `rules/mentionRules.js` dapat fungsi baru `filterMentionsToPair(userIds,
+  > directory, allowedDinasCodes)` — hasil `resolveMentionedUserIds` di-saring dulu
+  > supaya cuma user yang dinas-nya benar-benar bagian dari pasangan itu (atau role
+  > TAB) yang jadi recipient, diterapkan di keenam tempat di atas. Diverifikasi:
+  > `test/mentionRules.test.js` (4 test baru) + `npm test` (65/65 hijau) + live lewat
+  > backend sungguhan (upload TJ dengan deskripsi broadcast "@TA @TMM" ke pasangan
+  > yang sungguh berbeda — notifikasi PIC TA dan PIC TMM masing-masing HANYA
+  > berisi pasangannya sendiri). 6 baris notifikasi bocor dari SEBELUM fix ini
+  > (data dev/demo, ditemukan lewat audit yang sama) sudah dibersihkan
+  > (`tools/cleanupLeakedNotifications.js`).
+  >
+  > **Temuan sampingan saat verifikasi**: `migrate.js` ternyata menjalankan ULANG
+  > SEMUA file migrasi setiap kali backend start (bukan cuma yang belum pernah
+  > jalan) — baru ketahuan sekarang karena migrasi 004's daftar status yang lebih
+  > sempit (belum ada `SUPERSEDED`) gagal tervalidasi begitu data `SUPERSEDED`
+  > sungguhan sudah ada (dari REQ-RDT-EXT-10) dan server di-restart. Diperbaiki
+  > dengan tabel `rdt._migrations_applied` supaya tiap file migrasi cuma jalan
+  > SEKALI selamanya, bukan tiap boot — lihat `migrate.js` dan
+  > `tools/backfillMigrationsApplied.js` (dijalankan sekali untuk transisi DB dev
+  > yang sudah ada).
 - `REQ-RDT-COMMENT-04` **(baru 31 Jul)**: Mention `@TA` harus di-resolve sebagai mention ke **TAB** (bukan dicari sebagai dinas terpisah bernama "TA") — konsisten dengan REQ-RDT-AUTH-04 yang menyatakan TA sudah tergabung ke TAB. Tanpa alias ini, `@TA` tidak menotifikasi siapapun karena tidak ada directory entry dengan `dinas='TA'`.
   > **DIBATALKAN 31 Jul** — lihat REQ-RDT-AUTH-05: `TA` ternyata dinas mandiri dengan
   > PIC sendiri, alias ini SALAH dan sudah dihapus dari `mentionRules.js`. Baris ini
@@ -564,6 +662,47 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   > mengarah LANGSUNG ke `/rdt/dashboard/detail/:from/:target` (bukan ke halaman
   > lain yang lebih sederhana) — konsistensi visualisasi status di ketiga tempat
   > ini penting, bukan cuma di satu halaman detail doang.
+  > **REVISI 4 Agu (logic klik kartu diperjelas)**: bukan SELALU ke
+  > `/rdt/dashboard/detail/...` — tergantung status: kalau pasangan itu MASIH ADA
+  > yang perlu dikonfirmasi (PENDING), klik kartu langsung ke
+  > `/rdt/confirm?from=X&target=Y` (halaman aksi). Kalau pasangan itu SUDAH BERES
+  > semua (gak ada PENDING tersisa), BARU klik kartu ke
+  > `/rdt/dashboard/detail/X/Y` (halaman ringkasan/riwayat). Intinya: arahkan ke
+  > halaman yang sesuai AKSI yang masih perlu dilakukan, bukan satu tujuan tetap.
+  > **IMPLEMENTED 4 Agu**: `home.component.ts`'s `onCardClick` sekarang cek `d.open`
+  > (jumlah PENDING pasangan itu, sudah ada di response backend, tinggal dipakai)
+  > — `> 0` ke `goToConfirmFrom` (Confirm), `0` ke `goToDetail` (Dashboard-
+  > Detailing). Diverifikasi live: kartu TJ→TA (0.0%, PENDING tersisa) klik ->
+  > `/rdt/confirm?from=TJ&target=TA`; kartu TJ→TZ (100.0%, tidak ada PENDING) klik
+  > -> `/rdt/dashboard/detail/TJ/TZ`.
+  > **MASIH BELUM DIBENERIN per 4 Agu (dilaporkan ulang)**: visualisasi progress
+  > yang di halaman `/rdt/dashboard/detail/:from/:target` (termasuk kasus belum
+  > 100%) MASIH BELUM tersinkron ke `/rdt/dashboard?sub=need` — tanggung jawab ini
+  > BELUM SELESAI meski sudah diminta beberapa kali sejak 31 Jul.
+  > **Diperjelas 4 Agu (perlu konfirmasi ke pemilik proyek, JANGAN ditebak)**:
+  > soal progress transaksi yang di-redirect/reassign — pemilik proyek minta
+  > progress dari hasil redirect/reassign itu "nambah di samping progress
+  > asli/assign pertama", tapi mekanisme persisnya (apakah donut utama harus
+  > menghitung SEMUA hop sebagai satu kesatuan progress, atau ada indikator
+  > terpisah di samping donut utama yang nunjukin progress tiap hop) BELUM
+  > jelas dari kalimat aslinya — coding agent harus tanya balik ke pemilik
+  > proyek dengan menunjukkan 2-3 opsi visual konkret sebelum implementasi,
+  > bukan menebak salah satu.
+  > **IMPLEMENTED 5 Agu — desain final hasil beberapa putaran opsi visual dengan
+  > pemilik proyek**: donut utama TETAP satu progress gabungan (semua hop, tidak
+  > berubah). Ditambah badge kecil collapsed-by-default di kartu (mis. `→TC 5/12`),
+  > MUNCUL HANYA kalau `chain` genuinely multi-hop (lebih dari 2 titik — yang
+  > berarti SEMUA transaksi di kartu itu setuju pada jalur yang identik, lihat
+  > `chainConsistent` di `dashboard.js`). Klik badge -> expand KE SAMPING (bukan ke
+  > bawah, permintaan eksplisit), garis pemisah vertikal, isi = mini progress bar
+  > per-hop. Setiap hop SELAIN hop terakhir otomatis 100% (N/N) — chain-consistency
+  > sendiri sudah membuktikan semua transaksi di kartu itu melewati & meninggalkan
+  > hop itu; hop TERAKHIR pakai angka `resolved`/`total` yang sama dengan donut
+  > utama, bukan hitungan baru. Konsekuensinya: nol perubahan backend, murni
+  > frontend (`home.component.ts`'s `chainHops()`/`toggleChainExpand()`).
+  > Diverifikasi live dengan skenario nyata (redirect 12 transaksi TJ→TA ke TC
+  > lewat API confirmation sungguhan, confirm 5 di antaranya) — badge `→TC 5/12`,
+  > expand nunjukin `TJ→TA 12/12` dan `TA→TC 5/12`.
 - `REQ-RDT-NAV-04` (halaman **Repost**, node `20:499`): 2 kolom.
   - **Kolom kiri**: "Upload" (drop file/select from device) di atas, "Review" ("Review
     Detailing Transaction Before Upload") di bawah — review detail transaksi hasil
@@ -605,6 +744,9 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
     - **"Catatan Reviewer" (baru 3 Agu)**: kolom ini HARUS **fixed di tempat, TIDAK
       scrollable** — sekarang keliatannya jadi kotak scroll terpisah, harusnya
       langsung kebaca penuh tanpa perlu scroll di dalam sel/kolom itu.
+      **MASIH SCROLLABLE per 4 Agu (dilaporkan ulang, ke-3 kalinya)** — pin/fix
+      kolom ini (`position: sticky` atau setara), verifikasi dengan screenshot
+      sebelum lapor selesai.
 - `REQ-RDT-NAV-05` (halaman **Confirmation**, node `20:712`): tabel `list-yang-harus-
   dikonfirmasi` dengan header "[Dinas Lain] → [User]" (menunjukkan konteks pasangan
   dinas yang sedang dikonfirmasi) dan tombol **Submit** di pojok kanan atas. Tabel:
@@ -746,6 +888,27 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   yang lebih lega — audit halaman yang paling padat elemennya (Confirmation,
   Need Approval, Investigation) dan tambah spacing yang konsisten, bukan cuma
   1-2 tombol yang dibenerin.
+- `REQ-RDT-UI-05` **(baru 4 Agu, ROLLBACK desain dashboard)**: Pemilik proyek MINTA
+  desain dashboard (Own Repost/"Report Submission", Need Approval/"Need
+  Identification") **DIKEMBALIKAN ke versi SEBELUM referensi Figma `78:242`/`78:243`**
+  — tampilan yang sekarang dinilai *"terlalu maksa dan acak-acakan"*. Ini
+  MEMBATALKAN instruksi sebelumnya di REQ-RDT-NAV-10 soal "Need Identification
+  harus meniru desain Report Submission yang baru" — dua-duanya sama-sama balik
+  ke versi lama, BUKAN cuma salah satunya. Kalau versi lama sudah tidak ada di
+  git history/kode, tanya pemilik proyek dulu sebelum coding agent "mengarang"
+  versi lama dari ingatan/asumsi.
+- `REQ-RDT-UI-06` **(baru 4 Agu)**: Sidebar navigasi HARUS **fixed/pinned di
+  posisinya, TIDAK scrollable** — saat ini sidebar ikut ter-scroll bersama
+  konten halaman, seharusnya sidebar diam di tempat sementara cuma area konten
+  utama yang scroll.
+- `REQ-RDT-UI-07` **(baru 4 Agu, date/period picker)**: Komponen pemilihan
+  periode DT (REQ-RDT-SAP-13) SAAT INI berbentuk list scroll panjang — ganti jadi
+  pola **navigasi Prev/Next per tahun** (mis. tampilkan bulan-bulan satu tahun
+  sekaligus, tombol panah kiri/kanan buat pindah tahun), bukan scroll box.
+- `REQ-RDT-UI-08` **(baru 4 Agu)**: Tabel preview DT di MANAPUN (Repost, Wait to
+  Repost, transparansi, dst — lihat REQ-RDT-NAV-04) TIDAK PERLU menampilkan kolom
+  metadata teknis seperti nomor baris atau nama sheet asal — cuma kolom data DT
+  asli (53 kontrak + kolom tambahan dinas) yang relevan buat pengguna.
 - **Referensi desain dashboard baru (1 Agu)**: dua frame Figma yang sudah dibuat
   — `Dashboard-SubmissionStatus-RDT` (id `78:242`) untuk dashboard per dinas, dan
   `Dashboard-SummaryProgressAllDinas-RDT` (id `78:243`) untuk dashboard TAB —
@@ -772,6 +935,30 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
 >    diperluas) — split membuat komentar otomatis di thread pasangan asal yang
 >    menjelaskan alasan split, dinas asal ke-notify lewat jalur normal, dikirim
 >    SETELAH aksi split TAB selesai (bukan minta approval dulu sebelum split).
+>
+> **PERSEMPIT SCOPE 4 Agu (revisi rencana dari pemilik proyek)**: Share-cost TIDAK
+> berlaku untuk sembarang baris — HANYA untuk baris yang `dinas_target`-nya SUDAH
+> LANGSUNG **"TAB"** (bukan Corp, bukan dinas biasa, bukan hasil investigasi Ask TA
+> yang belum di-assign). Ini artinya **"TAB" sekarang jadi nilai `dinas_target`
+> YANG SAH** di `rdt.dinas`/parser — sebelumnya TAB cuma dikenal sebagai ROLE
+> pengguna, sekarang juga jadi target dinas yang bisa muncul di data (mirip
+> `Corp`). Perlu ditambahkan ke seed `rdt.dinas` dan aturan normalisasi terkait
+> (REQ-RDT-EXT-04) kalau ada prefix Remarks yang mengarah ke "TAB" secara
+> langsung. Fitur share-cost hanya expose baris dengan `dinas_target='TAB'` sebagai
+> kandidat yang bisa di-split — baris dinas lain TIDAK muncul di UI share-cost.
+>
+> **IMPLEMENTED 5 Agu**: `config/dinas.codes.json` nambah `"TAB"` ke daftar kode
+> kanonis (parser resolve prefix Remarks "TAB" langsung, mekanisme sama persis
+> yang sudah terbukti jalan buat "TMM" — nol logic parser baru). Migrasi baru
+> (`014_tab_share_cost_target.sql`) nambah baris `rdt.dinas` untuk 'TAB' dengan
+> `is_active=false` SENGAJA — memenuhi FK `dinas_target` + bisa di-resolve
+> parser, TAPI tetap TIDAK muncul di picker dinas aktif manapun (dropdown
+> REASSIGN, dst. — semua query itu filter `is_active=true`). `routes/shareCost.js`'s
+> `GET /candidates` ditambah `AND t.dinas_target = 'TAB'` ke WHERE clause-nya
+> (sebelumnya lintas SEMUA baris PENDING di sistem). Diverifikasi live: insert baris
+> tes `dinas_target='TAB'` -> muncul sendirian di `GET /candidates` (baris PENDING
+> lain di sistem, incl. TA/TC, tidak ikut); TAB terkonfirmasi absen dari
+> `GET /api/dinas` (daftar aktif). `npm test` 65/65 hijau sepanjang perubahan ini.
 
 Ide dari pemilik proyek: TAB bisa "split" satu baris transaksi jadi beberapa baris
 dengan dinas_target berbeda-beda dan nominal yang lebih kecil (jumlahnya tetap sama
