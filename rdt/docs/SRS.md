@@ -980,6 +980,16 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   simetris (ukuran/spacing beda-beda antar kartu yang seharusnya sejenis) — audit
   dan samakan.
 
+> **Eksperimen perbandingan 5 Agu (BUKAN requirement, catatan proses)**: pemilik
+> proyek minta dicoba implementasi FRESH dari Figma node `0-1` dan `78-243` di
+> tempat TERPISAH (branch/route terpisah, JANGAN timpa dashboard aktif langsung)
+> untuk dibandingin side-by-side dengan versi sekarang — pemilik proyek merasa
+> implementasi PERTAMA kali dulu "bagus banget". Kalau hasil perbandingan
+> menunjukkan versi baru lebih rapi, BARU di-apply ke dashboard aktif dengan
+> persetujuan eksplisit. Ini murni proses kerja, bukan perubahan spesifikasi —
+> REQ-RDT-UI-05 (keputusan final 3c2d8f5 + panel per-hop) tetap jadi acuan resmi
+> sampai ada keputusan baru dari perbandingan ini.
+
 ### 3.11 Frozen Column di Tabel Confirmation (baru 5 Agu)
 
 Saat konfirmasi (halaman Detail Confirmation), tabel menampilkan semua ~53 kolom
