@@ -198,16 +198,16 @@
     <!-- ============ Need to Confirm / Need Identification (default sub-view, REQ-RDT-NAV-02a)
          ============ REQ-RDT-NAV-10: TAB keeps this sub-view (label "Need Identification",
          matching the Confirmation nav item it's paired with) styled like Report Submission/
-         Summary Progress — KPI row + segmented bar — instead of the donut. A plain PIC's "Need to
-         Confirm" is untouched (no KPI row, donut ring). ============ -->
+         Summary Progress — segmented bar — instead of the donut. A plain PIC's "Need to Confirm"
+         is untouched (no donut ring change).
+         KPI row DIHAPUS dari sini (5 Agu, project owner): angka-angka itu (Total Nilai Diajukan,
+         Selesai/Reposted, dst) nggak relevan buat fitur ini — Need Identification itu urusan
+         nge-assign baris "Ask TA" yang ambigu, bukan monitoring KPI. KPI row TETAP tampil di
+         Summary Progress All Dinas (subview 'own'), yang memang KPI-nya. ============ -->
     <div class="dashboard-panel" *ngIf="subview === 'need'">
       <h3>{{ isTabRole ? 'Need Identification' : 'Need to Confirm' }}</h3>
       <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
         langsung meninjau pengajuan dinas tersebut.</p>
-
-      <ng-container *ngIf="isTabRole">
-        <ng-container *ngTemplateOutlet="kpiRow"></ng-container>
-      </ng-container>
 
       <p class="note" *ngIf="loaded && !needToConfirm.length">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>
       <div class="pair-card-list">
