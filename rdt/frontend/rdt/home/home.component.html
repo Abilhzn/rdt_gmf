@@ -196,14 +196,18 @@
 
   <ng-container *ngIf="currentUser.current">
     <!-- ============ Need to Confirm / Need Identification (default sub-view, REQ-RDT-NAV-02a)
-         ============ REQ-RDT-NAV-10: TAB keeps this sub-view (label "Need Identification",
-         matching the Confirmation nav item it's paired with) styled like Report Submission/
-         Summary Progress — segmented bar — instead of the donut. A plain PIC's "Need to Confirm"
-         is untouched (no donut ring change).
+         ============ REQ-RDT-NAV-10: TAB keeps this sub-view labeled "Need Identification"
+         (matching the Confirmation nav item it's paired with).
          KPI row DIHAPUS dari sini (5 Agu, project owner): angka-angka itu (Total Nilai Diajukan,
          Selesai/Reposted, dst) nggak relevan buat fitur ini — Need Identification itu urusan
          nge-assign baris "Ask TA" yang ambigu, bukan monitoring KPI. KPI row TETAP tampil di
-         Summary Progress All Dinas (subview 'own'), yang memang KPI-nya. ============ -->
+         Summary Progress All Dinas (subview 'own'), yang memang KPI-nya.
+         useBar=true UNTUK SEMUA dinas (5 Agu, project owner): sebelumnya cuma TAB yang dapat
+         segmented-bar (Confirmed/Open/Declined breakdown + state-label + legend) sementara PIC
+         lain masih donut ring polos (cuma % doang) — donut-nya "kurang informatif" dibanding versi
+         TAB. Disamakan: SEMUA "Need to Confirm"/"Need Identification" pakai bar, donut
+         (#donutBody di ng-template pairCard) sekarang mati kode di 'need' — masih dipakai kalau
+         someday ada pairCard lain yang eksplisit minta useBar=false. ============ -->
     <div class="dashboard-panel" *ngIf="subview === 'need'">
       <h3>{{ isTabRole ? 'Need Identification' : 'Need to Confirm' }}</h3>
       <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
@@ -212,7 +216,7 @@
       <p class="note" *ngIf="loaded && !needToConfirm.length">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>
       <div class="pair-card-list">
         <ng-container *ngFor="let d of needToConfirm">
-          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('need', d), clickable: true, kind: 'need', useBar: isTabRole }"></ng-container>
+          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('need', d), clickable: true, kind: 'need', useBar: true }"></ng-container>
         </ng-container>
       </div>
     </div>
