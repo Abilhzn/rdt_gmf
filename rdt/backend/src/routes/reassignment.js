@@ -20,7 +20,7 @@
 const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireDinasAccess } = require('../middleware/auth');
-const { validateReassignTarget } = require('../rules/reassignmentRules');
+const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
 
 const router = express.Router();
 
@@ -59,7 +59,7 @@ async function resolveOneDeclined(client, user, { id, action, newTarget, note })
     );
   } else {
     const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
-    const validCodes = new Set(validRes.rows.map((r) => String(r.code).toUpperCase()));
+    const validCodes = buildValidCodeMap(validRes.rows);
     const validation = validateReassignTarget({
       newTarget,
       validCodes,

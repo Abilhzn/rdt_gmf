@@ -1,6 +1,6 @@
-const { validateReassignTarget, REASSIGN_CAP } = require('../src/rules/reassignmentRules');
+const { validateReassignTarget, REASSIGN_CAP, buildValidCodeMap } = require('../src/rules/reassignmentRules');
 
-const validCodes = new Set(['TB', 'TC', 'TF', 'TJ', 'TL', 'TN', 'CORP']);
+const validCodes = buildValidCodeMap([{ code: 'TB' }, { code: 'TC' }, { code: 'TF' }, { code: 'TJ' }, { code: 'TL' }, { code: 'TN' }, { code: 'Corp' }]);
 
 test('accepts a valid, distinct, active target', () => {
   const r = validateReassignTarget({ newTarget: 'TF', validCodes, dinasInisiasi: 'TB', currentDinasTarget: 'TC', reassignCount: 0 });
@@ -12,6 +12,34 @@ test('is case-insensitive on the target code', () => {
   const r = validateReassignTarget({ newTarget: 'tf', validCodes, dinasInisiasi: 'TB', currentDinasTarget: 'TC', reassignCount: 0 });
   expect(r.ok).toBe(true);
   expect(r.newTargetUpper).toBe('TF');
+});
+
+// BUG FIX (5 Agu, live report — "assign ke Corp gagal 500, FK violation"): the returned value
+// used to be newTarget.toUpperCase() unconditionally, e.g. 'CORP' — but rdt.dinas stores this
+// specific code mixed-case ('Corp'), and every caller INSERTs the returned value straight into
+// transactions.dinas_target, which has an FK to rdt.dinas.code. 'CORP' has no matching row, so
+// this silently corrupted every attempt to reassign/split/investigate-assign to Corp.
+test('preserves the target dinas actual stored case (e.g. "Corp", not "CORP") regardless of input case', () => {
+  const lower = validateReassignTarget({ newTarget: 'corp', validCodes, dinasInisiasi: 'TB', currentDinasTarget: 'TC', reassignCount: 0 });
+  expect(lower.ok).toBe(true);
+  expect(lower.newTargetUpper).toBe('Corp');
+
+  const upper = validateReassignTarget({ newTarget: 'CORP', validCodes, dinasInisiasi: 'TB', currentDinasTarget: 'TC', reassignCount: 0 });
+  expect(upper.ok).toBe(true);
+  expect(upper.newTargetUpper).toBe('Corp');
+
+  const mixed = validateReassignTarget({ newTarget: 'Corp', validCodes, dinasInisiasi: 'TB', currentDinasTarget: 'TC', reassignCount: 0 });
+  expect(mixed.ok).toBe(true);
+  expect(mixed.newTargetUpper).toBe('Corp');
+});
+
+test('buildValidCodeMap keys uppercase for lookup, values keep the original stored case', () => {
+  // The Map's own keys are plain (case-sensitive) — callers uppercase their lookup key before
+  // .get() (as validateReassignTarget does internally), not the Map itself.
+  const map = buildValidCodeMap([{ code: 'Corp' }, { code: 'TB' }]);
+  expect(map.get('corp'.toUpperCase())).toBe('Corp');
+  expect(map.get('CORP')).toBe('Corp');
+  expect(map.get('TB')).toBe('TB');
 });
 
 test('rejects when reassign_count is already at the cap', () => {

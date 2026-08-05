@@ -2,6 +2,7 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
+const { buildValidCodeMap } = require('../rules/reassignmentRules');
 const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
@@ -35,7 +36,7 @@ router.get('/candidates', async (req, res) => {
     }
     const r = await client.query(
       `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.account, t.nominal, t.remark, t.ref_doc, t.period,
-              u.original_filename AS upload_filename
+              t.upload_id, u.original_filename AS upload_filename
        FROM rdt.transactions t
        JOIN rdt.uploads u ON u.id = t.upload_id
        WHERE ${where}
@@ -84,12 +85,20 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
       throw new Error('hanya baris PENDING yang bisa di-split (baris ini: ' + original.status_konfirmasi + ')');
     }
 
+    // BUG FIX (5 Agu, live report — "assign ke Corp gagal 500, FK violation"): this used to
+    // validate against an all-uppercased Set but then insert the RAW (not-necessarily-matching-
+    // case) s.dinas_target below — rdt.dinas stores a few codes mixed-case ('Corp'), so a
+    // lowercase/mismatched-case submission passed this check yet still violated the FK at INSERT
+    // time. buildValidCodeMap resolves each split's target to its actual stored-case code ONCE
+    // here, reused at INSERT time below instead of re-deriving (and re-risking) the case there.
     const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
-    const validCodes = new Set(validRes.rows.map((r) => String(r.code).toUpperCase()));
+    const validCodes = buildValidCodeMap(validRes.rows);
     for (const s of splits) {
-      if (!validCodes.has(String(s.dinas_target).toUpperCase())) {
+      const matchedCode = validCodes.get(String(s.dinas_target).toUpperCase());
+      if (!matchedCode) {
         throw new Error('dinas_target tidak valid: ' + s.dinas_target);
       }
+      s.dinas_target = matchedCode;
     }
 
     // Validasi wajib (SRS 3.10): SUM nominal seluruh baris hasil split HARUS PERSIS SAMA dengan
@@ -127,7 +136,7 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
            sheet_name, raw_row_index, remark, raw_payload, sub_group, $1
          FROM rdt.transactions WHERE id=$1
          RETURNING id`,
-        [original.id, String(s.dinas_target).toUpperCase(), s.nominal]
+        [original.id, s.dinas_target, s.nominal]
       );
       newIds.push(insertRes.rows[0].id);
     }

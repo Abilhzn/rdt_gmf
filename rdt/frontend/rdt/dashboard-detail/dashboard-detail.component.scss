@@ -37,6 +37,8 @@ $radius-md: 8px;
   &__actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 }
 
+.context-badge-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
 .context-badge {
   display: inline-block;
   font-size: 16px;
@@ -46,6 +48,36 @@ $radius-md: 8px;
   border: 1px solid $line;
   padding: 10px 20px;
   border-radius: $radius-md;
+}
+
+// REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): same badge look as home.component's
+// pair-card__chain-badge, opens DOWNWARD here (not sideways) — this is a single page header with
+// full page width below it, not a narrow card in a list, so a below-panel reads more naturally
+// than widening the header row itself would.
+.chain-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid $accent;
+  border-radius: 999px;
+  background: #fff;
+  color: $accent;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:hover { background: rgba(0, 98, 152, 0.08); }
+}
+.chain-detail-badge-caret { font-size: 9px; }
+
+.chain-detail-panel {
+  margin-top: 12px;
+  padding: 18px 20px;
+  border: 1px solid $line;
+  border-radius: $radius-lg;
+  max-width: 360px;
 }
 
 .note { margin: 0 0 10px; font-size: 12.5px; color: $ink-600; }
@@ -101,16 +133,18 @@ $radius-md: 8px;
 
 // REQ-RDT-NAV-03 (3 Agu): per-transaction redirect chain, only rendered when >=1 row was
 // actually redirected — REQ-RDT-UI-03: border, not shadow.
+// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
+// pagination ke 50 baris/halaman.
 .redirect-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
   margin-bottom: 8px;
   border: 1px solid $line;
   border-radius: $radius-md;
   overflow: hidden;
 
-  th, td { padding: 8px 12px; border-bottom: 1px solid $line; text-align: left; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; }
   thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 12px; text-transform: uppercase; }
   tbody tr:last-child td { border-bottom: none; }
   &__num { text-align: right; font-variant-numeric: tabular-nums; }

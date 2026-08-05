@@ -267,7 +267,29 @@ Mesin status (state machine) double-entry: dinas target memvalidasi tagihan.
   - Tercatat di audit log dengan action baru `INVESTIGATION_RESOLVED`.
   - Contoh nyata dari pemilik proyek (dinas TJ, Jun 2026): satu baris "Ask TA" ternyata dari `Ref. Doc.` menunjukkan PO milik `TZ` (kode dinas baru, belum ada di roster — lihat 3.1.2). TAB konfirmasi ke TZ, TZ bilang "itu barangnya beli kami, tapi yang kerjain TJ" — TAB akhirnya assign baris itu ke `TZ`. Ini contoh kasus di mana jawaban investigasi TIDAK selalu jelas/satu jawaban tunggal (ada nuance "yang beli vs yang kerjain") — keputusan akhir tetap di tangan TAB sebagai manusia, sistem cuma memfasilitasi routing-nya, JANGAN dibuat otomatis menebak.
   - **Tambahan 30 Jul (bulk assign)**: TAB harus bisa **pilih banyak baris investigasi sekaligus** (checkbox + "Select All") dan assign semuanya ke SATU dinas_target yang sama dalam satu aksi — berguna kalau ada beberapa baris "Ask TA" yang sudah jelas jawabannya sama (mis. semua ternyata punya TZ). Assign satu-per-satu tetap harus tersedia untuk kasus yang beda jawaban.
-  - **Catatan penting (dikonfirmasi TAB, 30 Jul)**: dinas hasil investigasi (mis. `TZ` di contoh atas) TETAP HARUS melalui alur konfirmasi normal (Ya/Tidak) walau TAB sudah "memutuskan" dari sisi komunikasi informal — assign oleh TAB itu cuma ROUTING, bukan otomatis meng-CONFIRMED-kan transaksi. Ini supaya ada jejak dokumentasi resmi di sistem, bukan cuma kesepakatan lisan/WA.
+  - **Catatan penting (dikonfirmasi TAB, 30 Jul) — DIBALIK 5 Agu**: sebelumnya
+    diputuskan dinas hasil investigasi TETAP harus melalui alur konfirmasi normal
+    (Ya/Tidak) walau TAB sudah "memutuskan" secara informal, demi jejak dokumentasi
+    resmi di sistem. **KEPUTUSAN INI DIBALIK 5 Agu**: assignment TAB dari antrian
+    investigasi sekarang dianggap **SUDAH FINAL/FIX**, karena diskusi penentuan
+    dinas yang benar SUDAH dilakukan lewat platform lain (WhatsApp dkk) DI LUAR
+    sistem ini SEBELUM TAB melakukan assign. Begitu TAB assign dari antrian
+    investigasi, transaksi itu **LANGSUNG masuk status resolved** (setara
+    CONFIRMED) TANPA perlu dinas target melakukan aksi Confirm/Reject lagi —
+    dinas target tetap bisa LIHAT transaksi itu (transparansi), tapi tidak perlu
+    tindakan konfirmasi tambahan. Ini KHUSUS untuk hasil resolusi investigasi
+    (REQ-RDT-LEDGER-10) — TIDAK mengubah alur konfirmasi normal untuk transaksi
+    yang bukan hasil investigasi.
+
+> **Bug baru ditemukan 5 Agu**: `GET /api/confirmation/TMM` mengembalikan **403
+> Forbidden** saat diakses dari halaman `/rdt/confirm?from=TJ&target=TMM`.
+> Investigasi dulu akar masalahnya (kemungkinan terkait perubahan role/otorisasi
+> TA/TAB baru-baru ini) sebelum memperbaiki — laporkan temuannya.
+>
+> **Ditegaskan ulang 5 Agu**: input nomor subdoc (REQ-RDT-SAP-08/11) untuk pasangan
+> yang di-chunk >300 baris HARUS punya kolom input TERPISAH per chunk (mis. "Repost
+> 1: [input subdoc]", "Repost 2: [input subdoc]"), BUKAN satu input generik untuk
+> semua chunk sekaligus.
 
 ### 3.3 SAP Flattening Gatekeeper / Need Approval
 
@@ -777,15 +799,17 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   aturan sinkronisasi di `src/README.md`. Modul Angular yang sudah ada (`home/`,
   `confirm/`, `need-approval/`, `pages/repost-budgeting/`) kemungkinan sudah dipetakan
   sebagian ke struktur ini — cek dulu sebelum bikin struktur baru dari nol.
-- `REQ-RDT-NAV-07` **(baru 22 Jul)**: Tabel besar (Review di halaman Repost, tabel di
-  halaman Confirmation) menggunakan pagination pola "Google-style": maksimum **100
-  baris per halaman**; kontrol Previous/Next; nomor halaman yang tampil maksimum
-  **5 angka sekaligus**; kalau total halaman lebih dari yang muat, tampilkan `...`
-  di ujung yang terpotong (awal dan/atau akhir) — klik nomor halaman manapun yang
-  terlihat untuk loncat langsung ke situ, `...` tidak perlu diklik (cukup indikator
-  ada halaman lain di luar rentang, nomor di sekitar halaman aktif yang bergeser saat
-  navigasi). Komponen ini harus reusable (dipakai di kedua tabel, bukan diimplementasi
-  dua kali secara terpisah).
+- `REQ-RDT-NAV-07` **(baru 22 Jul, DIREVISI 5 Agu)**: Tabel besar (Review di halaman
+  Repost, tabel di halaman Confirmation, dan SEMUA fitur lain yang menampilkan DT)
+  menggunakan pagination pola "Google-style": maksimum **50 baris per halaman**
+  (direvisi dari 100), font tabel dikecilkan sedikit dari sekarang. Kontrol
+  Previous/Next; nomor halaman yang tampil maksimum **5 angka sekaligus**; kalau
+  total halaman lebih dari yang muat, tampilkan `...` di ujung yang terpotong
+  (awal dan/atau akhir) — klik nomor halaman manapun yang terlihat untuk loncat
+  langsung ke situ, `...` tidak perlu diklik (cukup indikator ada halaman lain di
+  luar rentang, nomor di sekitar halaman aktif yang bergeser saat navigasi).
+  Komponen ini harus reusable (dipakai di SEMUA tabel DT, bukan diimplementasi
+  ulang per halaman).
 - `REQ-RDT-NAV-09` **(baru 31 Jul, filter multi-value ala SAP)**: Setiap tampilan yang
   menunjukkan data transaksi/DT (Repost Review, Confirmation, Dashboard-Detailing,
   transparansi Need Approval, Riwayat Repost TAB/Dinas, antrian Investigation, dst)
@@ -888,19 +912,83 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   yang lebih lega — audit halaman yang paling padat elemennya (Confirmation,
   Need Approval, Investigation) dan tambah spacing yang konsisten, bukan cuma
   1-2 tombol yang dibenerin.
-- `REQ-RDT-UI-05` **(baru 4 Agu, ROLLBACK desain dashboard)**: Pemilik proyek MINTA
-  desain dashboard (Own Repost/"Report Submission", Need Approval/"Need
-  Identification") **DIKEMBALIKAN ke versi SEBELUM referensi Figma `78:242`/`78:243`**
-  — tampilan yang sekarang dinilai *"terlalu maksa dan acak-acakan"*. Ini
-  MEMBATALKAN instruksi sebelumnya di REQ-RDT-NAV-10 soal "Need Identification
-  harus meniru desain Report Submission yang baru" — dua-duanya sama-sama balik
-  ke versi lama, BUKAN cuma salah satunya. Kalau versi lama sudah tidak ada di
-  git history/kode, tanya pemilik proyek dulu sebelum coding agent "mengarang"
-  versi lama dari ingatan/asumsi.
-- `REQ-RDT-UI-06` **(baru 4 Agu)**: Sidebar navigasi HARUS **fixed/pinned di
-  posisinya, TIDAK scrollable** — saat ini sidebar ikut ter-scroll bersama
-  konten halaman, seharusnya sidebar diam di tempat sementara cuma area konten
-  utama yang scroll.
+- `REQ-RDT-UI-05` **(baru 4 Agu, ROLLBACK lalu DIBATALKAN LAGI 4 Agu — baca urutan,
+  jangan cuma versi terakhir)**:
+  - *Versi pagi 4 Agu*: pemilik proyek minta rollback ke versi SEBELUM referensi
+    Figma `78:242`/`78:243` karena dinilai "terlalu maksa dan acak-acakan".
+  - *Revisi sore 4 Agu*: setelah rollback dieksekusi, ternyata hasilnya KETERLALUAN
+    mundur (balik ke versi paling basic/awal, bukan yang dimaksud) — pemilik proyek
+    sekarang MINTA BALIK ke arah desain Figma (`78:242`/`78:243`), yang penting
+    **colorful/kaya visual** kayak referensi Figma itu, BUKAN desain polos.
+  - **Status per revisi ini**: implementasikan ULANG desain berdasarkan
+    `get_design_context` fresh ke node `78:242`/`78:243` — JANGAN pakai hasil
+    implementasi sebelumnya sebagai basis (kemungkinan itu yang bikin kesan
+    "maksa/acak-acakan", entah karena eksekusinya kurang rapi atau alasan lain
+    yang masih dikonfirmasi ulang ke pemilik proyek). Tunggu klarifikasi lanjutan
+    sebelum full commit ke arah ini kalau ada instruksi susulan.
+  - **DIPERJELAS LAGI 4 Agu, malam — klarifikasi penting soal versi**: ternyata ada
+    **3 versi historis**, bukan 2: (1) versi basic/awal ("baheula", yang aktif
+    SEKARANG setelah rollback pagi), (2) iterasi PERTAMA desain ala-Figma
+    ("terbaru.1") — **INI YANG DIMAKSUD pemilik proyek**, dan (3) iterasi KEDUA/
+    lanjutan dari (2) ("terbaru.2") yang dinilai "maksa dan acak-acakan" dan sudah
+    di-rollback. Instruksi "implementasikan ulang dari Figma fresh" TIDAK CUKUP
+    dan BERISIKO — itu bisa menghasilkan sesuatu yang beda lagi dari terbaru.1
+    maupun terbaru.2. **Yang benar-benar dibutuhkan**: telusuri **git history**
+    (`git log`) untuk file-file komponen dashboard/need-approval Angular, temukan
+    commit yang berkorespondensi ke terbaru.1 (versi SEBELUM iterasi kedua/
+    "acak-acakan" itu terjadi), TUNJUKKAN ke pemilik proyek ringkasan/screenshot
+    tiap commit kandidat supaya bisa dikonfirmasi PERSIS yang mana, baru revert ke
+    situ — JANGAN menebak atau nge-generate ulang dari deskripsi.
+  - **KEPUTUSAN FINAL 4 Agu, malam**: setelah lihat screenshot kandidat, pemilik
+    proyek MEMILIH **commit `3c2d8f5`** (dilabeli "Kandidat iterasi 2" oleh coding
+    agent, tapi INI YANG DIPAKAI — abaikan penomoran iterasi sebelumnya, ini
+    keputusan final berdasarkan lihat langsung) sebagai basis dashboard TAB
+    ("Summary Progress All Dinas"): KPI card row + tabel per-dinas dengan progress
+    bar, gaya bersih/simpel.
+  - **Tambahan yang diminta digabung**: khusus untuk kartu yang melibatkan
+    reassign/redirect (chain 2+ hop), gabungkan pola **"Rincian per-hop"** dari
+    contoh terpisah yang ditunjukkan pemilik proyek — donut/persentase utama di
+    kiri, panel di kanan berisi breakdown progress BAR PER HOP individual (mis.
+    "TJ → TA: 12/12", "TA → TC: 5/12"), plus chip kecil yang bisa diklik buat
+    lihat detail hop tertentu (mis. "→TC 5/12"). Ini SEKALIGUS jadi penyelesaian
+    REQ-RDT-NAV-03 (chain arrow yang berkali-kali dilaporkan belum benar) —
+    breakdown per-hop yang eksplisit ini lebih informatif daripada sekadar teks
+    panah "TJ→TA→TC".
+  - **Diperjelas 5 Agu**: "expand"/detail dari kartu manapun yang melibatkan chain
+    harus menampilkan rincian dari SEMUA sisi/dinas yang terlibat di chain itu
+    (bukan cuma dari sudut pandang dinas pengaju awal) — simetris antar hop.
+  - **Coding agent DIMINTA IKUT berkontribusi ide** soal cara paling rapi
+    menggabungkan dua pola ini (kapan panel per-hop muncul/collapse, bagaimana
+    layout menyesuaikan kalau chain-nya panjang, dst) — bukan cuma eksekusi
+    instruksi literal, tapi juga usulkan penyempurnaan kalau ada yang menurutnya
+    lebih baik, sebelum implementasi final.
+- `REQ-RDT-UI-06` **(baru 4 Agu, DIREVISI 5 Agu — lihat juga versi lanjutan di
+  bawah)**: Sidebar navigasi HARUS **fixed/pinned di posisinya, TIDAK scrollable**.
+  Lebar sidebar juga dikecilkan sedikit dari yang sekarang (terlalu lebar).
+  > **DIPERLUAS 5 Agu (referensi Dribbble shot "Sidebar navigation menu bar
+  > expansion animation")**: bukan cuma dikecilkan statis — pola yang diminta
+  > kemungkinan besar **collapsed-by-default** (cuma ikon, sempit ~60px) yang
+  > **expand otomatis saat di-hover/klik** jadi lebar penuh dengan teks label
+  > (pola umum: Notion, Linear, VS Code). Ini SEKALIGUS menjawab permintaan
+  > "sidebar dikecilkan" di atas — defaultnya jauh lebih sempit. **Catatan**:
+  > pemilik proyek kasih link Dribbble sebagai referensi visual
+  > (`dribbble.com/shots/26211061`) yang TIDAK bisa diakses lewat tool
+  > browsing biasa (perlu render JS) — coding agent WAJIB verifikasi detail
+  > animasi/timing persis dari link itu sendiri (buka langsung di browser),
+  > JANGAN cuma mengandalkan deskripsi umum di atas.
+- `REQ-RDT-UI-09` **(baru 5 Agu)**: Banyak elemen dashboard yang sekarang tidak
+  simetris (ukuran/spacing beda-beda antar kartu yang seharusnya sejenis) — audit
+  dan samakan.
+
+### 3.11 Frozen Column di Tabel Confirmation (baru 5 Agu)
+
+Saat konfirmasi (halaman Detail Confirmation), tabel menampilkan semua ~53 kolom
+kontrak (REQ-RDT-NAV-04). Kolom **"Notes"**, **"Jika Reject" (dropdown redirect)**,
+dan **checkbox "Select"** HARUS **sticky/frozen secara horizontal** (`position:
+sticky`), supaya tetap terlihat & bisa diklik tanpa perlu scroll kiri-kanan
+sepanjang 53 kolom data. Pola ini setara "freeze panes" di Excel — kolom aksi
+selalu di posisi tetap (kiri atau kanan tabel, pilih yang lebih natural secara UX),
+kolom data yang scroll di antaranya.
 - `REQ-RDT-UI-07` **(baru 4 Agu, date/period picker)**: Komponen pemilihan
   periode DT (REQ-RDT-SAP-13) SAAT INI berbentuk list scroll panjang — ganti jadi
   pola **navigasi Prev/Next per tahun** (mis. tampilkan bulan-bulan satu tahun

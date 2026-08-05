@@ -1,7 +1,7 @@
 const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireDinasAccess } = require('../middleware/auth');
-const { validateReassignTarget } = require('../rules/reassignmentRules');
+const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 
@@ -23,9 +23,16 @@ router.get('/:dinas', requireDinasAccess('dinas'), async (req, res) => {
     // dinas (Dashboard -> per-initiator button -> filtered Confirmation view). upload_id +
     // original_filename (joined from rdt.uploads) let the UI render one "download original
     // file" button per distinct source upload (REQ-RDT-LEDGER-09) without a separate endpoint.
+    //
+    // REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu — full column preview everywhere): `t.*` instead of
+    // a hand-picked subset, matching exportBatches.js's transparency query — this queue used to
+    // only carry account/nominal/category/remark/ref_doc, so the frontend physically couldn't
+    // show the rest of the 53 contract columns even after the "show every column" requirement
+    // landed elsewhere. `t.sheet_name`/`t.raw_row_index` come along too (part of `t.*`) but stay
+    // internal-only — REQ-RDT-EXT-05's "kept for audit, never displayed" — the frontend's
+    // previewColumns list (built from GET /api/contract-fields) simply never references them.
     const r = await client.query(
-      `SELECT t.id, t.sheet_name, t.raw_row_index, t.account, t.nominal, t.category, t.remark, t.ref_doc, t.dinas_inisiasi,
-              t.reassign_count, t.upload_id, u.original_filename AS upload_filename
+      `SELECT t.*, u.original_filename AS upload_filename
        FROM rdt.transactions t
        JOIN rdt.uploads u ON u.id = t.upload_id
        WHERE t.dinas_target=$1 AND t.status_konfirmasi=$2`,
@@ -104,7 +111,7 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
         if (d.redirect_to) {
           if (!validCodes) {
             const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
-            validCodes = new Set(validRes.rows.map((r) => String(r.code).toUpperCase()));
+            validCodes = buildValidCodeMap(validRes.rows);
           }
           const validation = validateReassignTarget({
             newTarget: d.redirect_to,

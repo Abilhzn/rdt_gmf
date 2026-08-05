@@ -1,5 +1,7 @@
-import { AfterViewInit, Component, ElementRef, Input, ViewChild, forwardRef } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, Input, OnDestroy, ViewChild, forwardRef } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 import { MentionOption, MentionService } from '../services/mention.service';
 
 // REQ-RDT-COMMENT-03 (diperluas 3 Agu): the ONE @mention-capable textarea, used everywhere a
@@ -38,7 +40,7 @@ import { MentionOption, MentionService } from '../services/mention.service';
   styleUrls: ['./mention-input.component.scss'],
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MentionInputComponent), multi: true }],
 })
-export class MentionInputComponent implements ControlValueAccessor, AfterViewInit {
+export class MentionInputComponent implements ControlValueAccessor, AfterViewInit, OnDestroy {
   @Input() rows = 3;
   @Input() placeholder = 'Ketik @ untuk mention dinas atau orang...';
   /** Extra CSS class(es) merged onto the textarea, so each call site can keep its own
@@ -55,7 +57,26 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
   private onChangeFn: (v: string) => void = () => {};
   private onTouchedFn: () => void = () => {};
 
-  constructor(private mentionSvc: MentionService) {}
+  // 500ms debounce on the autocomplete lookup itself (project owner request, 5 Agu: debounce
+  // "fitur search apapun, terutama mention/tagging"). Typing into the textarea (this.value,
+  // autoGrow, onChangeFn) stays fully instant -- only the token->suggestions query and the popup
+  // update are delayed. HIDING the popup (no "@token" under the cursor anymore) is deliberately
+  // NOT debounced below, so the list disappears immediately once it's no longer relevant instead
+  // of lingering for up to 500ms after the user has already moved on.
+  private readonly mentionQuery$ = new Subject<string>();
+  private mentionQuerySub?: Subscription;
+
+  constructor(private mentionSvc: MentionService) {
+    this.mentionQuerySub = this.mentionQuery$.pipe(debounceTime(500)).subscribe((token) => {
+      this.suggestions = this.mentionSvc.suggestionsFor(token);
+      this.showMentions = this.suggestions.length > 0;
+      this.highlightedIndex = this.showMentions ? 0 : -1;
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.mentionQuerySub?.unsubscribe();
+  }
 
   writeValue(v: string): void {
     this.value = v || '';
@@ -99,9 +120,7 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
     const upToCursor = el.value.slice(0, cursor);
     const match = /@([\w-]*)$/.exec(upToCursor);
     if (!match) { this.showMentions = false; return; }
-    this.suggestions = this.mentionSvc.suggestionsFor(match[1]);
-    this.showMentions = this.suggestions.length > 0;
-    this.highlightedIndex = this.showMentions ? 0 : -1;
+    this.mentionQuery$.next(match[1]);
   }
 
   onKeydown(ev: KeyboardEvent): void {

@@ -1,9 +1,16 @@
 <div class="page-card">
   <div class="view-header-row">
     <!-- REQ-RDT-NAV-03: full redirect breadcrumb (e.g. "TJ → TC → TL"), not just the two
-         endpoints — see breadcrumb getter. -->
-    <div class="context-badge">
-      <ng-container *ngFor="let d of breadcrumb; let last = last">{{ d }}<span *ngIf="!last"> → </span></ng-container>
+         endpoints — see breadcrumb getter. REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): when it's a
+         REAL multi-hop chain (not just the 2-point fallback), a badge next to it opens the same
+         per-hop breakdown panel used on the Dashboard cards — closes out REQ-RDT-NAV-03 here too. -->
+    <div class="context-badge-wrap">
+      <div class="context-badge">
+        <ng-container *ngFor="let d of breadcrumb; let last = last">{{ d }}<span *ngIf="!last"> → </span></ng-container>
+      </div>
+      <button type="button" class="chain-detail-badge" *ngIf="hasChainDetail" (click)="toggleChainExpand()">
+        Rincian per-hop <span class="chain-detail-badge-caret">{{ chainExpanded ? '▲' : '▼' }}</span>
+      </button>
     </div>
     <div class="view-header-row__actions">
       <!-- B2 (3 Agu): card clicks land here now instead of jumping straight to Confirmation —
@@ -12,6 +19,9 @@
       <button class="btn btn--primary" type="button" *ngIf="canGoToConfirm" (click)="goToConfirm()">Confirm Reposted →</button>
       <button class="btn btn--ghost" type="button" (click)="backToDashboard()">‹ Kembali ke Dashboard</button>
     </div>
+  </div>
+  <div class="chain-detail-panel" *ngIf="chainExpanded && hasChainDetail">
+    <rdt-chain-hop-detail [chain]="progress?.chain || []" [resolved]="progress?.resolved" [total]="progress?.total"></rdt-chain-hop-detail>
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 

@@ -97,25 +97,21 @@
                 Dinas Pengaju
                 <rdt-multi-value-filter placeholder="Tempel banyak Dinas Pengaju sekaligus..." (valuesChange)="onPendingColumnFilterChange('dinas_inisiasi', $event)"></rdt-multi-value-filter>
               </th>
-              <th>
-                Account
+              <!-- REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu): kolom dinamis, sumber sama persis
+                   dengan Upload Detail Transaction (GET /api/contract-fields) — bukan subset
+                   Account/Ref.Doc/Nominal/Remark yang di-hardcode terpisah. -->
+              <!-- SRS 3.11 (REQ-RDT-UI-06 diperluas, 5 Agu): Remark ("Notes"), Jika Reject, dan
+                   Select All frozen horizontal at the right edge of this ~53-column table — see
+                   .sticky-notes-col/.sticky-reject-col/.sticky-select-col below. Matches the
+                   Figma reference's own Select All placement (node 20:712: far right of the
+                   table, not the left) and these 3 columns' existing rightmost order here. -->
+              <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric" [class.sticky-notes-col]="col.key === 'remark'">
+                {{ col.label }}
                 <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
-                <rdt-multi-value-filter placeholder="Tempel banyak Account sekaligus..." (valuesChange)="onPendingColumnFilterChange('account', $event)"></rdt-multi-value-filter>
+                <rdt-multi-value-filter [placeholder]="'Tempel banyak ' + col.label + ' sekaligus...'" (valuesChange)="onPendingColumnFilterChange(col.key, $event)"></rdt-multi-value-filter>
               </th>
-              <th>
-                Ref.Doc
-                <rdt-multi-value-filter placeholder="Tempel banyak Ref.Doc sekaligus..." (valuesChange)="onPendingColumnFilterChange('ref_doc', $event)"></rdt-multi-value-filter>
-              </th>
-              <th class="rows__num">
-                Nominal
-                <rdt-multi-value-filter placeholder="Tempel banyak Nominal sekaligus..." (valuesChange)="onPendingColumnFilterChange('nominal', $event)"></rdt-multi-value-filter>
-              </th>
-              <th>
-                Remark
-                <rdt-multi-value-filter placeholder="Tempel banyak Remark sekaligus..." (valuesChange)="onPendingColumnFilterChange('remark', $event)"></rdt-multi-value-filter>
-              </th>
-              <th>Jika Reject</th>
-              <th class="select-all-col">
+              <th class="sticky-reject-col">Jika Reject</th>
+              <th class="select-all-col sticky-select-col">
                 <label class="select-all-label">
                   <input type="checkbox" (change)="toggleSelectAll($any($event.target).checked)" />Select All
                 </label>
@@ -127,22 +123,38 @@
               <!-- A5 (3 Agu): chain arrow was missing everywhere except Dashboard-Detailing — the
                    aggregate badge above can only show a breadcrumb when EVERY row in the current
                    filter agrees on the same path (see badgeText), so a reassigned row sitting in a
-                   mixed queue still needs its OWN chain visible here, per row. -->
-              <td [title]="r.chain && r.chain.length > 2 ? r.chain.join(' → ') : ''">
-                <span *ngIf="r.chain && r.chain.length > 2; else plainInisiasi" class="chain-cell">{{ r.chain.join(' → ') }}</span>
-                <ng-template #plainInisiasi>{{ r.dinas_inisiasi }}</ng-template>
+                   mixed queue still needs its OWN chain visible here, per row. REQ-RDT-UI-05
+                   "Rincian per-hop" (4 Agu): clicking it opens a small popover with the same
+                   per-hop breakdown used elsewhere — a table cell has no room to widen sideways
+                   like the Dashboard cards, so this floats instead (see .chain-popover below). -->
+              <td class="chain-popover-wrap" *ngIf="r.chain && r.chain.length > 2; else plainInisiasi">
+                <button type="button" class="chain-cell" [title]="r.chain.join(' → ')" (click)="toggleChainPopover($event, r.id)">
+                  {{ r.chain.join(' → ') }}
+                </button>
+                <div
+                  class="chain-popover"
+                  *ngIf="isChainPopoverOpen(r.id)"
+                  [style.top.px]="chainPopoverTop"
+                  [style.left.px]="chainPopoverLeft"
+                  (click)="$event.stopPropagation()"
+                >
+                  <rdt-chain-hop-detail [chain]="r.chain" title="Rincian per-hop"></rdt-chain-hop-detail>
+                </div>
               </td>
-              <td>{{ r.account }}</td>
-              <td>{{ r.ref_doc }}</td>
-              <td class="rows__num">{{ r.nominal | number: '1.2-2' }}</td>
-              <td class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
-              <td>
+              <ng-template #plainInisiasi><td>{{ r.dinas_inisiasi }}</td></ng-template>
+              <!-- REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu): kolom dinamis, sama sumber dengan header. -->
+              <ng-container *ngFor="let col of previewColumns">
+                <td *ngIf="col.numeric" class="rows__num">{{ getCellValue(r, col.key) | number: '1.2-2' }}</td>
+                <td *ngIf="col.key === 'remark'" class="rows__remark sticky-notes-col" [title]="r.remark || ''">{{ r.remark }}</td>
+                <td *ngIf="!col.numeric && col.key !== 'remark'">{{ getCellValue(r, col.key) ?? '—' }}</td>
+              </ng-container>
+              <td class="sticky-reject-col">
                 <select *ngIf="!r.checked" [(ngModel)]="r.redirectTo">
                   <option value="">Balik ke pengaju</option>
                   <option *ngFor="let d of redirectTargetsFor(r)" [value]="d.code">Ajukan ke {{ d.code }}</option>
                 </select>
               </td>
-              <td class="select-all-col"><input type="checkbox" [(ngModel)]="r.checked" /></td>
+              <td class="select-all-col sticky-select-col"><input type="checkbox" [(ngModel)]="r.checked" /></td>
             </tr>
           </tbody>
         </table>
@@ -200,15 +212,26 @@
     <p class="note">
       Baris di bawah ini punya sinyal dinas "Ask TA" — bukan dinas sungguhan, artinya
       kepemilikannya AMBIGU dan butuh investigasi manual (cek Ref.Doc/PO, tanya ke dinas terkait)
-      sebelum bisa ditentukan dinas target yang benar. Setelah di-assign, baris masuk status
-      PENDING dengan dinas target baru dan lanjut ke alur konfirmasi normal — dinas barunya yang
-      confirm/decline, BUKAN TAB. Hanya role TAB yang bisa bertindak di sini.
+      sebelum bisa ditentukan dinas target yang benar. Assign di sini bersifat FINAL — begitu
+      di-assign, baris LANGSUNG berstatus Confirmed dengan dinas target baru (dianggap sudah
+      disepakati lewat diskusi di luar sistem sebelum TAB assign), TIDAK perlu dinas target
+      konfirmasi ulang. Dinas target tetap bisa melihat transaksinya. Hanya role TAB yang bisa
+      bertindak di sini.
     </p>
     <div class="card__actions">
       <button class="btn btn--ghost" type="button" (click)="loadInvestigation()">Muat ulang antrian</button>
     </div>
     <p class="note" *ngIf="!investigationRows.length">Tidak ada baris yang menunggu investigasi.</p>
     <ng-container *ngIf="investigationRows.length">
+      <!-- REQ-RDT-LEDGER-09, extended 5 Agu ke antrian Investigation -- sama pola dengan queue PENDING. -->
+      <div class="original-file-downloads" *ngIf="downloadableInvestigationUploads.length">
+        <button
+          *ngFor="let u of downloadableInvestigationUploads"
+          class="btn btn--ghost"
+          type="button"
+          (click)="downloadOriginal(u.upload_id, u.upload_filename)"
+        >⬇ Download file asli: {{ u.upload_filename }}</button>
+      </div>
       <label class="batch-note-label">
         Keterangan (opsional)
         <rdt-mention-input

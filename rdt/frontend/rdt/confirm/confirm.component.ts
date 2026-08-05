@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { combineLatest } from 'rxjs';
 import { CurrentUserService } from '@auth/services/current-user.service';
@@ -10,12 +10,19 @@ import { DashboardDetailService } from '../services/dashboard-detail.service';
 import { Comment } from '../services/comment.model';
 import { InvestigationService, InvestigationRow } from '../services/investigation.service';
 import { matchesAllColumnFilters } from '../shared/multi-value-filter.component';
+import { TransactionService, ContractField } from '../services/transaction.service';
 
 interface PendingRowVm extends PendingRow {
   checked: boolean;
   /** '' = balik ke pengaju (default DECLINED flow); a dinas code = reject-and-redirect there
    * immediately (item 7). Only meaningful when checked=false. */
   redirectTo: string;
+}
+
+interface PreviewColumn {
+  key: string;
+  label: string;
+  numeric?: boolean;
 }
 
 interface ThreadRow {
@@ -58,6 +65,25 @@ export class ConfirmComponent implements OnInit {
   declinedRows: DeclinedRow[] = [];
   dinasOptions: DinasEntry[] = [];
 
+  // REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu, "full column preview everywhere"): this queue used to
+  // hardcode Account/Ref.Doc/Nominal/Remark only — same shared column source (GET
+  // /api/contract-fields) repost-budgeting.component.ts and need-approval.component.ts already
+  // use, so whatever's visible at Upload Detail Transaction stays visible here too.
+  previewColumns: PreviewColumn[] = [];
+
+  /** REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): which row's chain popover is open, at most one at a
+   * time — same "one at a time" convention as home.component's expandedChainKey. A table cell has
+   * no room to widen sideways like the Dashboard cards do, so this opens a small floating popover
+   * instead (see confirm.component.scss's .chain-popover). */
+  expandedChainRowId: number | null = null;
+  /** Fixed-position coords for the open popover, computed from the trigger button's own
+   * bounding rect (see toggleChainPopover) — position:absolute would get clipped by
+   * .table-scroll's `overflow-x: auto` (which forces overflow-y to a clipping value too, per
+   * the CSS spec, even though only overflow-x was set), so this escapes via position:fixed
+   * instead, which isn't confined by an ancestor's overflow. */
+  chainPopoverTop = 0;
+  chainPopoverLeft = 0;
+
   // REQ-RDT-NAV-05 (baru 3 Agu): baris DECLINED/sedang-direassign pindah ke tab/sheet terpisah
   // (mirip tab sheet Excel), bukan ditumpuk di bawah tabel pending — dan tab ini cuma dirender
   // sama sekali kalau ADA datanya (lihat confirm.component.html's *ngIf="declinedRows.length").
@@ -71,10 +97,10 @@ export class ConfirmComponent implements OnInit {
   emptyNote = '';
   reassignTargetByRowId: Record<number, string> = {};
 
-  // REQ-RDT-NAV-07: paginate the pending table instead of dumping every row on one page, using
-  // the shared pager (100 rows/page) also used by Repost's review table.
+  // REQ-RDT-NAV-07 (direvisi 5 Agu, 100->50): paginate the pending table instead of dumping every
+  // row on one page, using the shared pager (50 rows/page) also used by Repost's review table.
   page = 1;
-  readonly pageSize = 100;
+  readonly pageSize = 50;
   // REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account —
   // keyed by PendingRowVm's own field names (dinas_inisiasi/account/ref_doc/nominal/remark), AND
   // antar kolom aktif, OR di dalam satu kolom (matchesAllColumnFilters).
@@ -151,7 +177,41 @@ export class ConfirmComponent implements OnInit {
     private dashboardDetail: DashboardDetailService,
     private investigation: InvestigationService,
     private modal: ModalService,
-  ) {}
+    private txService: TransactionService,
+  ) {
+    this.txService.getContractFields().subscribe((fields) => {
+      this.previewColumns = this.buildPreviewColumns(fields);
+    });
+  }
+
+  // Same "sub_group first, then every contract field, then the operational extras that matter
+  // in THIS specific queue" shape as need-approval.component.ts's own buildPreviewColumns —
+  // dinas_target/status_konfirmasi are dropped here since every row in this queue already shares
+  // the same value for both (this dinas, PENDING), unlike Repost Review's mixed preview.
+  private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
+    const contractCols: PreviewColumn[] = fields.map((f) =>
+      f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Nominal', numeric: true } : { key: f.key, label: f.label },
+    );
+    return [
+      { key: 'sub_group', label: 'Sub Group' },
+      ...contractCols,
+      { key: 'category', label: 'Kategori' },
+      { key: 'remark', label: 'Remark' },
+    ];
+  }
+
+  getCellValue(row: PendingRowVm, key: string): string | number | null | undefined {
+    return row[key] as string | number | null | undefined;
+  }
+
+  // Closes the chain popover on any click outside it — same pattern
+  // shared/multi-value-filter.component.ts uses for its own popup. toggleChainPopover already
+  // stopPropagation()s the click that OPENS it, so this only ever fires for genuinely outside
+  // clicks, not the opening click itself bubbling up.
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.expandedChainRowId = null;
+  }
 
   // BUG FIX (28 Jul, found while verifying the thread-reorder change): user$ and queryParamMap
   // used to be two SEPARATE subscriptions, each independently calling resolveDinasAndLoad() on
@@ -263,7 +323,7 @@ export class ConfirmComponent implements OnInit {
   async assignInvestigation(row: InvestigationRow): Promise<void> {
     const target = this.investigationTargetByRowId[row.id];
     if (!target) { await this.modal.alert('Pilih dinas target dulu.'); return; }
-    const ok = await this.modal.confirm(`Assign baris ini ke dinas ${target}? Baris akan masuk antrian konfirmasi normal dinas tersebut.`);
+    const ok = await this.modal.confirm(`Assign baris ini ke dinas ${target}? Aksi ini FINAL — baris LANGSUNG berstatus Confirmed, dinas target tidak perlu konfirmasi ulang.`);
     if (!ok) return;
     const description = this.investigationDescription.trim() || undefined;
     this.investigation.assign(row.id, target, description).subscribe({
@@ -284,7 +344,7 @@ export class ConfirmComponent implements OnInit {
 
   async assignAllInvestigation(): Promise<void> {
     if (!this.canAssignAllInvestigation()) return;
-    const ok = await this.modal.confirm(`Assign ${this.investigationRows.length} baris sekaligus ke dinas yang sudah dipilih masing-masing?`);
+    const ok = await this.modal.confirm(`Assign ${this.investigationRows.length} baris sekaligus ke dinas yang sudah dipilih masing-masing? Aksi ini FINAL — semua baris LANGSUNG berstatus Confirmed.`);
     if (!ok) return;
     const items = this.investigationRows.map((r) => ({ transaction_id: r.id, dinas_target: this.investigationTargetByRowId[r.id] }));
     const description = this.investigationDescription.trim() || undefined;
@@ -336,7 +396,7 @@ export class ConfirmComponent implements OnInit {
     if (!this.canBulkAssignSelected()) return;
     const count = this.selectedInvestigationIds.size;
     const target = this.bulkTargetDinas;
-    const ok = await this.modal.confirm(`Assign ${count} baris terpilih ke dinas ${target}?`);
+    const ok = await this.modal.confirm(`Assign ${count} baris terpilih ke dinas ${target}? Aksi ini FINAL — semua baris LANGSUNG berstatus Confirmed.`);
     if (!ok) return;
     const items = this.investigationRows
       .filter((r) => this.selectedInvestigationIds.has(r.id))
@@ -435,6 +495,25 @@ export class ConfirmComponent implements OnInit {
 
   onPageChange(p: number): void { this.page = p; }
 
+  // REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): a single transaction's own chain has no meaningful
+  // "in progress" fraction per hop (it already fully traversed every hop to reach where it sits
+  // now) — see shared/chain-hop-detail.component.ts's showProgress fallback, which this leaves
+  // resolved/total undefined for on purpose.
+  isChainPopoverOpen(rowId: number): boolean {
+    return this.expandedChainRowId === rowId;
+  }
+
+  toggleChainPopover(event: MouseEvent, rowId: number): void {
+    event.stopPropagation();
+    const opening = this.expandedChainRowId !== rowId;
+    this.expandedChainRowId = opening ? rowId : null;
+    if (opening) {
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      this.chainPopoverTop = rect.bottom + 4;
+      this.chainPopoverLeft = rect.left;
+    }
+  }
+
   // Item 7: dinas choices for a pending row's "reject ke dinas lain" picker — same exclusion
   // rules as REASSIGN (can't send back to the uploader, can't "redirect" to the dinas that's
   // literally doing the rejecting right now).
@@ -462,6 +541,19 @@ export class ConfirmComponent implements OnInit {
       next: (blob) => triggerBlobDownload(blob, filename),
       error: async (err) => { await this.modal.alert('Gagal mengunduh file asli: ' + (err?.message || err)); },
     });
+  }
+
+  // REQ-RDT-LEDGER-09, extended 5 Agu ke antrian Investigation ("Ask TA") — sama pola dengan
+  // downloadableUploads di atas, sumbernya investigationRows (yang juga sudah bawa
+  // upload_id/upload_filename dari investigation.js), tetap pakai downloadOriginal() yang sama.
+  get downloadableInvestigationUploads(): { upload_id: number; upload_filename: string }[] {
+    const seen = new Map<number, { upload_id: number; upload_filename: string }>();
+    for (const r of this.investigationRows) {
+      if (r.upload_id != null && !seen.has(r.upload_id)) {
+        seen.set(r.upload_id, { upload_id: r.upload_id, upload_filename: r.upload_filename || `upload-${r.upload_id}.xlsx` });
+      }
+    }
+    return Array.from(seen.values());
   }
 
   async submitDecisions(): Promise<void> {

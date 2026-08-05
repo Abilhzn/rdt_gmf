@@ -1,33 +1,74 @@
 <!-- Shared pair-card template (Figma nodes 1:2 "Need to Confirm" / 69:209 "Own Repost", 28 Jul
-     design-detail pass) — both sub-views render the same rich card: title + count badge, ring +
-     percent, reply count, optional declined-notification line. -->
-<ng-template #pairCard let-d let-title="title" let-clickable="clickable" let-kind="kind">
+     design-detail pass; 'own'/TAB-'need' restyled per REQ-RDT-UI-05 KEPUTUSAN FINAL, re-adopting
+     3c2d8f5). `kind` controls CLICK ROUTING only (onCardClick) — 'need' drills into
+     Confirm/Dashboard-Detailing depending on pending state, 'own' into Dashboard-Detailing.
+     `useBar` controls the VISUAL independently: the 3-segment horizontal bar (Confirmed/Open/
+     Declined) vs the original donut ring — a plain PIC's "Need to Confirm" always stays donut. -->
+<ng-template #pairCard let-d let-title="title" let-clickable="clickable" let-kind="kind" let-useBar="useBar">
   <div class="pair-card">
     <div class="pair-card__main" [class.pair-card__main--clickable]="clickable" (click)="clickable && onCardClick(kind, d)">
       <div class="pair-card__header">
         <span class="pair-card__title">{{ title }}</span>
         <span class="pair-card__count">{{ d.total }}</span>
       </div>
-      <div class="pair-card__body">
-        <!-- Item 5's red/yellow/blue status coding was invisible at low/0% (the colored ARC has
-             ~zero length to render) — coloring the percent text too makes status legible
-             regardless of how much of the ring is actually filled in. -->
-        <div class="dinas-circle" [ngStyle]="{'--pct': d.percent, '--ring-color': ringColor(d.percent)}">
-          <span class="pct-label" [style.color]="ringColor(d.percent)">{{ d.percent | number: '1.1-1' }}%</span>
+
+      <!-- 2-COLUMN bar body — LEFT column stacks state-label pill/comment-count, RIGHT column
+           holds the segmented bar+percent with the legend below it. -->
+      <ng-container *ngIf="useBar; else donutBody">
+        <div class="pair-card__bar-body">
+          <div class="pair-card__bar-left">
+            <!-- Symmetry fix (5 Agu, Figma 78:242 audit): always reserve this pill's slot, even
+                 with no state_label (e.g. a not-yet-touched Investigation row) -- rendering it
+                 invisible instead of removing the node keeps "X comment" at the same Y position
+                 across every card in the list, so cards don't visually shift against their
+                 siblings just because one has no label. -->
+            <div
+              class="pair-card__state-label"
+              [ngClass]="stateLabelClass(d.state_label)"
+              [class.pair-card__state-label--empty]="!d.state_label"
+            >{{ d.state_label || ' ' }}</div>
+            <span class="pair-card__reply">{{ d.reply_count || 0 }} comment</span>
+          </div>
+          <div class="pair-card__bar-right">
+            <div class="pair-card__bar-row">
+              <div class="segment-bar">
+                <span class="segment-bar__seg segment-bar__seg--confirmed" [style.width.%]="barSegments(d).confirmedPct"></span>
+                <span class="segment-bar__seg segment-bar__seg--open" [style.width.%]="barSegments(d).openPct"></span>
+                <span class="segment-bar__seg segment-bar__seg--declined" [style.width.%]="barSegments(d).declinedPct"></span>
+              </div>
+              <span class="pair-card__percent" [style.color]="ringColor(d.percent)">{{ d.percent | number: '1.1-1' }}%</span>
+            </div>
+            <div class="segment-legend">
+              <span>Total {{ d.total }}</span>
+              <span class="segment-legend__dot segment-legend__dot--confirmed"></span>Confirmed {{ d.resolved }}
+              <span class="segment-legend__dot segment-legend__dot--open"></span>Open {{ d.open || 0 }}
+              <span class="segment-legend__dot segment-legend__dot--declined"></span>Declined {{ d.declined_pending_action || 0 }}
+            </div>
+          </div>
         </div>
-        <span class="pair-card__reply">{{ d.reply_count || 0 }} reply</span>
-      </div>
+      </ng-container>
+      <ng-template #donutBody>
+        <div class="pair-card__body">
+          <!-- Item 5's red/yellow/blue status coding was invisible at low/0% (the colored ARC has
+               ~zero length to render) — coloring the percent text too makes status legible
+               regardless of how much of the ring is actually filled in. -->
+          <div class="dinas-circle" [ngStyle]="{'--pct': d.percent, '--ring-color': ringColor(d.percent)}">
+            <span class="pct-label" [style.color]="ringColor(d.percent)">{{ d.percent | number: '1.1-1' }}%</span>
+          </div>
+          <span class="pair-card__reply">{{ d.reply_count || 0 }} comment</span>
+        </div>
+        <div class="pair-card__state-label" [ngClass]="stateLabelClass(d.state_label)" *ngIf="d.state_label">{{ d.state_label }}</div>
+      </ng-template>
+
       <div class="pair-card__notif" *ngIf="d.declined_pending_action">
         {{ d.declined_pending_action }} transaksi ditolak, perlu tindak lanjut
       </div>
-      <!-- REQ-RDT-NAV-03 progress-redirect indicator (5 Agu, opsi disetujui pemilik proyek 4 Agu
-           via preview mockup): only shown when a GENUINE multi-hop redirect happened — d.chain is
-           only ever more than 2 points when every transaction under this card agrees on the same
-           full path (see dashboard.js's buildChainAwareProgress chainConsistent check), so it's
-           safe to treat every hop except the last as "100% moved past it" (every member
-           transaction really did traverse it) — see chainHops() below. Collapsed by default,
-           click expands SIDEWAYS (not downward — explicit project owner request) with a divider;
-           stopPropagation so the badge click doesn't also fire the card's own onCardClick. -->
+
+      <!-- REQ-RDT-NAV-03 progress-redirect indicator (5 Agu, project owner-approved mockup): only
+           shown when a GENUINE multi-hop redirect happened — d.chain is only ever more than 2
+           points when every transaction under this card agrees on the same full path. Collapsed
+           by default, click expands SIDEWAYS (not downward) with a divider; stopPropagation so
+           the badge click doesn't also fire the card's own onCardClick. -->
       <button
         type="button"
         class="pair-card__chain-badge"
@@ -40,16 +81,110 @@
     <ng-container *ngIf="isChainExpanded(kind, d)">
       <div class="pair-card__chain-divider"></div>
       <div class="pair-card__chain-detail">
-        <div class="pair-card__chain-detail-title">Rincian per-hop</div>
-        <div class="pair-card__chain-hop" *ngFor="let hop of chainHops(d)">
-          <span class="pair-card__chain-hop-label">{{ hop.from }} → {{ hop.to }}</span>
-          <div class="pair-card__chain-hop-bar">
-            <span class="pair-card__chain-hop-bar-fill" [style.width.%]="hop.total ? (hop.resolved / hop.total * 100) : 0"></span>
+        <rdt-chain-hop-detail [chain]="d.chain" [resolved]="d.resolved" [total]="d.total"></rdt-chain-hop-detail>
+      </div>
+    </ng-container>
+  </div>
+</ng-template>
+
+<!-- REQ-RDT-UI-05 (re-adopted from 3c2d8f5): KPI summary row atop the 'own' sub-view AND TAB's
+     'need' sub-view — role-aware (4 cards for a PIC's own dinas, 5 for TAB's system-wide view). -->
+<ng-template #kpiRow>
+  <div class="kpi-row" *ngIf="kpis">
+    <ng-container *ngIf="!kpis.is_global_view; else tabKpis">
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--blue">≡</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.total_transaksi }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Total Transaksi Diajukan</span>
+            <span class="kpi-card__note kpi-card__note--blue">{{ kpis.pasangan_count }} pasangan dinas</span>
           </div>
-          <span class="pair-card__chain-hop-count">{{ hop.resolved }}/{{ hop.total }}</span>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--blue">Rp</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.total_nilai | number: '1.0-0' }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Total Nilai Diajukan</span>
+            <span class="kpi-card__note kpi-card__note--blue">periode ini</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--amber">⏱</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.open_count }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Open / Menunggu</span>
+            <span class="kpi-card__note kpi-card__note--amber" *ngIf="kpis.open_count">▲ perlu follow up</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--green">✓</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.resolved_count }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Selesai / Reposted</span>
+            <span class="kpi-card__note kpi-card__note--green" *ngIf="kpis.total_transaksi">{{ (kpis.resolved_count || 0) / kpis.total_transaksi * 100 | number: '1.1-1' }}% dari total</span>
+          </div>
         </div>
       </div>
     </ng-container>
+    <ng-template #tabKpis>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--blue">≡</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.dinas_aktif }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Dinas Aktif</span>
+            <span class="kpi-card__note kpi-card__note--blue">periode ini</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--blue">Σ</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.total_transaksi }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Total Transaksi</span>
+            <span class="kpi-card__note kpi-card__note--blue">seluruh sistem</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--red">?</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.butuh_investigasi }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Butuh Investigasi</span>
+            <span class="kpi-card__note kpi-card__note--red" *ngIf="kpis.butuh_investigasi">⚠ Ask TA</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--amber">⏱</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.waiting_to_repost }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Waiting to Repost</span>
+            <span class="kpi-card__note kpi-card__note--amber" *ngIf="kpis.waiting_to_repost">siap diproses</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__icon kpi-card__icon--green">✓</span>
+        <div class="kpi-card__body">
+          <div class="kpi-card__value">{{ kpis.reposted }}</div>
+          <div class="kpi-card__meta-row">
+            <span class="kpi-card__label">Reposted</span>
+            <span class="kpi-card__note kpi-card__note--green">periode ini</span>
+          </div>
+        </div>
+      </div>
+    </ng-template>
   </div>
 </ng-template>
 
@@ -58,26 +193,35 @@
   <p class="note" *ngIf="!currentUser.current">Pilih "Login sebagai" dulu untuk memuat dashboard.</p>
 
   <ng-container *ngIf="currentUser.current">
-    <!-- ============ Need to Confirm (default sub-view, REQ-RDT-NAV-02a) ============ -->
+    <!-- ============ Need to Confirm / Need Identification (default sub-view, REQ-RDT-NAV-02a)
+         ============ REQ-RDT-NAV-10: TAB keeps this sub-view (label "Need Identification",
+         matching the Confirmation nav item it's paired with) styled like Report Submission/
+         Summary Progress — KPI row + segmented bar — instead of the donut. A plain PIC's "Need to
+         Confirm" is untouched (no KPI row, donut ring). ============ -->
     <div class="dashboard-panel" *ngIf="subview === 'need'">
-      <h3>Need to Confirm</h3>
+      <h3>{{ isTabRole ? 'Need Identification' : 'Need to Confirm' }}</h3>
       <p class="note">Pengajuan dari dinas lain yang perlu Anda konfirmasi. Klik salah satu untuk
         langsung meninjau pengajuan dinas tersebut.</p>
+
+      <ng-container *ngIf="isTabRole">
+        <ng-container *ngTemplateOutlet="kpiRow"></ng-container>
+      </ng-container>
+
       <p class="note" *ngIf="loaded && !needToConfirm.length">Tidak ada dinas yang butuh konfirmasi dari Anda saat ini.</p>
       <div class="pair-card-list">
         <ng-container *ngFor="let d of needToConfirm">
-          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('need', d), clickable: true, kind: 'need' }"></ng-container>
+          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('need', d), clickable: true, kind: 'need', useBar: isTabRole }"></ng-container>
         </ng-container>
       </div>
     </div>
 
-    <!-- ============ Own Repost ============ -->
+    <!-- ============ Own Repost (Report Submission / Summary Progress All Dinas) ============ -->
     <div class="dashboard-panel" *ngIf="subview === 'own'">
-      <h3 *ngIf="!isGlobalView">Dashboard Pengajuan {{ (currentUser.user$ | async)?.display_name || '[User]' }}</h3>
-      <h3 *ngIf="isGlobalView">Progres Semua Dinas</h3>
+      <h3 *ngIf="!isGlobalView">Report Submission — {{ (currentUser.user$ | async)?.display_name || '[User]' }}</h3>
+      <h3 *ngIf="isGlobalView">Summary Progress All Dinas</h3>
       <p class="note" *ngIf="!isGlobalView">
         Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda belum
-        mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah circle muncul jika
+        mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah bar muncul jika
         dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu tindak
         lanjut (Tanggung Sendiri / Ajukan ulang).
       </p>
@@ -87,14 +231,55 @@
         repost). Klik salah satu kartu untuk melihat siapa yang belum konfirmasi / urusannya
         belum selesai.
       </p>
-      <p class="note" *ngIf="loaded && !asInitiator.length">
-        {{ isGlobalView ? 'Belum ada dinas yang mengajukan repost.' : 'Anda belum mengajukan repost apapun.' }}
-      </p>
-      <div class="pair-card-list">
-        <ng-container *ngFor="let d of asInitiator">
-          <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('own', d), clickable: true, kind: 'own' }"></ng-container>
-        </ng-container>
-      </div>
+
+      <ng-container *ngTemplateOutlet="kpiRow"></ng-container>
+
+      <ng-container *ngIf="!isGlobalView; else perDinasTable">
+        <p class="note" *ngIf="loaded && !asInitiator.length">Anda belum mengajukan repost apapun.</p>
+        <div class="pair-card-list">
+          <ng-container *ngFor="let d of asInitiator">
+            <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('own', d), clickable: true, kind: 'own', useBar: true }"></ng-container>
+          </ng-container>
+        </div>
+      </ng-container>
+      <!-- REQ-RDT-UI-05: TAB's global view is a per-dinas-PENGAJU rollup TABLE — sums every pair
+           per submitting dinas. Rows aren't individually clickable — an aggregate row has no
+           single (initiator, target) pair to drill into; per-pair detail still lives in
+           Dashboard-Detailing, reached from Confirmation/Riwayat Repost. -->
+      <ng-template #perDinasTable>
+        <p class="note" *ngIf="loaded && !perDinasRollup.length">Belum ada dinas yang mengajukan repost.</p>
+        <div class="table-scroll" *ngIf="perDinasRollup.length">
+          <table class="rollup-table">
+            <thead>
+              <tr>
+                <th>Dinas</th><th class="rollup-table__num">Total</th><th class="rollup-table__num">Confirmed</th>
+                <th class="rollup-table__num">Open</th><th class="rollup-table__num">Declined</th>
+                <th>Progress</th><th class="rollup-table__num">%</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of perDinasRollup">
+                <td class="rollup-table__dinas">{{ row.dinas }}</td>
+                <td class="rollup-table__num">{{ row.total }}</td>
+                <td class="rollup-table__num rollup-table__num--confirmed">{{ row.confirmed }}</td>
+                <td class="rollup-table__num" [class.rollup-table__num--open]="row.open">{{ row.open }}</td>
+                <td class="rollup-table__num" [class.rollup-table__num--declined]="row.declined">{{ row.declined }}</td>
+                <td class="rollup-table__progress-col">
+                  <div class="segment-bar segment-bar--table">
+                    <span class="segment-bar__seg segment-bar__seg--confirmed" [style.width.%]="row.total ? (row.confirmed / row.total * 100) : 0"></span>
+                    <span class="segment-bar__seg segment-bar__seg--open" [style.width.%]="row.total ? (row.open / row.total * 100) : 0"></span>
+                    <span class="segment-bar__seg segment-bar__seg--declined" [style.width.%]="row.total ? (row.declined / row.total * 100) : 0"></span>
+                  </div>
+                </td>
+                <td class="rollup-table__num rollup-table__percent">{{ row.percent | number: '1.1-1' }}%</td>
+                <td>
+                  <span class="rollup-status" *ngIf="row.status" [ngClass]="rollupStatusClass(row)">{{ row.status.label }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-template>
     </div>
   </ng-container>
 

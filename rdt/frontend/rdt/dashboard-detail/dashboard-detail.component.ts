@@ -38,6 +38,10 @@ export class DashboardDetailComponent implements OnInit {
   commentBody = '';
   submitting = false;
 
+  /** REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): whether the per-hop breakdown panel under the
+   * header breadcrumb is open — resets whenever a different pair is loaded (see ngOnInit). */
+  chainExpanded = false;
+
   @ViewChild(MentionInputComponent) commentInput?: MentionInputComponent;
 
   constructor(
@@ -55,8 +59,20 @@ export class DashboardDetailComponent implements OnInit {
       this.initiatorDinas = initiator;
       this.targetDinas = target;
       this.clearReplyTarget();
+      this.chainExpanded = false;
       this.load();
     });
+  }
+
+  // REQ-RDT-UI-05 "Rincian per-hop": only worth a badge when there's an actual multi-hop redirect
+  // to break down — same >2 threshold as home.component's chain-badge, and as breadcrumb's own
+  // "did the backend send a real chain, not just the 2-point fallback" check above.
+  get hasChainDetail(): boolean {
+    return (this.progress?.chain?.length || 0) > 2;
+  }
+
+  toggleChainExpand(): void {
+    this.chainExpanded = !this.chainExpanded;
   }
 
   // REQ-RDT-LEDGER-10 (29 Jul): the 'INVESTIGATION' sentinel (see dashboard.js's
@@ -138,8 +154,20 @@ export class DashboardDetailComponent implements OnInit {
   // Same relative-routing hop HomeComponent's now-removed goToConfirmFrom used to do (this
   // component is ALSO nested inside HomeModule, per the class header comment, so the same
   // "count URL segments, not routeConfig entries" quirk applies here too).
+  //
+  // BUG FIX (5 Agu, live report — "403 di /rdt/confirm?from=TJ&target=TMM"): open>0 alone isn't
+  // enough — this page is reachable by BOTH the initiator (viewing their own outgoing pair) and
+  // the confirming dinas, but Confirm is the confirming dinas's ACTION page
+  // (middleware/auth.js's requireDinasAccess 403s anyone else). An initiator clicking their own
+  // pending pair here used to get a "Confirm Reposted" button that 403'd the moment they clicked
+  // it — now the button itself only appears when the viewer is actually authorized to act:
+  // role TAB, or their own dinas matches targetDinas (mirrors requireDinasAccess's own rule).
   get canGoToConfirm(): boolean {
-    return !!this.progress && this.progress.open > 0;
+    if (!this.progress || this.progress.open <= 0) return false;
+    const user = this.currentUser.current;
+    if (!user) return false;
+    if (user.role === 'TAB') return true;
+    return String(user.dinas).toUpperCase() === this.targetDinas.toUpperCase();
   }
 
   goToConfirm(): void {

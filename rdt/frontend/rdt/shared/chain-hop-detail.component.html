@@ -1,0 +1,39 @@
+<div class="chain-hop-detail">
+  <div class="chain-hop-detail__title">{{ title }}</div>
+
+  <ng-container *ngFor="let hop of visibleHops; let i = index">
+    <button
+      type="button"
+      class="chain-hop-detail__more"
+      *ngIf="i === 1 && hiddenHopCount > 0"
+      (click)="toggleHops($event)"
+    >+ {{ hiddenHopCount }} hop lainnya</button>
+
+    <div class="chain-hop-detail__hop">
+      <span class="chain-hop-detail__label">{{ hop.from }} → {{ hop.to }}</span>
+      <!-- SIMETRI (5 Agu): a redirected hop is a SETTLED fact (that dinas rejected-and-redirected)
+           regardless of context — same "✓ Diarahkan" line whether this is the aggregate card view
+           or a single transaction's own popover. Only the CURRENT/active hop's presentation
+           depends on whether there's a real in-progress fraction to show at all. -->
+      <span class="chain-hop-detail__redirected" *ngIf="hop.isRedirected">✓ Diarahkan ke {{ hop.to }}</span>
+      <ng-container *ngIf="!hop.isRedirected">
+        <ng-container *ngIf="showProgress; else currentPlain">
+          <div class="chain-hop-detail__bar">
+            <span class="chain-hop-detail__bar-fill" [style.width.%]="hop.total ? (hop.resolved / hop.total * 100) : 0"></span>
+          </div>
+          <span class="chain-hop-detail__count">{{ hop.resolved }}/{{ hop.total }}</span>
+        </ng-container>
+        <ng-template #currentPlain>
+          <span class="chain-hop-detail__current">📍 Posisi saat ini</span>
+        </ng-template>
+      </ng-container>
+    </div>
+  </ng-container>
+
+  <button
+    type="button"
+    class="chain-hop-detail__more"
+    *ngIf="hopsExpanded && hiddenHopCount > 0"
+    (click)="toggleHops($event)"
+  >Sembunyikan</button>
+</div>

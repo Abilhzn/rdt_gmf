@@ -1,7 +1,7 @@
 const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
-const { validateReassignTarget } = require('../rules/reassignmentRules');
+const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 
@@ -74,11 +74,19 @@ router.get('/', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// POST /api/investigation/:transactionId/assign — body: { dinas_target }. Moves the row to
-// PENDING under the newly-determined dinas_target, so it enters the NORMAL confirmation flow
-// from there (the newly-assigned dinas confirms/declines it — TAB's job here is just routing,
-// per REQ-RDT-LEDGER-10's explicit "keputusan akhir tetap di tangan TAB sebagai manusia, sistem
-// cuma memfasilitasi routing-nya, JANGAN dibuat otomatis menebak").
+// POST /api/investigation/:transactionId/assign — body: { dinas_target }.
+//
+// REQ-RDT-LEDGER-10 REVERSAL (5 Agu, DIBALIK from the 30 Jul "still needs normal confirm" call):
+// this used to move the row to PENDING under the newly-determined dinas_target so it entered the
+// NORMAL confirm flow there. Now it's the FINAL word — the project owner confirmed the dinas
+// determination already happened through discussion OUTSIDE this system (WhatsApp etc.) before
+// TAB ever clicks Assign here, so a second Ya/Tidak round-trip through the assigned dinas would
+// just be re-litigating a decision that's already settled. The row goes straight to CONFIRMED,
+// atomically with its ledger pair (DEBIT the assigned dinas, CREDIT the initiator) — same
+// mechanics as routes/confirmation.js's 'YA' path, just triggered by TAB's assignment instead of
+// the target dinas's own click. The assigned dinas can still SEE the transaction (it's a normal
+// row with their code as dinas_target — every existing read path, e.g. Dashboard-Detailing's
+// getPairTransactions, already shows every status, not just PENDING), just no action needed.
 router.post('/:transactionId/assign', express.json(), async (req, res) => {
   const transactionId = req.params.transactionId;
   const newTarget = req.body && req.body.dinas_target;
@@ -90,7 +98,7 @@ router.post('/:transactionId/assign', express.json(), async (req, res) => {
     await client.connect();
     await client.query('BEGIN');
     const q = await client.query(
-      'SELECT id, status_konfirmasi, dinas_inisiasi, dinas_target, reassign_count FROM rdt.transactions WHERE id=$1 FOR UPDATE',
+      'SELECT id, status_konfirmasi, dinas_inisiasi, dinas_target, reassign_count, nominal FROM rdt.transactions WHERE id=$1 FOR UPDATE',
       [transactionId]
     );
     if (!q.rows.length) throw new Error('transaction not found: ' + transactionId);
@@ -99,7 +107,7 @@ router.post('/:transactionId/assign', express.json(), async (req, res) => {
       throw new Error('transaction is not awaiting investigation: ' + transactionId);
     }
     const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
-    const validCodes = new Set(validRes.rows.map((r) => String(r.code).toUpperCase()));
+    const validCodes = buildValidCodeMap(validRes.rows);
     const validation = validateReassignTarget({
       newTarget,
       validCodes,
@@ -112,14 +120,16 @@ router.post('/:transactionId/assign', express.json(), async (req, res) => {
 
     await client.query(
       `UPDATE rdt.transactions
-       SET dinas_target=$1, status_konfirmasi='PENDING', reassigned_from='Ask TA',
-           decided_by_user_id=NULL, decided_at=NULL
-       WHERE id=$2`,
-      [newTargetUpper, transactionId]
+       SET dinas_target=$1, status_konfirmasi='CONFIRMED', reassigned_from='Ask TA',
+           decided_by_user_id=$2, decided_at=now()
+       WHERE id=$3`,
+      [newTargetUpper, userId, transactionId]
     );
+    await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [transactionId, newTargetUpper, 'DEBIT', row.nominal]);
+    await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [transactionId, row.dinas_inisiasi, 'CREDIT', row.nominal]);
     await client.query(
       'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)',
-      [userId, transactionId, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'PENDING', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId })]
+      [userId, transactionId, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'CONFIRMED', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId, auto_confirmed: true })]
     );
 
     const trimmedDescription = description && String(description).trim();
@@ -161,13 +171,13 @@ router.post('/assign-all', express.json(), async (req, res) => {
     await client.query('BEGIN');
 
     const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
-    const validCodes = new Set(validRes.rows.map((r) => String(r.code).toUpperCase()));
+    const validCodes = buildValidCodeMap(validRes.rows);
 
     const assigned = [];
     const pairTransactionId = new Map(); // "inisiasi target" -> a transaction id to anchor a new comment to
     for (const item of items) {
       const q = await client.query(
-        'SELECT id, status_konfirmasi, dinas_inisiasi, dinas_target, reassign_count FROM rdt.transactions WHERE id=$1 FOR UPDATE',
+        'SELECT id, status_konfirmasi, dinas_inisiasi, dinas_target, reassign_count, nominal FROM rdt.transactions WHERE id=$1 FOR UPDATE',
         [item.transaction_id]
       );
       if (!q.rows.length) throw new Error('transaction not found: ' + item.transaction_id);
@@ -185,16 +195,20 @@ router.post('/assign-all', express.json(), async (req, res) => {
       if (!validation.ok) throw new Error(`id ${item.transaction_id}: ${validation.error}`);
       const newTargetUpper = validation.newTargetUpper;
 
+      // REQ-RDT-LEDGER-10 REVERSAL (5 Agu) — see single-assign route above for the full rationale:
+      // straight to CONFIRMED + ledger pair, not PENDING.
       await client.query(
         `UPDATE rdt.transactions
-         SET dinas_target=$1, status_konfirmasi='PENDING', reassigned_from='Ask TA',
-             decided_by_user_id=NULL, decided_at=NULL
-         WHERE id=$2`,
-        [newTargetUpper, row.id]
+         SET dinas_target=$1, status_konfirmasi='CONFIRMED', reassigned_from='Ask TA',
+             decided_by_user_id=$2, decided_at=now()
+         WHERE id=$3`,
+        [newTargetUpper, userId, row.id]
       );
+      await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [row.id, newTargetUpper, 'DEBIT', row.nominal]);
+      await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [row.id, row.dinas_inisiasi, 'CREDIT', row.nominal]);
       await client.query(
         'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)',
-        [userId, row.id, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'PENDING', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId, batch: true })]
+        [userId, row.id, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'CONFIRMED', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId, batch: true, auto_confirmed: true })]
       );
       assigned.push({ id: row.id, dinas_inisiasi: row.dinas_inisiasi, dinas_target: newTargetUpper });
       const pairKey = `${row.dinas_inisiasi} ${newTargetUpper}`;

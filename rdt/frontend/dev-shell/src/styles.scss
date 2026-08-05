@@ -12,3 +12,35 @@ body {
   color: #000;
   font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
+
+// Minimal/modern scrollbar (5 Agu, project owner: "aku pengen nih web terlihat rapih") -- global
+// on purpose. WebKit's ::-webkit-scrollbar* pseudo-elements apply to EVERY scrollable element on
+// the page, not just documentElement/body, so this one rule also covers every nested overflow
+// container (.table-scroll, chain-hop-detail's popover body, the mention-input suggestion list,
+// etc.) without needing a per-component copy despite this app's usual "duplicate styles per
+// component" convention (see rdt/README.md) -- there's nothing component-specific to duplicate
+// here. Same reasoning as the font/background reset above: this file plays the role the real
+// OCX host's own global styles would play in production, so it's the right (and only) place for
+// an app-wide visual reset like this to live; ui-demo.html mirrors it in its own <style> block
+// per the usual ground-truth sync rule.
+* {
+  scrollbar-width: thin; // Firefox
+  scrollbar-color: #cccccc transparent; // Firefox: thumb / track
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #cccccc;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

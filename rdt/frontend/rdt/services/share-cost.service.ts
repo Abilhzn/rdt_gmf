@@ -17,6 +17,7 @@ export interface SplitCandidate {
   remark: string | null;
   ref_doc: string | null;
   period: string | null;
+  upload_id: number;
   upload_filename: string;
 }
 

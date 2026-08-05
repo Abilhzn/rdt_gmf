@@ -37,9 +37,12 @@ $danger-600: #b3261e;
   // the actual drawn box — going with the box). flex-basis as a percentage, not a fixed px, so
   // it scales with viewport like the Figma frame's "fill" sizing intent (item 1), bounded so it
   // stays usable at both very narrow and very wide viewports.
-  flex: 0 0 23.4%;
-  min-width: 220px;
-  max-width: 420px;
+  // REQ-RDT-UI-06 REVISI (5 Agu): narrowed a bit further per project owner request — 23.4% read
+  // as too wide relative to the content area at typical desktop widths. min/max bounds scaled
+  // down proportionally so the same "usable at both extremes" guarantee still holds.
+  flex: 0 0 18%;
+  min-width: 200px;
+  max-width: 360px;
   background: $page-bg;
   height: 100vh;
   overflow-y: auto;

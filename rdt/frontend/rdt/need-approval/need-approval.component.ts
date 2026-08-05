@@ -44,15 +44,22 @@ export class NeedApprovalComponent implements OnInit {
   transparencyRows: TransparencyRow[] = [];
   transparencyError = '';
   closingDescription = '';
-  subdocNumber = '';
+  // REQ-RDT-SAP-08/11 REVISI (5 Agu, project owner request): a pair whose CONFIRMED rows exceed
+  // SAP's ~300-line cap downloads as several chunk-N.xlsx files (see exportBatches.js's
+  // streamContractExport) — this used to mean ONE subdoc input here (covering chunk 1 only) and a
+  // separate trip to Riwayat Repost TAB's "+ Tambah subdoc" for chunk 2+ later. Now it's ONE
+  // array, sized to the actual chunk count, entered together right here — "Repost 1: [subdoc]",
+  // "Repost 2: [subdoc]", etc. (see chunkCount/chunkIndexes below). A non-chunked pair keeps
+  // exactly the old single-input experience (array of length 1, same label).
+  subdocNumbers: string[] = [''];
   confirming = false;
   // REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account.
   transparencyColumnFilters: Record<string, string[]> = {};
 
   // B4 (3 Agu): transparency table had no pagination at all — a dinas with hundreds/thousands of
-  // rows dumped the entire table unpaginated. Same 100/page convention as confirm.component's
-  // pendingRows (REQ-RDT-NAV-07 shared pager).
-  readonly pageSize = 100;
+  // rows dumped the entire table unpaginated. Same 50/page convention as confirm.component's
+  // pendingRows (REQ-RDT-NAV-07 shared pager, direvisi 5 Agu 100->50).
+  readonly pageSize = 50;
   transparencyPage = 1;
 
   // REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): transparansi HARUS tampilkan SEMUA
@@ -131,14 +138,48 @@ export class NeedApprovalComponent implements OnInit {
     this.expandedPairKey = this.pairKey(dinasInisiasi, dinasTarget);
     this.transparencyError = '';
     this.closingDescription = '';
-    this.subdocNumber = '';
+    this.subdocNumbers = [''];
     this.transparencyRows = [];
     this.transparencyColumnFilters = {};
     this.transparencyPage = 1;
     this.exportBatches.getTransparency(dinasInisiasi, dinasTarget).subscribe({
-      next: (rows) => { this.transparencyRows = rows; },
+      next: (rows) => {
+        this.transparencyRows = rows;
+        // Chunk count is only knowable once the actual row set (and how many are CONFIRMED,
+        // the only status that ends up in a downloaded chunk) has loaded — resize the input
+        // array to match now that it has.
+        this.subdocNumbers = new Array(this.chunkCount).fill('');
+      },
       error: (err) => { this.transparencyError = err?.message || 'Gagal memuat transparansi'; },
     });
+  }
+
+  // MAX_ROWS_PER_FILE in exportBatches.js — kept in sync manually (small, stable constant, not
+  // worth a round-trip just to fetch a number). Public: the template shows it in the chunked-pair
+  // hint text ("X baris/file").
+  readonly maxRowsPerFile = 300;
+
+  // Only CONFIRMED rows actually end up in a downloaded chunk (streamContractExport's own filter,
+  // REQ-RDT-SAP-06) — BORNE_BY_INITIATOR rows are attachable/confirmable but never exported as a
+  // file line, so they must NOT count toward chunk boundaries or a subdoc's transaction_ids here.
+  // Already `ORDER BY id` from the backend (GET /transparency), same order the export endpoints
+  // use, so chunking this client-side reproduces the exact same chunk-N boundaries TAB just
+  // downloaded and posted to SAP.
+  get confirmedTransparencyRows(): TransparencyRow[] {
+    return this.transparencyRows.filter((r) => r.status_konfirmasi === 'CONFIRMED');
+  }
+
+  get chunkCount(): number {
+    return Math.max(1, Math.ceil(this.confirmedTransparencyRows.length / this.maxRowsPerFile));
+  }
+
+  get chunkIndexes(): number[] {
+    return Array.from({ length: this.chunkCount }, (_, i) => i + 1);
+  }
+
+  private chunkTransactionIds(chunkNumber1Based: number): number[] {
+    const start = (chunkNumber1Based - 1) * this.maxRowsPerFile;
+    return this.confirmedTransparencyRows.slice(start, start + this.maxRowsPerFile).map((r) => r.id);
   }
 
   closeTransparency(): void {
@@ -146,20 +187,46 @@ export class NeedApprovalComponent implements OnInit {
     this.transparencyRows = [];
   }
 
-  // REQ-RDT-SAP-05 (revised): Confirm now requires BOTH the closing description AND the first
-  // subdoc number — "aksi Confirm yang sebenarnya = memasukkan nomor subdoc BERSAMAAN dengan
-  // deskripsi penutup, dalam SATU aksi".
+  // REQ-RDT-SAP-05 (revised): Confirm now requires BOTH the closing description AND every subdoc
+  // number — one per chunk (see subdocNumbers/chunkCount above), "aksi Confirm yang sebenarnya =
+  // memasukkan nomor subdoc BERSAMAAN dengan deskripsi penutup, dalam SATU aksi", extended to
+  // however many chunks this pair actually needs.
   canConfirm(): boolean {
-    return !!this.closingDescription.trim() && !!this.subdocNumber.trim();
+    return !!this.closingDescription.trim() && this.subdocNumbers.every((s) => !!s.trim());
   }
 
+  // REQ-RDT-SAP-08/11 REVISI (5 Agu): chunk 1's subdoc is attached atomically with the batch
+  // itself (POST /confirm, unchanged) — chunk 2+ each need their own POST /:batchId/subdocs call
+  // AFTER the batch exists, so those go out sequentially (not parallel — each call's `transaction_
+  // ids` must be a subset of rows NOT YET covered by an earlier subdoc, per the backend's own
+  // defensive check, so they have to land in order). If a later chunk's call fails, the batch and
+  // any earlier chunks it already got ARE still confirmed/saved — reload so the list reflects
+  // that instead of silently pretending nothing happened, and say plainly which chunk failed.
   async confirmPair(dinasInisiasi: string, dinasTarget: string): Promise<void> {
     if (!this.canConfirm()) return;
-    const ok = await this.modal.confirm(`Confirm repost ${dinasInisiasi} → ${dinasTarget} dengan subdoc ${this.subdocNumber.trim()}? Aksi ini tidak bisa dibatalkan.`);
+    const chunkLabel = this.chunkCount > 1 ? ` (${this.chunkCount} subdoc)` : ` dengan subdoc ${this.subdocNumbers[0].trim()}`;
+    const ok = await this.modal.confirm(`Confirm repost ${dinasInisiasi} → ${dinasTarget}${chunkLabel}? Aksi ini tidak bisa dibatalkan.`);
     if (!ok) return;
     this.confirming = true;
-    this.exportBatches.confirm(dinasInisiasi, dinasTarget, this.closingDescription.trim(), this.subdocNumber.trim()).subscribe({
-      next: async () => {
+    const firstChunkIds = this.chunkTransactionIds(1);
+    this.exportBatches.confirm(dinasInisiasi, dinasTarget, this.closingDescription.trim(), this.subdocNumbers[0].trim(), firstChunkIds).subscribe({
+      next: async (batchId) => {
+        for (let chunk = 2; chunk <= this.chunkCount; chunk++) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              this.exportBatches.addSubdoc(batchId, this.subdocNumbers[chunk - 1].trim(), this.chunkTransactionIds(chunk)).subscribe({
+                next: () => resolve(),
+                error: (err) => reject(err),
+              });
+            });
+          } catch (err: any) {
+            this.confirming = false;
+            await this.modal.alert(`Batch sudah tersimpan dengan ${chunk - 1} subdoc, tapi subdoc chunk ${chunk} gagal disimpan: ${err?.message || err}. Tambahkan sisanya dari Riwayat Repost TAB.`);
+            this.closeTransparency();
+            this.load();
+            return;
+          }
+        }
         this.confirming = false;
         await this.modal.success(`Repost ${dinasInisiasi} → ${dinasTarget} sudah dikonfirmasi dan tercatat di Riwayat Repost TAB.`);
         this.closeTransparency();

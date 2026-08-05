@@ -428,6 +428,15 @@ router.get('/detail/:initiatorDinas/:targetDinas', async (req, res) => {
     const resolved = transactions.filter((t) => RESOLVED_STATUSES.includes(t.status_konfirmasi)).length;
     const pending = transactions.filter((t) => t.status_konfirmasi === 'PENDING').length;
     const declined = transactions.filter((t) => t.status_konfirmasi === 'DECLINED').length;
+    // REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): the header breadcrumb badge needs the same
+    // chain-if-consistent field the Dashboard cards' progress objects carry — this endpoint built
+    // its own `progress` object straight off `transactions` (see the B2 comment above) rather than
+    // reusing buildChainAwareProgress, so it never picked up `chain`. Each transaction already
+    // carries its own full chain (getPairTransactions), so the same "expose only when every member
+    // agrees" rule applies here too.
+    const chainStrings = transactions.map((t) => JSON.stringify(t.chain));
+    const chainConsistent = chainStrings.length > 0 && chainStrings.every((c) => c === chainStrings[0]);
+    const chain = chainConsistent && transactions[0]?.chain?.length > 2 ? transactions[0].chain : undefined;
     const progress = {
       dinas: targetDinas,
       total,
@@ -435,6 +444,7 @@ router.get('/detail/:initiatorDinas/:targetDinas', async (req, res) => {
       open: pending,
       declined_pending_action: declined,
       percent: total > 0 ? Math.round((resolved / total) * 1000) / 10 : 0,
+      chain,
     };
     const comments = await getPairCommentThread(client, transactions.map((t) => t.id));
     res.json({ ok: true, initiator_dinas: initiatorDinas, target_dinas: targetDinas, progress, transactions, comments });

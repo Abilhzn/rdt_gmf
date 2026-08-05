@@ -14,7 +14,9 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 export class PaginationComponent {
   @Input() page = 1;
   @Input() totalItems = 0;
-  @Input() pageSize = 100;
+  // REQ-RDT-NAV-07 (direvisi 5 Agu): default diturunkan dari 100 ke 50 — setiap pemanggil di
+  // bawah ini juga set pageSize=50 secara eksplisit sendiri, default di sini cuma jaga-jaga.
+  @Input() pageSize = 50;
   @Output() pageChange = new EventEmitter<number>();
 
   private readonly maxVisible = 5;

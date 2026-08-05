@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { ShareCostService, SplitCandidate } from '../services/share-cost.service';
 import { DinasService, DinasEntry } from '../services/dinas.service';
 import { ModalService } from '../services/modal.service';
+import { ConfirmationService, triggerBlobDownload } from '../services/confirmation.service';
 
 interface SplitRowVm {
   dinas_target: string;
@@ -33,6 +34,7 @@ export class ShareCostComponent implements OnInit {
     private shareCost: ShareCostService,
     private dinasService: DinasService,
     private modal: ModalService,
+    private confirmation: ConfirmationService,
   ) {}
 
   ngOnInit(): void {
@@ -58,6 +60,18 @@ export class ShareCostComponent implements OnInit {
       { dinas_target: '', nominal: null },
     ];
     this.note = '';
+  }
+
+  // REQ-RDT-LEDGER-09, extended 5 Agu ke Share-Cost -- satu baris candidate = satu upload asal,
+  // jadi cukup langsung dari `selected`, tidak perlu dedupe seperti antrian PENDING/Investigation.
+  downloadOriginal(): void {
+    if (!this.selected) return;
+    const uploadId = this.selected.upload_id;
+    const filename = this.selected.upload_filename || `upload-${uploadId}.xlsx`;
+    this.confirmation.downloadOriginal(uploadId, filename).subscribe({
+      next: (blob) => triggerBlobDownload(blob, filename),
+      error: async (err) => { await this.modal.alert('Gagal mengunduh file asli: ' + (err?.message || err)); },
+    });
   }
 
   cancelSelection(): void {

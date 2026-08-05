@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { TransactionService, ContractField } from '../../services/transaction.service';
 import { Transaction, TransactionStatus, AggregationMatrix } from '../../services/transaction.model';
 import { CurrentUserService } from '@auth/services/current-user.service';
@@ -41,7 +42,13 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   /** filter state */
   statusFilter: TransactionStatus | 'ALL' = 'ALL';
   dinasFilter = 'ALL';
+  /** searchText is what the input shows (updates instantly, keystroke-by-keystroke); the actual
+   * table filtering reads debouncedSearchText, which only catches up 500ms after typing stops
+   * (project owner request, 5 Agu: 500ms debounce on every search-like field) -- keeps the box
+   * itself feeling responsive while avoiding a full table refilter/re-render on every keystroke. */
   searchText = '';
+  debouncedSearchText = '';
+  private readonly searchInput$ = new Subject<string>();
   /** REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account —
    * keyed by PreviewColumn.key, AND antar kolom aktif, OR di dalam satu kolom (lihat
    * matchesAllColumnFilters). */
@@ -55,12 +62,14 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   contractFields: ContractField[] = [];
   previewColumns: PreviewColumn[] = [];
 
-  /** REQ-RDT-NAV-07: pagination sederhana client-side, 100 baris/halaman, pager reusable
-   * (shared/pagination.component.ts) yang juga dipakai di Confirmation. */
+  /** REQ-RDT-NAV-07 (direvisi 5 Agu, 100->50): pagination sederhana client-side, 50
+   * baris/halaman, pager reusable (shared/pagination.component.ts) yang juga dipakai di
+   * Confirmation. */
   page = 1;
-  readonly pageSize = 100;
+  readonly pageSize = 50;
 
   private userSub?: Subscription;
+  private searchSub?: Subscription;
   private isFirstUserEmission = true;
 
   constructor(
@@ -116,10 +125,19 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
       if (this.isFirstUserEmission) { this.isFirstUserEmission = false; return; }
       this.reset();
     });
+    this.searchSub = this.searchInput$.pipe(debounceTime(500), distinctUntilChanged()).subscribe((q) => {
+      this.debouncedSearchText = q;
+      this.onFilterChange();
+    });
   }
 
   ngOnDestroy(): void {
     this.userSub?.unsubscribe();
+    this.searchSub?.unsubscribe();
+  }
+
+  onSearchInput(): void {
+    this.searchInput$.next(this.searchText);
   }
 
   // ---------- file selection ----------
@@ -221,6 +239,7 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     this.statusFilter = 'ALL';
     this.dinasFilter = 'ALL';
     this.searchText = '';
+    this.debouncedSearchText = '';
     this.columnFilters = {};
     this.page = 1;
   }
@@ -256,7 +275,7 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   }
 
   get filteredRows(): Transaction[] {
-    const q = this.searchText.trim().toLowerCase();
+    const q = this.debouncedSearchText.trim().toLowerCase();
     return this.rows.filter((r) => {
       if (this.statusFilter !== 'ALL' && r.status_konfirmasi !== this.statusFilter) return false;
       if (this.dinasFilter !== 'ALL' && r.dinas_target !== this.dinasFilter) return false;

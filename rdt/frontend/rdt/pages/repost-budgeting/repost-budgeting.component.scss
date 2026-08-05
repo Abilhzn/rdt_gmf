@@ -268,14 +268,16 @@ thead .reviewer-note-col {
   background: $page-bg;
 }
 
+// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
+// pagination ke 50 baris/halaman.
 .matrix,
 .rows {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 
   th, td {
-    padding: 8px 12px;
+    padding: 7px 10px;
     border-bottom: 1px solid $line;
     text-align: left;
     white-space: nowrap;
@@ -285,7 +287,7 @@ thead .reviewer-note-col {
     background: $page-bg;
     font-weight: 700;
     color: $ink;
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }

@@ -95,10 +95,26 @@
           placeholder="mis. repost sudah beres, terima kasih ke semua dinas terkait"
         ></rdt-mention-input>
       </label>
-      <label class="batch-note-label">
-        Nomor subdoc SAP (wajib — hasil posting manual dari file yang sudah diunduh)
-        <input class="subdoc-input" type="text" [(ngModel)]="subdocNumber" placeholder="Nomor subdoc SAP" />
-      </label>
+      <!-- REQ-RDT-SAP-08/11 REVISI (5 Agu): pasangan yang di-chunk >300 baris (lihat
+           streamContractExport, chunk-1.xlsx/chunk-2.xlsx/dst) butuh SATU nomor subdoc per chunk,
+           bukan satu input generik — kolom terpisah "Repost 1"/"Repost 2"/dst, sesuai urutan file
+           yang barusan diunduh. Pasangan yang gak di-chunk (chunkCount===1) tetap 1 input polos. -->
+      <ng-container *ngIf="chunkCount === 1; else chunkedSubdocInputs">
+        <label class="batch-note-label">
+          Nomor subdoc SAP (wajib — hasil posting manual dari file yang sudah diunduh)
+          <input class="subdoc-input" type="text" [(ngModel)]="subdocNumbers[0]" placeholder="Nomor subdoc SAP" />
+        </label>
+      </ng-container>
+      <ng-template #chunkedSubdocInputs>
+        <p class="note">
+          Pasangan ini di-chunk jadi {{ chunkCount }} file saat diunduh ({{ maxRowsPerFile }} baris/file) —
+          masukkan nomor subdoc hasil posting tiap file secara terpisah.
+        </p>
+        <label class="batch-note-label" *ngFor="let n of chunkIndexes">
+          Repost {{ n }}: nomor subdoc SAP (wajib)
+          <input class="subdoc-input" type="text" [(ngModel)]="subdocNumbers[n - 1]" [placeholder]="'Nomor subdoc SAP untuk Repost ' + n" />
+        </label>
+      </ng-template>
       <div class="card__actions">
         <button
           class="btn btn--primary"

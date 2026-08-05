@@ -4,10 +4,14 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
+// REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu): backend now sends every transaction column (`t.*`),
+// not a hand-picked subset — index signature so the dynamic-column renderer (confirm.component
+// .ts's previewColumns, same pattern need-approval.component.ts's transparency table already
+// uses) can read any of them by key. Named fields below stay because the component still reads
+// them directly for non-dynamic purposes (chain badge, redirect picker, filters).
 export interface PendingRow {
+  [key: string]: string | number | boolean | null | undefined | string[];
   id: number;
-  sheet_name?: string;
-  raw_row_index?: number;
   account?: string;
   nominal: number;
   category?: string;

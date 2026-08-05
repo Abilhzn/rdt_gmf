@@ -70,13 +70,15 @@ $radius-md: 8px;
 
 .table-scroll { overflow-x: auto; }
 
+// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
+// pagination ke 50 baris/halaman.
 .rows {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 
-  th, td { padding: 8px 12px; border-bottom: 1px solid $line; text-align: left; }
-  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 12px; text-transform: uppercase; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; }
+  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 11px; text-transform: uppercase; }
   &__num { text-align: right; font-variant-numeric: tabular-nums; }
   &__remark { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
   tbody tr:hover td { background: #f5f9fb; }

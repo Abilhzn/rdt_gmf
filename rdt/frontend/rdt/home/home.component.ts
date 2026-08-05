@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { DashboardService, DinasProgress } from '../services/dashboard.service';
+import { DashboardService, DinasProgress, DashboardKpis, PerDinasRollupRow } from '../services/dashboard.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
 // REQ-RDT-NAV-02/02a — rebuilt to match the updated Figma (nodes 1:2 "Need to Confirm" / 69:209
@@ -10,15 +10,13 @@ import { CurrentUserService } from '@auth/services/current-user.service';
 // sub-links (a sibling, not an ancestor of this component) can read it too — see
 // ShellComponent.dashboardSubview.
 //
-// REQ-RDT-UI-05 (4 Agu, project owner rollback request): the KPI-card/segmented-bar restyle
-// pulled from Figma 78:242/78:243 (and its later re-pull) is reverted — this file and its
-// template/styles are back to the donut-ring pair-card design from before that reference (see
-// git commit ce06ff2, the last commit before the restyle landed). Two real bug fixes landed in
-// this file AFTER the restyle and are intentionally NOT reverted along with the visual design
-// (explicit project owner call, since neither touches layout/styling): the A5 chain-arrow fix in
-// pairTitle() below, and the B2 card-click-routing groundwork in resolvePair()/goToDetail() below
-// — B2's own "always Dashboard-Detailing" behavior itself is superseded by REQ-RDT-NAV-03 revisi
-// (4 Agu), see onCardClick() below.
+// REQ-RDT-UI-05 (4 Agu, KEPUTUSAN FINAL malam): morning's rollback to the pre-Figma donut design
+// (git ce06ff2) turned out to overshoot what the project owner actually wanted reverted — after
+// being shown screenshots of every historical candidate, commit 3c2d8f5 ("iterasi kedua" by this
+// session's own earlier labeling, but the one actually picked after seeing it live) is the
+// re-adopted basis for the KPI-row/segmented-bar/per-dinas-rollup-table design below. The A5
+// chain-arrow fix in pairTitle() and the NAV-03-revisi routing in onCardClick()/resolvePair()/
+// goToDetail() below predate/postdate this back-and-forth independently and were never reverted.
 @Component({
   selector: 'rdt-home',
   standalone: false,
@@ -35,6 +33,13 @@ export class HomeComponent implements OnInit {
    * submissions — TAB doesn't originate reposts itself. */
   isGlobalView = false;
 
+  // REQ-RDT-UI-05 (re-adopted from 3c2d8f5): KPI summary row + (TAB only) the per-dinas rollup
+  // table — both only ever shown on the 'own' sub-view (Report Submission / Summary Progress All
+  // Dinas) and TAB's 'need' sub-view (Need Identification, styled like Report Submission per
+  // REQ-RDT-NAV-10). A plain PIC's "Need to Confirm" keeps the donut-card look — no KPI row.
+  kpis: DashboardKpis | null = null;
+  perDinasRollup: PerDinasRollupRow[] = [];
+
   /** REQ-RDT-NAV-03 (5 Agu): which card's chain-detail badge is expanded, at most one at a time —
    * keyed the same way pairTitle/onCardClick distinguish cards (kind + the pair's own dinas
    * codes), since 'need' and 'own' lists can both be on screen depending on subview. */
@@ -49,7 +54,12 @@ export class HomeComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe((params) => {
-      this.subview = params.get('sub') === 'own' ? 'own' : 'need';
+      // REQ-RDT-NAV-10 (1 Agu sore): TAB's "Need Identification" Dashboard sub-view lands on
+      // 'own' (Summary Progress All Dinas) by default when no query param is set — an explicit
+      // ?sub=need/own always wins. Unchanged for a plain PIC (?sub= unset defaults to 'need').
+      const isTab = this.currentUser.current?.role === 'TAB';
+      const sub = params.get('sub');
+      this.subview = sub === 'need' ? 'need' : sub === 'own' ? 'own' : isTab ? 'own' : 'need';
     });
     this.currentUser.user$.subscribe(() => this.load());
   }
@@ -58,10 +68,20 @@ export class HomeComponent implements OnInit {
     return this.currentUser.current?.dinas;
   }
 
+  get isTabRole(): boolean {
+    return this.currentUser.current?.role === 'TAB';
+  }
+
   load(): void {
     this.errorMessage = '';
     this.loaded = false;
-    if (!this.currentUser.current) { this.asInitiator = []; this.needToConfirm = []; return; }
+    if (!this.currentUser.current) {
+      this.asInitiator = [];
+      this.needToConfirm = [];
+      this.kpis = null;
+      this.perDinasRollup = [];
+      return;
+    }
     this.dashboard.getSummary().subscribe({
       next: (summary) => {
         this.asInitiator = summary.as_initiator;
@@ -71,6 +91,17 @@ export class HomeComponent implements OnInit {
       },
       error: (err) => { this.errorMessage = err?.error?.error || err?.message || 'Gagal memuat dashboard'; },
     });
+    this.dashboard.getKpis().subscribe({
+      next: (kpis) => { this.kpis = kpis; },
+      error: () => { /* KPI row is supplementary — don't block the rest of the page on it */ },
+    });
+    // Only TAB's global view has the per-dinas rollup table (backend also enforces TAB-only).
+    if (this.currentUser.current.role === 'TAB') {
+      this.dashboard.getPerDinasRollup().subscribe({
+        next: (rows) => { this.perDinasRollup = rows; },
+        error: () => { /* supplementary — see KPI note above */ },
+      });
+    }
   }
 
   // REQ-RDT-NAV-03 REVISI (4 Agu, supersedes B2 from 3 Agu): NOT always Dashboard-Detailing
@@ -79,6 +110,14 @@ export class HomeComponent implements OnInit {
   // summary/history page (Dashboard-Detailing). B2's original motivation (a 'need' card used to
   // lose the rich status view — chain breadcrumb, full thread — that 'own'/Dashboard-Detailing
   // had) still holds for the RESOLVED case, which is exactly when this now lands there.
+  //
+  // BUG FIX (5 Agu, live report — "403 di /rdt/confirm?from=TJ&target=TMM"): the pending->Confirm
+  // shortcut above was firing for 'own' cards too, not just 'need' — but Confirm is the ACTION
+  // page for the CONFIRMING dinas (the target), and an 'own' card's viewer is the INITIATOR
+  // watching someone else's queue, never authorized to act there (middleware/auth.js's
+  // requireDinasAccess correctly 403s them). Only 'need' cards represent something the viewer
+  // themselves needs to confirm — 'own' cards always land on Dashboard-Detailing (read-only),
+  // pending or not, same as before REQ-RDT-NAV-03 REVISI existed.
   onCardClick(kind: 'need' | 'own', d: DinasProgress): void {
     if (kind === 'need' && d.target_dinas === 'INVESTIGATION') {
       // REQ-RDT-LEDGER-10 (29 Jul): the Investigation/Ask TA pseudo-card (see
@@ -90,7 +129,7 @@ export class HomeComponent implements OnInit {
     }
     const pair = this.resolvePair(kind, d);
     if (!pair) return;
-    if ((d.open || 0) > 0) {
+    if (kind === 'need' && (d.open || 0) > 0) {
       this.goToConfirmFrom(pair.initiator, pair.target);
     } else {
       this.goToDetail(pair.initiator, pair.target);
@@ -137,24 +176,6 @@ export class HomeComponent implements OnInit {
   toggleChainExpand(kind: 'need' | 'own', d: DinasProgress): void {
     const key = this.chainKey(kind, d);
     this.expandedChainKey = this.expandedChainKey === key ? null : key;
-  }
-
-  // Every hop in d.chain except the LAST is trivially "every transaction under this card moved
-  // past it" (100%) — d.chain is only ever populated with more than 2 points when EVERY
-  // transaction in the card agrees on the exact same full path (dashboard.js's
-  // buildChainAwareProgress chainConsistent check), so chain-membership alone already proves
-  // every one of them traversed and left each intermediate dinas. The LAST hop (current target)
-  // is the only one with a real in-progress fraction, and that's exactly d.resolved/d.total —
-  // the same numbers already driving the card's own percent ring, not a separate computation.
-  chainHops(d: DinasProgress): { from: string; to: string; resolved: number; total: number }[] {
-    if (!d.chain || d.chain.length < 3) return [];
-    const total = d.total || 0;
-    const hops: { from: string; to: string; resolved: number; total: number }[] = [];
-    for (let i = 0; i < d.chain.length - 1; i++) {
-      const isLast = i === d.chain.length - 2;
-      hops.push({ from: d.chain[i], to: d.chain[i + 1], resolved: isLast ? (d.resolved || 0) : total, total });
-    }
-    return hops;
   }
 
   goToInvestigation(): void {
@@ -205,5 +226,41 @@ export class HomeComponent implements OnInit {
     if (percent >= 100) return '#006298';
     if (percent < 50) return '#b3261e';
     return '#f2b400';
+  }
+
+  // REQ-RDT-UI-05 (re-adopted from 3c2d8f5): 3-segment horizontal bar (Confirmed/Open/Declined)
+  // on the 'own'/TAB-'need' pair cards. "Confirmed" here means `resolved` (CONFIRMED+
+  // BORNE_BY_INITIATOR combined, same definition `percent` already uses elsewhere) — introducing
+  // a second "confirmed" definition just for this bar would contradict the number next to it.
+  barSegments(d: DinasProgress): { confirmedPct: number; openPct: number; declinedPct: number } {
+    const total = d.total || 0;
+    if (!total) return { confirmedPct: 0, openPct: 0, declinedPct: 0 };
+    const declined = d.declined_pending_action || 0;
+    const open = d.open || 0;
+    return {
+      confirmedPct: (d.resolved / total) * 100,
+      openPct: (open / total) * 100,
+      declinedPct: (declined / total) * 100,
+    };
+  }
+
+  // Status pill tone for the per-dinas rollup table.
+  rollupStatusClass(row: PerDinasRollupRow): string {
+    return row.status ? `rollup-status--${row.status.kind}` : '';
+  }
+
+  // state_label pill is color-coded by status (amber "Waiting for confirmation X", blue "Waiting
+  // to repost", green "Reposted..."/subdoc). Matched on the label TEXT (see backend's
+  // stateLabel.js — it's a derived string, not a stored enum) rather than duplicating
+  // deriveStateLabel's branching here.
+  stateLabelClass(label: string): string {
+    // Guard added 5 Agu: the bar-left pill is now ALWAYS rendered (see home.component.html's
+    // symmetry fix) so this can be called with an empty/undefined label -- used to be safe
+    // because the pill's *ngIf kept this from ever running on a falsy label.
+    if (!label) return '';
+    if (label.startsWith('Waiting for confirmation')) return 'pair-card__state-label--amber';
+    if (label.startsWith('Waiting to repost')) return 'pair-card__state-label--blue';
+    if (label.startsWith('Reposted')) return 'pair-card__state-label--green';
+    return '';
   }
 }
