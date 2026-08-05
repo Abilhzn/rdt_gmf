@@ -72,6 +72,21 @@ export class HomeComponent implements OnInit {
     return this.currentUser.current?.role === 'TAB';
   }
 
+  // Desain rapih (5 Agu, screenshot pemilik proyek): "Total Nilai Diajukan" harus tampil
+  // "Rp 520,3jt" (Rupiah + singkatan juta/miliar + koma sebagai desimal ala Indonesia), bukan
+  // angka mentah "520300000" atau "520.300.000" — angka DT bisa gampang tembus ratusan juta,
+  // dan raw number di kartu KPI itu sendiri (bukan cuma icon bulat "Rp"-nya) yang bikin kartu
+  // kelihatan berantakan/nggak "rapih".
+  formatRupiah(value: number | undefined | null): string {
+    if (value == null || !isFinite(value)) return 'Rp 0';
+    const abs = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+    if (abs >= 1_000_000_000) return `Rp ${sign}${(abs / 1_000_000_000).toFixed(1).replace('.', ',')}M`;
+    if (abs >= 1_000_000) return `Rp ${sign}${(abs / 1_000_000).toFixed(1).replace('.', ',')}jt`;
+    if (abs >= 1_000) return `Rp ${sign}${(abs / 1_000).toFixed(1).replace('.', ',')}rb`;
+    return `Rp ${sign}${Math.round(abs)}`;
+  }
+
   load(): void {
     this.errorMessage = '';
     this.loaded = false;

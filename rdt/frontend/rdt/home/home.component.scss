@@ -92,19 +92,21 @@ $radius-md: 8px;
   // handler itself lives on __main.
   &:has(.pair-card__main--clickable):hover { border-color: $accent; }
 
+  // Desain rapih (5 Agu): referensi pemilik proyek gak punya garis pembatas di bawah judul —
+  // pembeda header/body cukup lewat jarak (margin), bukan border, biar kartu kelihatan lebih
+  // ringan/rapih (satu lagi elemen "chrome" yang gak perlu, sama kayak count-badge di atas).
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding-bottom: 14px;
-    margin-bottom: 18px;
-    border-bottom: 1px solid $line;
+    margin-bottom: 14px;
   }
 
   // Digedein (5 Agu, revisi): sama alasan seperti .kpi-card di atas.
+  // &__count dihapus (5 Agu, desain rapih): duplikasi "Total X" yang sudah tampil di legend
+  // bar, dan gak ada di desain referensi pemilik proyek.
   &__title { font-size: 19px; font-weight: 600; color: $ink; }
-  &__count { background: #f2f2f2; border: 1px solid #000; border-radius: $radius-md; padding: 5px 14px; font-size: 14.5px; font-weight: 700; flex: 0 0 auto; }
 
   &__body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   // P4.5: badge & tag sit flush together with only the tag's own margin-top for spacing — this
@@ -241,10 +243,15 @@ $radius-md: 8px;
   // permintaan "kecilin" sebelumnya — 220->240px, padding/icon/font naik proporsional. Kartu jadi
   // butuh scroll horizontal sedikit lebih cepat di layar sempit (bukan regresi — masih pola
   // nowrap+scroll yang sama, cuma ambang lebar-nya bergeser), trade-off yang disengaja di sini.
+  // BUG (5 Agu, dilaporkan dari screenshot langsung): flex-wrap:wrap DI SINI (bukan cuma di
+  // .kpi-row) bikin ikon dan angka/label bisa ke-split jadi 2 baris terpisah begitu lebar kartu
+  // menyempit sedikit saja — persis kebalikan dari desain referensi (ikon SELALU sejajar di
+  // samping angka). nowrap memastikan ikon+body selalu satu baris; __body punya min-width:0
+  // jadi tetap bisa menyusut, cuma gak akan pernah "jatuh" ke baris baru lagi.
   flex: 0 1 240px;
   min-width: 210px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-start;
   gap: 4px 12px;
   background: #fff;
@@ -297,12 +304,16 @@ $radius-md: 8px;
 
 // ---------- segmented progress bar — replaces the donut ring on 'own'/TAB-'need' pair cards +
 // the rollup table's Progress column. ----------
+// Desain rapih (5 Agu): persentase jadi elemen paling menonjol di sisi kanan kartu (setara
+// ukuran nilai KPI, bukan cuma sedikit lebih besar dari teks biasa) — align-items:center di
+// atas sudah bikin ini sejajar vertikal dengan bar, tinggal font-size-nya dinaikkan biar bobot
+// visualnya sesuai.
 .pair-card__bar-row { display: flex; align-items: center; gap: 16px; }
-.pair-card__percent { font-size: 24px; font-weight: 700; flex: 0 0 auto; }
+.pair-card__percent { font-size: 28px; font-weight: 700; flex: 0 0 auto; }
 
 .segment-bar {
   flex: 1 1 auto;
-  height: 18px;
+  height: 20px;
   border-radius: 6px;
   background: $bar-track;
   overflow: hidden;

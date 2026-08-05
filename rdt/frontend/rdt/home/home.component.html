@@ -7,9 +7,11 @@
 <ng-template #pairCard let-d let-title="title" let-clickable="clickable" let-kind="kind" let-useBar="useBar">
   <div class="pair-card">
     <div class="pair-card__main" [class.pair-card__main--clickable]="clickable" (click)="clickable && onCardClick(kind, d)">
+      <!-- Desain rapih (5 Agu): dihapus bordered count-badge di sini — angka yang sama sudah
+           tampil sebagai "Total X" di legend bar di bawah, badge ini cuma duplikasi info dan
+           gak ada di desain referensi pemilik proyek sama sekali. -->
       <div class="pair-card__header">
         <span class="pair-card__title">{{ title }}</span>
-        <span class="pair-card__count">{{ d.total }}</span>
       </div>
 
       <!-- 2-COLUMN bar body — LEFT column stacks state-label pill/comment-count, RIGHT column
@@ -105,7 +107,7 @@
       <div class="kpi-card">
         <span class="kpi-card__icon kpi-card__icon--blue">Rp</span>
         <div class="kpi-card__body">
-          <div class="kpi-card__value">{{ kpis.total_nilai | number: '1.0-0' }}</div>
+          <div class="kpi-card__value">{{ formatRupiah(kpis.total_nilai) }}</div>
           <div class="kpi-card__meta-row">
             <span class="kpi-card__label">Total Nilai Diajukan</span>
             <span class="kpi-card__note kpi-card__note--blue">periode ini</span>
