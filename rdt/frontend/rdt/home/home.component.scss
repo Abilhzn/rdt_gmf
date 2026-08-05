@@ -83,7 +83,7 @@ $radius-md: 8px;
   &__main {
     flex: 1 1 auto;
     min-width: 0;
-    padding: 20px 28px 24px;
+    padding: 22px 30px 26px;
     position: relative;
 
     &--clickable { cursor: pointer; }
@@ -102,14 +102,15 @@ $radius-md: 8px;
     border-bottom: 1px solid $line;
   }
 
-  &__title { font-size: 18px; font-weight: 600; color: $ink; }
-  &__count { background: #f2f2f2; border: 1px solid #000; border-radius: $radius-md; padding: 5px 14px; font-size: 14px; font-weight: 700; flex: 0 0 auto; }
+  // Digedein (5 Agu, revisi): sama alasan seperti .kpi-card di atas.
+  &__title { font-size: 19px; font-weight: 600; color: $ink; }
+  &__count { background: #f2f2f2; border: 1px solid #000; border-radius: $radius-md; padding: 5px 14px; font-size: 14.5px; font-weight: 700; flex: 0 0 auto; }
 
   &__body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   // P4.5: badge & tag sit flush together with only the tag's own margin-top for spacing — this
   // display:block + margin-bottom gives a guaranteed gap regardless of layout (bar-row's plain
   // span flow vs donut's flex row).
-  &__reply { display: block; font-size: 14px; color: $ink-600; margin-bottom: 10px; }
+  &__reply { display: block; font-size: 14.5px; color: $ink-600; margin-bottom: 10px; }
   &__state-label {
     display: inline-block;
     margin-top: 12px;
@@ -190,8 +191,8 @@ $radius-md: 8px;
 .dinas-circle {
   --pct: 0;
   --ring-color: #{$accent};
-  width: 96px;
-  height: 96px;
+  width: 104px;
+  height: 104px;
   border-radius: 50%;
   margin: 0 auto 8px;
   background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), #{$line} 0);
@@ -208,7 +209,7 @@ $radius-md: 8px;
     border-radius: 50%;
   }
 
-  .pct-label { position: relative; z-index: 1; font-weight: 700; font-size: 15px; color: $ink; }
+  .pct-label { position: relative; z-index: 1; font-weight: 700; font-size: 16px; color: $ink; }
 }
 
 // ---------- KPI summary row — 4 cards (PIC) or 5 (TAB), same card shell either way. ----------
@@ -236,8 +237,12 @@ $radius-md: 8px;
 .kpi-card {
   // SIMETRI (5 Agu): non-growing fixed basis — see .kpi-row's own comment. Every card is exactly
   // this width regardless of which row it wraps to; only shrinks (never grows) on a narrow screen.
-  flex: 0 1 220px;
-  min-width: 200px;
+  // Digedein (5 Agu, revisi): project owner minta ukuran dashboard agak dibesarkan lagi setelah
+  // permintaan "kecilin" sebelumnya — 220->240px, padding/icon/font naik proporsional. Kartu jadi
+  // butuh scroll horizontal sedikit lebih cepat di layar sempit (bukan regresi — masih pola
+  // nowrap+scroll yang sama, cuma ambang lebar-nya bergeser), trade-off yang disengaja di sini.
+  flex: 0 1 240px;
+  min-width: 210px;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -245,19 +250,19 @@ $radius-md: 8px;
   background: #fff;
   border-radius: $radius-lg;
   border: 1px solid $line;
-  padding: 16px;
+  padding: 18px;
 
   &__icon {
     flex: 0 0 auto;
-    width: 38px;
-    height: 38px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 15px;
 
     &--blue { background: $accent; }
     &--green { background: $green; }
@@ -266,7 +271,7 @@ $radius-md: 8px;
   }
 
   &__body { flex: 1 1 auto; min-width: 0; }
-  &__value { font-size: 24px; font-weight: 700; color: $ink-900; line-height: 1.2; }
+  &__value { font-size: 27px; font-weight: 700; color: $ink-900; line-height: 1.2; }
   // Label and note share ONE row (label left, note right-aligned).
   &__meta-row {
     display: flex;
@@ -276,10 +281,10 @@ $radius-md: 8px;
     margin-top: 2px;
     flex-wrap: wrap;
   }
-  &__label { font-size: 12px; color: $ink-500; }
+  &__label { font-size: 12.5px; color: $ink-500; }
 
   &__note {
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 600;
     white-space: nowrap;
 
@@ -293,17 +298,17 @@ $radius-md: 8px;
 // ---------- segmented progress bar — replaces the donut ring on 'own'/TAB-'need' pair cards +
 // the rollup table's Progress column. ----------
 .pair-card__bar-row { display: flex; align-items: center; gap: 16px; }
-.pair-card__percent { font-size: 22px; font-weight: 700; flex: 0 0 auto; }
+.pair-card__percent { font-size: 24px; font-weight: 700; flex: 0 0 auto; }
 
 .segment-bar {
   flex: 1 1 auto;
-  height: 16px;
+  height: 18px;
   border-radius: 6px;
   background: $bar-track;
   overflow: hidden;
   display: flex;
 
-  &--table { height: 12px; }
+  &--table { height: 13px; }
 
   &__seg {
     height: 100%;
@@ -319,7 +324,7 @@ $radius-md: 8px;
   flex-wrap: wrap;
   gap: 4px 10px;
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: $ink-500;
 
   &__dot {
@@ -338,30 +343,33 @@ $radius-md: 8px;
 // ---------- per-dinas rollup table (TAB-only) ----------
 .table-scroll { overflow-x: auto; }
 
+// Digedein (5 Agu, revisi): sama alasan seperti .kpi-card/.pair-card di atas — tabel ini gak
+// ikut REQ-RDT-NAV-07's pagination (bukan tabel DT baris-per-transaksi), tapi font-nya kebawa
+// ikut kecil bareng revisi 100->50 kemarin, makanya perlu dinaikkan lagi terpisah di sini.
 .rollup-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 
-  th, td { padding: 10px 12px; text-align: left; white-space: nowrap; }
-  thead th { color: $ink-500; font-size: 12px; font-weight: 600; border-bottom: 1px solid $line; }
+  th, td { padding: 12px 14px; text-align: left; white-space: nowrap; }
+  thead th { color: $ink-500; font-size: 12.5px; font-weight: 600; border-bottom: 1px solid $line; }
   tbody tr { border-bottom: 1px solid #f2f2f5; }
   tbody tr:last-child { border-bottom: none; }
 
-  &__dinas { font-weight: 700; color: $ink-900; }
+  &__dinas { font-weight: 700; color: $ink-900; font-size: 15px; }
   &__num { text-align: right; font-variant-numeric: tabular-nums; }
   &__num--confirmed { color: $green; }
   &__num--open { color: $amber; font-weight: 700; }
   &__num--declined { color: $red; }
-  &__percent { color: $accent; font-weight: 700; }
-  &__progress-col { width: 220px; }
+  &__percent { color: $accent; font-weight: 700; font-size: 14.5px; }
+  &__progress-col { width: 240px; }
 }
 
 .rollup-status {
   display: inline-block;
-  padding: 4px 12px;
+  padding: 5px 13px;
   border-radius: 13px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
 
   &--investigation { background: $red-bg; color: $red; }
