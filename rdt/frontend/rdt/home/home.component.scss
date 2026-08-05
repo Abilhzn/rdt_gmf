@@ -68,7 +68,7 @@ $radius-md: 8px;
 
 // ---------- pair cards — full-width card per (initiator, target) pair, shared by both sub-views
 // via home.component.html's #pairCard ng-template. ----------
-.pair-card-list { display: flex; flex-direction: column; gap: 16px; }
+.pair-card-list { display: flex; flex-direction: column; gap: 12px; }
 
 // REQ-RDT-NAV-03 (5 Agu): .pair-card is the OUTER flex row, so the whole thing (main content +
 // divider + expanded chain detail) reads as ONE wider card sharing a single border/radius when
@@ -83,7 +83,9 @@ $radius-md: 8px;
   &__main {
     flex: 1 1 auto;
     min-width: 0;
-    padding: 22px 30px 26px;
+    // Densitas (5 Agu, ronde 2): sama alasan seperti .kpi-card di atas — dirapatkan dari 22/30/26
+    // biar sejalan sama referensi yang lebih compact.
+    padding: 18px 22px 20px;
     position: relative;
 
     &--clickable { cursor: pointer; }
@@ -100,7 +102,7 @@ $radius-md: 8px;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   // Digedein (5 Agu, revisi): sama alasan seperti .kpi-card di atas.
@@ -231,8 +233,8 @@ $radius-md: 8px;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
-  gap: 14px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 20px;
   padding-bottom: 4px; // breathing room above the scrollbar so cards' own shadow/border isn't clipped
 }
 
@@ -248,28 +250,33 @@ $radius-md: 8px;
   // menyempit sedikit saja — persis kebalikan dari desain referensi (ikon SELALU sejajar di
   // samping angka). nowrap memastikan ikon+body selalu satu baris; __body punya min-width:0
   // jadi tetap bisa menyusut, cuma gak akan pernah "jatuh" ke baris baru lagi.
-  flex: 0 1 240px;
-  min-width: 210px;
+  //
+  // Densitas (5 Agu, ronde 2 — perbandingan piksel langsung vs *-rapih.png): padding/icon
+  // dikembalikan lebih rapat dari revisi "digedein" sebelumnya — referensi jauh lebih compact
+  // (kartu kerasa "kosong"/boros ruang di versi longgar), align-items:center biar icon tetap
+  // sejajar vertikal dengan body walau card jadi lebih pendek.
+  flex: 0 1 230px;
+  min-width: 200px;
   display: flex;
   flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 4px 12px;
+  align-items: center;
+  gap: 10px;
   background: #fff;
   border-radius: $radius-lg;
   border: 1px solid $line;
-  padding: 18px;
+  padding: 14px;
 
   &__icon {
     flex: 0 0 auto;
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
     font-weight: 700;
-    font-size: 15px;
+    font-size: 14px;
 
     &--blue { background: $accent; }
     &--green { background: $green; }

@@ -903,6 +903,11 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   **Perlu diselaraskan** ke satu nilai (rekomendasi: pakai `#006298` karena itu yang
   ada di aset logo & Figma terbaru, anggap versi lama sebagai draf awal yang belum
   final) — jangan biarkan dua nilai biru berbeda nyampur di halaman yang beda.
+- `REQ-RDT-UI-10` **(baru 5 Agu, mata uang)**: SEMUA nilai finansial di GMF itu
+  **USD, BUKAN Rupiah** — hilangkan prefix/simbol "Rp" di seluruh UI (KPI card,
+  tabel, dst), ganti pakai simbol dolar (`$`) atau emoji uang, BUKAN "Rp". Audit
+  semua tempat yang nampilin nominal (ikon KPI "Rp", label, format angka) dan
+  ganti konsisten ke USD.
 - `REQ-RDT-UI-03` **(baru 1 Agu, DIPERLUAS 3 Agu)**: Semua item visual di SEMUA jenis
   dashboard (card, badge, tag status, kotak KPI, dst) TIDAK memakai drop shadow —
   pakai **outline/border** sebagai penanda visual sebagai gantinya. Sebelumnya cuma
@@ -989,6 +994,50 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
 > persetujuan eksplisit. Ini murni proses kerja, bukan perubahan spesifikasi —
 > REQ-RDT-UI-05 (keputusan final 3c2d8f5 + panel per-hop) tetap jadi acuan resmi
 > sampai ada keputusan baru dari perbandingan ini.
+>
+> **DIPERJELAS 5 Agu, malam — perbedaan KONKRET ditemukan** (bandingkan langsung
+> 4 screenshot di `input-user-for-agent/`: `dashboard-*-rapih.png` vs
+> `dashboard-*-current.png`): instruksi sebelumnya ("desainmu acak-acakan, gak
+> pakai aturan frontend kayak senior programmer, revisi") ternyata dibaca sebagai
+> "perbaiki kualitas umum" oleh coding agent, BUKAN "tiru referensi ini persis" —
+> hasilnya lebih rapi TAPI beda dari referensi. Perbedaan KONKRET yang ditemukan
+> dari perbandingan visual langsung:
+> 1. **Layout kartu KPI**: referensi = ikon dan angka SEJAJAR HORIZONTAL (ikon
+>    kiri, angka di sampingnya, satu baris). Current = ikon DI ATAS angka
+>    (tumpuk vertikal) — ini bikin kartu current jauh lebih tinggi/boros ruang
+>    vertikal dan terasa lebih "gemuk"/kurang rapi dibanding referensi.
+> 2. **Format angka besar**: referensi menyingkat ("Rp 520,3jt"), current
+>    menampilkan angka mentah penuh ("475.671") tanpa singkatan.
+> 3. **Padding/densitas kartu**: referensi lebih rapat/compact, current lebih
+>    longgar — kesan "kosong" walau isi datanya sama.
+> `REQ-RDT-UI-05` diperbarui: **ubah kartu KPI ke layout horizontal (ikon+angka
+> sejajar, bukan tumpuk)**, tambahkan logic singkat angka besar (jt/M untuk
+> jutaan/miliar), dan perketat padding supaya densitas visual mendekati referensi
+> `dashboard-*-rapih.png`. File referensi PERSIS ada di
+> `E:\_tadashi\project\input-user-for-agent\` — buka langsung file itu (bukan
+> deskripsi ini) sebagai acuan piksel.
+>
+> **DIKERJAKAN 5 Agu, ronde 2** (langsung di dashboard aktif, bukan branch
+> eksperimen — perbedaan sudah konkret, tidak perlu perbandingan lagi):
+> 1. Ikon+angka KPI card SUDAH horizontal sejak commit sebelumnya (`8b147de`,
+>    `flex-wrap:nowrap` pada `.kpi-card`) — diverifikasi ulang masih benar.
+> 2. `.kpi-card` padding dirapatkan 18px→14px, icon 42px→38px, `align-items`
+>    diubah `flex-start`→`center` (icon center-align dengan body, bukan
+>    top-align) supaya densitas mendekati referensi. `.pair-card__main`
+>    padding 22/30/26→18/22/20, `.pair-card-list`/`.kpi-row` gap dirapatkan.
+> 3. `REQ-RDT-UI-10` (mata uang) dikerjakan BARENGAN: `formatRupiah()` di
+>    `home.component.ts` di-rename `formatCurrency()`, prefix "Rp"→"$", dan
+>    singkatan Indonesia (jt/rb/M) diganti singkatan Inggris standar K/M/B
+>    (ikut konvensi USD, bukan "Rp"+singkatan Indonesia yang sebelumnya
+>    dipakai). Icon bulat KPI "Total Nilai Diajukan" diganti dari teks "Rp"
+>    ke "$". Audit codebase: satu-satunya tempat yang pernah menampilkan "Rp"
+>    literal di seluruh app adalah `home.component.html`/`.ts` — tidak ada
+>    tempat lain yang perlu diaudit ulang.
+> 4. **Belum dikerjakan** (di luar scope instruksi kali ini, dicatat biar gak
+>    lupa): `ui-demo.html` belum pernah dapat KPI-row/pair-card redesign ini
+>    sama sekali (bukan cuma soal "Rp"/padding — fitur KPI row-nya sendiri
+>    belum di-port ke sana) — perlu sinkronisasi terpisah kalau/ketika
+>    `ui-demo.html` dipakai lagi sebagai ground truth.
 
 ### 3.11 Frozen Column di Tabel Confirmation (baru 5 Agu)
 
