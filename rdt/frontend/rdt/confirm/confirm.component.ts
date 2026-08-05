@@ -197,6 +197,12 @@ export class ConfirmComponent implements OnInit {
       ...contractCols,
       { key: 'category', label: 'Kategori' },
       { key: 'remark', label: 'Remark' },
+      // BUG FIX (5 Agu, project owner): the sticky column at the right edge was pinning `remark`
+      // (raw Excel routing text) under the label "Notes" — but "Notes" is supposed to be the
+      // uploading user's OWN per-row note from the Repost Review step (reviewer_note, now
+      // persisted — migration 015), a completely different field. `remark` stays as an ordinary
+      // scrollable column above; this is the one that's actually sticky (see the template).
+      { key: 'reviewer_note', label: 'Notes' },
     ];
   }
 

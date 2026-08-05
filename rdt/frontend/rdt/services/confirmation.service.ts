@@ -16,6 +16,9 @@ export interface PendingRow {
   nominal: number;
   category?: string;
   remark?: string;
+  /** SRS 3.11 (5 Agu): the sticky "Notes" column reads THIS field, not `remark` — the uploading
+   * user's own per-row note from the Repost Review step, now persisted (migration 015). */
+  reviewer_note?: string;
   ref_doc?: string;
   dinas_inisiasi?: string;
   /** REQ-RDT-LEDGER-09: which upload this row came from, so the UI can offer a download

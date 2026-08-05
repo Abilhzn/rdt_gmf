@@ -1048,6 +1048,39 @@ sticky`), supaya tetap terlihat & bisa diklik tanpa perlu scroll kiri-kanan
 sepanjang 53 kolom data. Pola ini setara "freeze panes" di Excel — kolom aksi
 selalu di posisi tetap (kiri atau kanan tabel, pilih yang lebih natural secara UX),
 kolom data yang scroll di antaranya.
+
+> **BUG DITEMUKAN + DIPERBAIKI 5 Agu, ronde 2**: kolom sticky "Notes" di atas
+> ternyata mem-pin `remark` (kolom Remark mentah dari Excel, dipakai untuk
+> derivasi dinas-routing — lihat section 3) — BUKAN "Notes" yang dimaksud.
+> "Notes" yang benar adalah catatan per-baris yang DITULIS SENDIRI oleh user
+> yang meng-upload/repost DT itu (reviewer_note / "Catatan Reviewer" di layar
+> Repost Review) — field ini sebelumnya **frontend-only, sengaja tidak pernah
+> disimpan** ke `rdt.transactions` (lihat catatan lama di
+> `transaction.model.ts`, "SRS flags where this should ultimately be stored
+> as still open... don't guess/migrate until the project owner confirms").
+> Perbaikan (migration `015_persist_reviewer_note.sql` + `index.js`'s
+> `/api/persist` + `confirm.component`): `reviewer_note` sekarang PERSIST,
+> jadi field asli yang di-pin sticky "Notes", `remark` tetap tampil sebagai
+> kolom biasa (scrollable) terpisah — dua kolom berbeda, bukan lagi digabung.
+
+> **Klarifikasi 5 Agu, ronde 2 (propagasi reassign)**: kalau satu DT
+> di-reassign (REQ-RDT-LEDGER-07), SEMUA hal terkait — thread chat DAN file
+> asli — harus tetap bisa diakses oleh SEMUA dinas yang PERNAH terlibat di
+> rantai reassign itu, bukan cuma dinas_target yang SEKARANG, tidak peduli
+> berapa hop rantainya. Audit: thread chat (`dashboard.js`'s
+> `getPairTransactions`/`getPairCommentThread`/`canAccessPair`) SUDAH benar
+> chain-aware sejak awal (transaction_id tetap sama across reassign, dan
+> `fetchReassignChainMap` sudah dipakai). **Satu gap ditemukan dan
+> diperbaiki**: `GET /api/uploads/:uploadId/download` (routes/uploads.js)
+> cuma cek dinas_target SAAT INI — dinas yang pernah jadi target lalu
+> di-reassign-kan pergi (misal declined lalu dipindah) kehilangan akses
+> download file asli sepenuhnya. Diperbaiki dengan query tambahan ke
+> `rdt.audit_log` (REASSIGN/REJECT_REDIRECT, `detail->>'from_dinas'`) — sama
+> pola chain-awareness yang `dashboard.js` sudah pakai, tanpa batas jumlah
+> hop. Diverifikasi live (script sekali-pakai, sudah dihapus): 2-hop chain
+> TE→TU→TC, TE dan TU tetap bisa download meski bukan target saat ini, TC
+> (target sekarang) tetap bisa juga, dinas yang gak pernah terlibat tetap
+> 403.
 - `REQ-RDT-UI-07` **(baru 4 Agu, date/period picker)**: Komponen pemilihan
   periode DT (REQ-RDT-SAP-13) SAAT INI berbentuk list scroll panjang — ganti jadi
   pola **navigasi Prev/Next per tahun** (mis. tampilkan bulan-bulan satu tahun

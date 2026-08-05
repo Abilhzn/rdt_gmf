@@ -29,11 +29,10 @@ export interface Transaction {
    * .html's granularity badge). */
   granularity?: 'DETAIL_ROW' | 'PIVOT_DERIVED';
   /** REQ-RDT-NAV-04 (31 Jul, presentation feedback): free-text note a reviewer can attach to a
-   * row while still on the Review-before-upload step. FRONTEND-ONLY, deliberately not sent to
-   * POST /api/persist — SRS flags where this should ultimately be stored as still open (a new
-   * rdt.transactions column, or somewhere else) and explicitly says not to guess/migrate until
-   * the project owner confirms. Lives only as long as this review session (repost-budgeting.
-   * component.ts's commit()/reset() strip or clear it). */
+   * row while still on the Review-before-upload step. PERSISTS now (5 Agu, project owner
+   * confirmation + migration 015) — used to be frontend-only/stripped before POST /api/persist
+   * while where-to-store-it was still an open question; it's now a real rdt.transactions column,
+   * and Confirmation's sticky "Notes" column (SRS 3.11) reads this same field. */
   reviewer_note?: string;
 }
 

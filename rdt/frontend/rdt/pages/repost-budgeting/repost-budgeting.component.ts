@@ -202,11 +202,13 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   commit(): void {
     if (!this.rows.length || !this.period) return;
     this.phase = 'committing';
-    // REQ-RDT-NAV-04: reviewer_note is frontend-only (see transaction.model.ts) — strip it before
-    // persisting so it's unambiguous nothing gets silently sent/stored server-side.
-    const rowsToPersist = this.rows.map(({ reviewer_note, ...rest }) => rest);
+    // REQ-RDT-NAV-04 (5 Agu, project owner confirmation): reviewer_note now persists (migration
+    // 015 + index.js's /api/persist cols list) — it USED to be stripped here deliberately while
+    // "where should this be stored" was still an open question (see transaction.model.ts's old
+    // comment, now updated). Sending it as-is now — Confirmation's sticky "Notes" column reads
+    // this same field.
     this.txService
-      .persistToDatabase(rowsToPersist, this.aggregation, this.selectedFile, this.period, this.description)
+      .persistToDatabase(this.rows, this.aggregation, this.selectedFile, this.period, this.description)
       .subscribe({
         next: async (res) => {
           if (!res.ok) {

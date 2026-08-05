@@ -455,7 +455,12 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
         // REQ-RDT-NAV-04 (diperluas 1 Agu, ditegaskan 3 Agu): sub_group now persists (migration
         // 011) so it survives past this Repost step into Confirmation/Need Approval/history
         // previews too, not just the pre-persist Review screen.
-        'sheet_name','raw_row_index','remark','raw_payload','sub_group'
+        // reviewer_note now persists too (migration 015, 5 Agu project owner confirmation) — same
+        // gap, same fix: it used to be stripped by the frontend before this request even arrived
+        // (see transaction.model.ts), so Confirmation's sticky "Notes" column had nothing real to
+        // pin and fell back to showing `remark` instead, which is a completely different field
+        // (raw Excel routing text, not the uploader's own note).
+        'sheet_name','raw_row_index','remark','raw_payload','sub_group','reviewer_note'
       ];
       // helper to normalize value for insert (explicit null check)
       const v = (x) => (x === undefined ? null : x === null ? null : x);

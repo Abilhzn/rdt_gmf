@@ -35,11 +35,32 @@ router.get('/:uploadId/download', requireUser, async (req, res) => {
       const isInitiator = String(upload.dinas_code).toUpperCase() === String(user.dinas).toUpperCase();
       let isTarget = false;
       if (!isInitiator) {
-        const targetRes = await client.query(
+        // BUG FIX (5 Agu, project owner — "reassign harus kebawa ke semua pihak, termasuk file
+        // asli, sepanjang apapun rantainya"): checking ONLY the current dinas_target meant a dinas
+        // that DECLINED and got reassigned away lost download access entirely, even though they
+        // were genuinely part of this upload's history and dashboard.js's own pair-detail/comment
+        // endpoints (canAccessPair + getPairTransactions' chainMap) already treat them as still
+        // entitled to view that history. Mirrors that same chain-awareness here: a dinas counts as
+        // "isTarget" if it's the CURRENT dinas_target of any transaction in this upload, OR if it
+        // shows up as a past dinas_target in that transaction's REASSIGN/REJECT_REDIRECT audit
+        // trail (detail.from_dinas) — no cap on how many hops back, same as the audit_log itself.
+        const targetUpper = String(user.dinas).toUpperCase();
+        const directRes = await client.query(
           'SELECT 1 FROM rdt.transactions WHERE upload_id=$1 AND UPPER(dinas_target)=UPPER($2) LIMIT 1',
           [uploadId, user.dinas]
         );
-        isTarget = targetRes.rows.length > 0;
+        isTarget = directRes.rows.length > 0;
+        if (!isTarget) {
+          const chainRes = await client.query(
+            `SELECT 1 FROM rdt.audit_log a
+             JOIN rdt.transactions t ON t.id = a.transaction_id
+             WHERE t.upload_id = $1 AND a.action IN ('REASSIGN', 'REJECT_REDIRECT')
+               AND UPPER(a.detail->>'from_dinas') = $2
+             LIMIT 1`,
+            [uploadId, targetUpper]
+          );
+          isTarget = chainRes.rows.length > 0;
+        }
       }
       if (!isInitiator && !isTarget) {
         return res.status(403).json({ ok: false, error: `user ${user.id} (dinas=${user.dinas}) not authorized to download upload ${uploadId}` });

@@ -100,12 +100,13 @@
               <!-- REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu): kolom dinamis, sumber sama persis
                    dengan Upload Detail Transaction (GET /api/contract-fields) — bukan subset
                    Account/Ref.Doc/Nominal/Remark yang di-hardcode terpisah. -->
-              <!-- SRS 3.11 (REQ-RDT-UI-06 diperluas, 5 Agu): Remark ("Notes"), Jika Reject, dan
-                   Select All frozen horizontal at the right edge of this ~53-column table — see
-                   .sticky-notes-col/.sticky-reject-col/.sticky-select-col below. Matches the
-                   Figma reference's own Select All placement (node 20:712: far right of the
-                   table, not the left) and these 3 columns' existing rightmost order here. -->
-              <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric" [class.sticky-notes-col]="col.key === 'remark'">
+              <!-- SRS 3.11 (REQ-RDT-UI-06 diperluas, 5 Agu; notes-vs-remark bug fixed 5 Agu): Notes
+                   (the uploading user's own per-row note, reviewer_note — NOT Remark), Jika
+                   Reject, dan Select All frozen horizontal at the right edge of this ~53-column
+                   table — see .sticky-notes-col/.sticky-reject-col/.sticky-select-col below.
+                   Matches the Figma reference's own Select All placement (node 20:712: far right
+                   of the table, not the left) and these 3 columns' existing rightmost order here. -->
+              <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric" [class.sticky-notes-col]="col.key === 'reviewer_note'">
                 {{ col.label }}
                 <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
                 <rdt-multi-value-filter [placeholder]="'Tempel banyak ' + col.label + ' sekaligus...'" (valuesChange)="onPendingColumnFilterChange(col.key, $event)"></rdt-multi-value-filter>
@@ -145,8 +146,8 @@
               <!-- REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu): kolom dinamis, sama sumber dengan header. -->
               <ng-container *ngFor="let col of previewColumns">
                 <td *ngIf="col.numeric" class="rows__num">{{ getCellValue(r, col.key) | number: '1.2-2' }}</td>
-                <td *ngIf="col.key === 'remark'" class="rows__remark sticky-notes-col" [title]="r.remark || ''">{{ r.remark }}</td>
-                <td *ngIf="!col.numeric && col.key !== 'remark'">{{ getCellValue(r, col.key) ?? '—' }}</td>
+                <td *ngIf="col.key === 'reviewer_note'" class="rows__remark sticky-notes-col" [title]="r.reviewer_note || ''">{{ r.reviewer_note }}</td>
+                <td *ngIf="!col.numeric && col.key !== 'reviewer_note'">{{ getCellValue(r, col.key) ?? '—' }}</td>
               </ng-container>
               <td class="sticky-reject-col">
                 <select *ngIf="!r.checked" [(ngModel)]="r.redirectTo">
