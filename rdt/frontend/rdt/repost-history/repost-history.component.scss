@@ -170,3 +170,54 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
     border: 1px solid $danger-600;
   }
 }
+
+// REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): TAB-only deadline management panel — <details> so it's
+// collapsed by default (this isn't the page's main purpose, just a supplementary TAB action) but
+// still reachable without a route/tab of its own.
+.deadline-panel {
+  margin: 4px 0 20px;
+  padding: 14px 16px;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  background: $page-bg;
+
+  summary {
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: $ink;
+  }
+
+  .note { margin-top: 10px; }
+}
+
+.deadline-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-top: 10px;
+}
+
+.deadline-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 12.5px;
+
+  th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid $line; }
+  thead th { color: $ink-600; font-weight: 600; }
+}
+
+// REQ-RDT-SAP-14 (dikonfirmasi 5 Agu malam): dua sub-section berdampingan di dalam satu panel —
+// bulk (aksi utama, di atas) dan override per-pasangan (pengecualian, di bawah) — dipisah visual
+// biar gak ketuker, bukan cuma dipisah lewat state Angular-nya doang.
+.deadline-subsection {
+  h4 { margin: 0 0 4px; font-size: 12.5px; font-weight: 700; color: $ink; }
+}
+
+.deadline-divider {
+  border: none;
+  border-top: 1px dashed $line;
+  margin: 16px 0;
+}

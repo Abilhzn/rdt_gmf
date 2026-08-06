@@ -1,0 +1,12 @@
+-- REQ-RDT-SAP-14 (revisi open question, 5 Agu malam): periode_efektif SNAPSHOT, bukan
+-- live-computed. Dikunci begitu dinas TARGET melakukan aksi Confirm/Reject (dibandingkan ke
+-- deadline yang berlaku SAAT ITU JUGA), disimpan permanen di sini -- bukan dihitung ulang tiap
+-- GET /history. Kalau TAB edit deadline belakangan, itu cuma berlaku untuk confirm/reject yang
+-- terjadi SETELAH edit itu -- hasil yang sudah terkunci di kolom ini TIDAK berubah. Lihat
+-- routes/confirmation.js (tempat kolom ini ditulis) dan routes/exportBatches.js's GET /history
+-- (tempat kolom ini dibaca, MAX per batch).
+--
+-- Nullable: NULL selama baris masih PENDING (belum pernah di-Confirm/Reject), dan sengaja
+-- di-NULL-kan lagi kalau baris pindah ke pasangan baru (REASSIGN/REJECT_REDIRECT) -- pasangan
+-- baru itu punya deadline-nya sendiri, jadi snapshot lama sudah tidak relevan.
+ALTER TABLE rdt.transactions ADD COLUMN IF NOT EXISTS periode_efektif text;

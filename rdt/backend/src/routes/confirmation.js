@@ -4,6 +4,7 @@ const { requireUser, requireDinasAccess } = require('../middleware/auth');
 const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
+const { computeEffectivePeriod } = require('../rules/periodEffective');
 
 const router = express.Router();
 
@@ -73,6 +74,27 @@ router.get('/:dinas', requireDinasAccess('dinas'), async (req, res) => {
 // initiator dinas could reassign, via routes/reassignment.js). Without redirect_to, behavior is
 // unchanged: the row goes to DECLINED and waits for the initiator to choose Tanggung
 // Sendiri/Ajukan Ulang via the existing reassignment.js flow.
+// REQ-RDT-SAP-14 (revisi open question, 5 Agu malam): periode_efektif SNAPSHOT — dikunci di sini
+// (bukan dihitung ulang saat GET /history) begitu dinas TARGET melakukan aksi Confirm/Reject,
+// dibandingkan ke deadline yang berlaku SAAT INI JUGA. Kalau TAB edit deadline belakangan, itu
+// tidak menyentuh baris yang sudah pernah lewat sini. Cuma dipanggil untuk CONFIRM dan DECLINE
+// (aksi target yang sebenarnya) — bukan REJECT_REDIRECT (baris langsung pindah ke pasangan baru,
+// belum "final" untuk pasangan ini) atau BORNE_BY_INITIATOR (itu keputusan INISIATOR, bukan
+// target — nilai yang sudah terkunci saat DECLINE tetap dipakai apa adanya).
+async function snapshotPeriodeEfektif(client, { transactionId, dinasInisiasi, dinasTarget, declaredPeriod }) {
+  if (!declaredPeriod) return; // REQ-RDT-SAP-13: tidak ada periode dinyatakan -> tidak ada apa-apa buat dihitung
+  const deadlineRes = await client.query(
+    'SELECT deadline_at FROM rdt.period_deadlines WHERE dinas_inisiasi=$1 AND dinas_target=$2 AND periode=$3',
+    [dinasInisiasi, dinasTarget, declaredPeriod]
+  );
+  const { periodeEfektif } = computeEffectivePeriod({
+    declaredPeriod,
+    deadlineAt: deadlineRes.rows[0] ? deadlineRes.rows[0].deadline_at : null,
+    latestTargetActionAt: new Date(),
+  });
+  await client.query('UPDATE rdt.transactions SET periode_efektif=$1 WHERE id=$2', [periodeEfektif, transactionId]);
+}
+
 router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async (req, res) => {
   const dinas = req.params.dinas;
   const decisions = req.body && req.body.decisions;
@@ -95,7 +117,15 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
     for (const d of decisions) {
       const id = d.id;
       const claim = d.claim; // 'YA' or 'TIDAK'
-      const q = await client.query('SELECT id, status_konfirmasi, dinas_target, dinas_inisiasi, nominal, account, remark, ref_doc, reassign_count FROM rdt.transactions WHERE id=$1 FOR UPDATE', [id]);
+      // REQ-RDT-SAP-14: u.period (declared period) joined in here — needed to compute this row's
+      // periode_efektif snapshot below. `FOR UPDATE OF t` locks only the transactions row (what
+      // this endpoint actually mutates), not the joined uploads row.
+      const q = await client.query(
+        `SELECT t.id, t.status_konfirmasi, t.dinas_target, t.dinas_inisiasi, t.nominal, t.account, t.remark, t.ref_doc, t.reassign_count, u.period
+         FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
+         WHERE t.id=$1 FOR UPDATE OF t`,
+        [id]
+      );
       if (!q.rows.length) throw new Error('transaction not found: ' + id);
       const row = q.rows[0];
       if (row.status_konfirmasi !== 'PENDING') throw new Error('transaction not pending: ' + id);
@@ -107,6 +137,7 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
         await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [id, dinas, 'DEBIT', amount]);
         await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [id, row.dinas_inisiasi, 'CREDIT', amount]);
         await client.query('INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)', [userId, id, 'CONFIRM', 'PENDING', 'CONFIRMED', JSON.stringify({ dinas: dinas, amount: amount })]);
+        await snapshotPeriodeEfektif(client, { transactionId: id, dinasInisiasi: row.dinas_inisiasi, dinasTarget: dinas, declaredPeriod: row.period });
       } else if (claim === 'TIDAK') {
         if (d.redirect_to) {
           if (!validCodes) {
@@ -122,10 +153,14 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
           });
           if (!validation.ok) throw new Error(`id ${id}: ${validation.error}`);
           const newTargetUpper = validation.newTargetUpper;
+          // periode_efektif=NULL: this row starts a fresh confirm/reject episode under a new
+          // pasangan (newTargetUpper) — it isn't "final" for THIS pasangan, so no snapshot is
+          // taken here (see snapshotPeriodeEfektif's header comment); NULL defensively in case a
+          // stale value somehow survived from an earlier hop.
           await client.query(
             `UPDATE rdt.transactions
              SET dinas_target=$1, status_konfirmasi='PENDING', reassigned_from=$2, reassign_count=reassign_count+1,
-                 decided_by_user_id=NULL, decided_at=NULL
+                 decided_by_user_id=NULL, decided_at=NULL, periode_efektif=NULL
              WHERE id=$3`,
             [newTargetUpper, row.dinas_target, id]
           );
@@ -138,6 +173,11 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
           await client.query('UPDATE rdt.transactions SET status_konfirmasi=$1, decided_by_user_id=$2, decided_at=now() WHERE id=$3', ['DECLINED', userId, id]);
           await client.query('INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)', [userId, id, 'DECLINE', 'PENDING', 'DECLINED', JSON.stringify({ dinas: dinas })]);
           declined.push({ id: row.id, account: row.account, nominal: row.nominal, remark: row.remark, ref_doc: row.ref_doc, dinas_inisiasi: row.dinas_inisiasi });
+          // REQ-RDT-SAP-14: DECLINE (no redirect) IS a target Confirm/Reject action per the SRS —
+          // snapshot now. If this row later becomes BORNE_BY_INITIATOR (routes/reassignment.js),
+          // that value is kept as-is (BORNE is the initiator's decision, not a fresh target
+          // action). If it instead gets REASSIGNed to a new dinas, that path NULLs this back out.
+          await snapshotPeriodeEfektif(client, { transactionId: id, dinasInisiasi: row.dinas_inisiasi, dinasTarget: dinas, declaredPeriod: row.period });
         }
       } else {
         throw new Error('invalid claim value for id ' + id);

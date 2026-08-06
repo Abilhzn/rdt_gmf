@@ -72,10 +72,15 @@ async function resolveOneDeclined(client, user, { id, action, newTarget, note })
     }
     const newTargetUpper = validation.newTargetUpper;
 
+    // REQ-RDT-SAP-14: periode_efektif=NULL — the DECLINE that got us here already snapshotted a
+    // value for the OLD pasangan (routes/confirmation.js), but this row is now starting a fresh
+    // confirm/reject episode under newTargetUpper, a DIFFERENT pasangan with its own deadline.
+    // That old snapshot no longer applies; a new one gets written when the new target eventually
+    // Confirms/Declines.
     await client.query(
       `UPDATE rdt.transactions
        SET dinas_target=$1, status_konfirmasi='PENDING', reassigned_from=$2, reassign_count=reassign_count+1,
-           decided_by_user_id=NULL, decided_at=NULL
+           decided_by_user_id=NULL, decided_at=NULL, periode_efektif=NULL
        WHERE id=$3`,
       [newTargetUpper, row.dinas_target, id]
     );

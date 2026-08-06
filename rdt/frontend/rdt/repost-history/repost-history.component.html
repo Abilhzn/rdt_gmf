@@ -20,6 +20,98 @@
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
+  <!-- REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): TAB set/lihat deadline konfirmasi per pasangan+periode
+       di sini — halaman ini sudah period-oriented (tab bulan di bawah), jadi natural buat TAB
+       tinjau satu bulan lalu langsung rencanain deadline bulan berikutnya untuk pasangan yang
+       sama. Independen dari selectedMonthKey/daftar batch di bawah -- deadline bisa di-set untuk
+       pasangan+periode manapun, gak peduli pasangan itu sudah archived atau belum. -->
+  <details class="deadline-panel" *ngIf="isTab">
+    <summary>Kelola Deadline Periode</summary>
+    <p class="note">
+      Deadline mengikat kapan <strong>dinas target</strong> Confirm/Reject pasangan ini — bukan
+      kapan TAB repost. Kalau dinas target confirm/reject setelah deadline, periode repost
+      efektif pasangan itu otomatis geser ke bulan berikutnya. Opsional per pasangan+periode —
+      tanpa deadline, repost jalan normal ke periode data yang dinyatakan.
+    </p>
+
+    <!-- REQ-RDT-SAP-14 (dikonfirmasi 5 Agu malam): alur nyatanya BULK, bukan satu-satu — TAB set
+         SATU deadline yang langsung berlaku ke SEMUA pasangan aktif di periode itu. Sub-section
+         terpisah dari form override di bawah, JANGAN digabung/gantikan. -->
+    <div class="deadline-subsection">
+      <h4>Set Deadline untuk Semua Dinas</h4>
+      <p class="note">
+        Berlaku otomatis ke setiap pasangan yang masih punya transaksi belum selesai
+        (Pending/Declined/Butuh Investigasi) di periode ini. Pasangan yang sudah selesai duluan
+        tidak ikut ter-set (tidak ada gunanya — sudah tidak ada aksi Confirm/Reject yang akan
+        terjadi lagi untuk pasangan itu).
+      </p>
+      <div class="deadline-form">
+        <label class="filter-label">
+          Periode
+          <input class="filter-input" type="month" [(ngModel)]="bulkDeadlineForm.periode" />
+        </label>
+        <label class="filter-label">
+          Deadline
+          <input class="filter-input" type="datetime-local" [(ngModel)]="bulkDeadlineForm.deadline_at" />
+        </label>
+        <button
+          class="btn btn--primary"
+          type="button"
+          [disabled]="bulkDeadlineFormBusy || !bulkDeadlineForm.periode || !bulkDeadlineForm.deadline_at"
+          (click)="submitBulkDeadline()"
+        >Set Deadline untuk Semua Dinas</button>
+      </div>
+      <p class="note" *ngIf="bulkDeadlineFormMessage">{{ bulkDeadlineFormMessage }}</p>
+    </div>
+
+    <hr class="deadline-divider" />
+
+    <div class="deadline-subsection">
+      <h4>Override Satu Pasangan (pengecualian)</h4>
+      <div class="deadline-form">
+        <label class="filter-label">
+          Dinas Pengaju
+          <select class="filter-input" [(ngModel)]="deadlineForm.dinas_inisiasi" (change)="loadExistingDeadlines()">
+            <option value="">— pilih —</option>
+            <option *ngFor="let d of dinasOptions" [value]="d.code">{{ d.code }}</option>
+          </select>
+        </label>
+        <label class="filter-label">
+          Dinas Target
+          <select class="filter-input" [(ngModel)]="deadlineForm.dinas_target" (change)="loadExistingDeadlines()">
+            <option value="">— pilih —</option>
+            <option *ngFor="let d of dinasOptions" [value]="d.code">{{ d.code }}</option>
+          </select>
+        </label>
+        <label class="filter-label">
+          Periode
+          <input class="filter-input" type="month" [(ngModel)]="deadlineForm.periode" />
+        </label>
+        <label class="filter-label">
+          Deadline
+          <input class="filter-input" type="datetime-local" [(ngModel)]="deadlineForm.deadline_at" />
+        </label>
+        <button
+          class="btn btn--primary"
+          type="button"
+          [disabled]="deadlineFormBusy || !deadlineForm.dinas_inisiasi || !deadlineForm.dinas_target || !deadlineForm.periode || !deadlineForm.deadline_at"
+          (click)="submitDeadline()"
+        >Simpan Deadline</button>
+      </div>
+      <p class="note" *ngIf="deadlineFormMessage">{{ deadlineFormMessage }}</p>
+
+      <table class="deadline-table" *ngIf="existingDeadlines.length">
+        <thead><tr><th>Dinas Pengaju</th><th>Dinas Target</th><th>Periode</th><th>Deadline</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let dl of existingDeadlines">
+            <td>{{ dl.dinas_inisiasi }}</td><td>{{ dl.dinas_target }}</td><td>{{ dl.periode }}</td>
+            <td>{{ dl.deadline_at | idDate }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
   <!-- REQ-RDT-NAV-09: paste banyak nomor subdoc sekaligus untuk cross-check cepat. -->
   <rdt-multi-value-filter
     *ngIf="batches.length"
@@ -50,8 +142,14 @@
           <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
           <div class="batch-row__period">
             {{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span>
-            <!-- REQ-RDT-SAP-14 (3 Agu): berdampingan dengan state_label, bukan menggantikan. -->
-            <span *ngIf="b.overdue" class="state-label state-label--overdue" [title]="'Periode ' + b.period + ', baru di-repost ' + (b.confirmed_at | idDate)">Overdue</span>
+            <!-- REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): berdampingan dengan state_label, bukan
+                 menggantikan. Makna baru: dinas target confirm/reject SETELAH deadline TAB untuk
+                 pasangan+periode ini, bukan cuma "TAB telat repost". -->
+            <span
+              *ngIf="b.overdue"
+              class="state-label state-label--overdue"
+              [title]="'Periode data: ' + b.period + '. Dinas target confirm/reject setelah deadline, periode repost efektif geser ke ' + b.period_efektif + '.'"
+            >Overdue — periode efektif {{ b.period_efektif }}</span>
           </div>
           <div class="batch-row__action" *ngIf="isTab">
             <button class="btn btn--ghost" type="button" (click)="download(b)">&#8659; Download</button>

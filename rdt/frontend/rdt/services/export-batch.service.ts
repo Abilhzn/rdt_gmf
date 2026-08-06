@@ -34,11 +34,32 @@ export interface Batch {
   state_label: string;
   /** REQ-RDT-SAP-13 (3 Agu): "YYYY-MM" declared at Repost time (rdt.uploads.period), derived
    * server-side from this batch's transactions — null for legacy batches confirmed before this
-   * field existed. History groups by THIS, not `confirmed_at`. */
+   * field existed. This is the DECLARED period (what the data is actually FOR) — kept for audit
+   * purposes, but history now groups by `period_efektif` below, not this. */
   period: string | null;
-  /** REQ-RDT-SAP-14 (3 Agu): true when `confirmed_at`'s year-month is LATER than `period` —
-   * simplest version per SRS, no grace period. Only ever true when `period` is known. */
+  /** REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): the period this pasangan actually archives under —
+   * equal to `period` unless the dinas TARGET's Confirm/Reject action came after a deadline TAB
+   * set for this (dinas_inisiasi, dinas_target, periode) via rdt.period_deadlines, in which case
+   * it shifts to the next month. Null when `period` itself is null (legacy batches). */
+  period_efektif: string | null;
+  /** REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): true when `period_efektif` shifted away from `period`
+   * because the dinas target confirmed/rejected after its deadline — computed server-side against
+   * rdt.period_deadlines, live at read time (see routes/exportBatches.js). Always false when TAB
+   * never set a deadline for this pasangan+periode (opt-in). */
   overdue: boolean;
+}
+
+// REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu) — one TAB-set deadline for a (dinas_inisiasi, dinas_target,
+// periode) triple. See routes/periodDeadlines.js.
+export interface PeriodDeadline {
+  id: number;
+  dinas_inisiasi: string;
+  dinas_target: string;
+  periode: string;
+  deadline_at: string;
+  set_by_user_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // REQ-RDT-SAP-11 — one subdoc entry with the transaction ids it actually covers, not just the
@@ -199,5 +220,57 @@ export class ExportBatchService {
       responseType: 'blob',
       observe: 'response',
     });
+  }
+
+  // REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu) — TAB-only, separate router (routes/periodDeadlines.js),
+  // not part of /api/export-batches. dinasInisiasi/dinasTarget optional filter for "existing
+  // deadlines for this pair" in the management panel; omit both for the full list.
+  private readonly deadlinesBase = '/api/period-deadlines';
+
+  getPeriodDeadlines(dinasInisiasi?: string, dinasTarget?: string): Observable<PeriodDeadline[]> {
+    const params: string[] = [];
+    if (dinasInisiasi) params.push(`dinas_inisiasi=${encodeURIComponent(dinasInisiasi)}`);
+    if (dinasTarget) params.push(`dinas_target=${encodeURIComponent(dinasTarget)}`);
+    const qs = params.length ? `?${params.join('&')}` : '';
+    return this.http
+      .get<{ ok: boolean; deadlines: PeriodDeadline[]; error?: string }>(`${this.deadlinesBase}${qs}`, { headers: this.currentUser.authHeaders() })
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal memuat deadline periode');
+        return res.deadlines;
+      }));
+  }
+
+  // Upsert — setting again for the same (dinas_inisiasi, dinas_target, periode) UPDATES the
+  // existing deadline (see routes/periodDeadlines.js's ON CONFLICT), not a duplicate. This is the
+  // per-pasangan OVERRIDE — for the normal "one deadline for everyone" workflow, see
+  // setBulkPeriodDeadline below.
+  setPeriodDeadline(dinasInisiasi: string, dinasTarget: string, periode: string, deadlineAt: string): Observable<PeriodDeadline> {
+    return this.http
+      .post<{ ok: boolean; deadline: PeriodDeadline; error?: string }>(
+        this.deadlinesBase,
+        { dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, periode, deadline_at: deadlineAt },
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal menyimpan deadline periode');
+        return res.deadline;
+      }));
+  }
+
+  // REQ-RDT-SAP-14 (confirmed 5 Agu malam): the REAL workflow — TAB sets ONE deadline that applies
+  // to every pasangan currently active in that periode at once (routes/periodDeadlines.js's
+  // POST /bulk decides "active" server-side). Returns every deadline row that got written/updated,
+  // so the caller can show exactly which pasangan were touched.
+  setBulkPeriodDeadline(periode: string, deadlineAt: string): Observable<PeriodDeadline[]> {
+    return this.http
+      .post<{ ok: boolean; deadlines: PeriodDeadline[]; error?: string }>(
+        `${this.deadlinesBase}/bulk`,
+        { periode, deadline_at: deadlineAt },
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal menyimpan deadline massal');
+        return res.deadlines;
+      }));
   }
 }

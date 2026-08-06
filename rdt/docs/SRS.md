@@ -27,6 +27,36 @@ Business logic inti (ledger routing, atomicity, audit trail, SAP export) **tidak
 
 ---
 
+## 0.1 Definisi Kunci: Apa itu "Repost"? (dicatat 5 Agu, fundamental)
+
+> Penjelasan langsung dari pemilik proyek, dicatat verbatim/nyaris verbatim karena
+> ini definisi FUNDAMENTAL yang menjelaskan alasan keberadaan seluruh sistem ini —
+> siapapun yang baru baca dokumen ini (developer baru, tim IT, dst) harus paham ini
+> duluan sebelum baca requirement teknis manapun.
+
+**Repost adalah perpindahan KEPEMILIKAN/KEPERTANGGUNGJAWABAN suatu pengeluaran
+(beban biaya) dari satu dinas ke dinas lain.**
+
+Kenapa repost dibutuhkan: sebuah dinas melihat catatan SAP mereka dan menemukan
+ada baris pengeluaran/Detail Transaksi (DT) yang **BUKAN tanggung jawab mereka**
+(salah alokasi cost center, dst). Dinas itu lalu **mengajukan** perpindahan
+beban itu ke dinas yang seharusnya menanggung. **Begitu dinas yang diajukan
+mengKONFIRMASI** bahwa pengeluaran itu benar tanggung jawab mereka, BARU proses
+"repost ke SAP" perlu dilakukan — yaitu TAB memperbarui catatan SAP supaya
+kepemilikan/cost center pengeluaran itu benar-benar berpindah secara resmi.
+
+Jadi urutan konsepnya: **(1) dinas pengaju menemukan pengeluaran yang salah
+alokasi → (2) mengajukan perpindahan ke dinas yang benar → (3) dinas yang
+diajukan mengkonfirmasi kepemilikan → (4) TAB melakukan REPOST ke SAP (aksi
+teknis update catatan SAP) → (5) TAB mendapat/mencatat nomor referensi (subdoc)
+sebagai bukti perpindahan sudah resmi tercatat di SAP.**
+
+Seluruh sistem RDT ini pada dasarnya adalah alat bantu buat menjalankan proses
+(1)-(5) di atas secara terstruktur & auditable, menggantikan proses manual
+Email/Excel/WhatsApp yang sebelumnya dipakai.
+
+---
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -442,32 +472,186 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 > yang mereka mulai, DAN `buildChainAwareProgress`/as_initiator view perlu
 > disertain `state_label`.
 >
-> **Open question (periode/bulan berganti) — SEBAGIAN JADI REQUIREMENT 3 Agu**:
+> **Open question (periode/bulan berganti) — SEBAGIAN JADI REQUIREMENT 3 Agu, DIPERJELAS 5 Agu**:
 > Bug ditemukan: transaksi periode Juni yang baru di-repost TAB bulan Agustus
 > kearsip di bulan Agustus (waktu aksi repost), PADAHAL harusnya kearsip ke Juni
-> (periode transaksinya). Keputusan:
+> (periode transaksinya). Keputusan awal (REQ-RDT-SAP-13/14) sudah direvisi lagi
+> per 5 Agu — baca versi TERBARU di bawah, versi lama TIDAK berlaku lagi.
 >
-> `REQ-RDT-SAP-13` **(baru 3 Agu)**: Saat inisiasi Repost (upload), dinas pengaju
-> HARUS eksplisit menyatakan **periode DT ini untuk bulan/tahun apa** (bukan
-> diasumsikan dari tanggal upload). Arsip di Riwayat Repost TAB/Dinas (REQ-RDT-
-> SAP-10/12) harus mengelompokkan berdasarkan **periode yang dinyatakan ini**,
-> BUKAN tanggal repost/upload sebenarnya.
+> `REQ-RDT-SAP-13` **(revisi 5 Agu)**: Saat inisiasi Repost (upload), dinas pengaju
+> tetap eksplisit menyatakan **periode DT ini untuk bulan/tahun apa** (tidak
+> berubah dari sebelumnya) — ini periode DATA, bukan periode repost final.
 >
-> `REQ-RDT-SAP-14` **(baru 3 Agu, tag Overdue)**: Kalau repost oleh TAB terjadi
-> SETELAH periode yang dinyatakan (mis. periode Juni tapi baru di-repost Agustus),
-> tampilkan tag **"Overdue"** berwarna merah di SAMPING tag "Reposted by TAB with
-> subdoc [nomor]" (REQ-RDT-SAP-07) — dua tag berdampingan, bukan menggantikan.
+> `REQ-RDT-SAP-14` **(REVISI TOTAL 5 Agu — mekanisme deadline per pasangan)**:
+> **TAB yang menentukan periode repost efektif**, BUKAN otomatis dari periode
+> data yang dinyatakan pengaju. Mekanismenya:
+> 1. TAB bisa set **deadline konfirmasi PER PASANGAN** (dinas_inisiasi ×
+>    dinas_target × periode) — bukan satu deadline global buat semua pasangan
+>    sekaligus. Tabel baru `rdt.period_deadlines` (dinas_inisiasi, dinas_target,
+>    periode, deadline_at timestamptz, set_by_user_id).
+> 2. **Deadline ini mengikat DINAS TARGET, bukan TAB** — yang dicek adalah kapan
+>    dinas target melakukan aksi Confirm/Reject untuk pasangan itu, BUKAN kapan
+>    TAB melakukan repost/submit subdoc.
+> 3. Kalau dinas target confirm SEBELUM deadline → periode repost efektif =
+>    periode data yang dinyatakan (normal, tidak berubah).
+> 4. Kalau dinas target confirm SETELAH deadline (atau belum confirm sama sekali
+>    sampai deadline lewat) → periode repost efektif **otomatis bergeser ke
+>    periode berikutnya** (mis. Juni → Juli), walau data itu sendiri tetap
+>    tercatat sebagai "periode Juni" untuk keperluan arsip/audit trail asal-usul
+>    data. Riwayat Repost mengelompokkan berdasarkan periode REPOST EFEKTIF ini,
+>    bukan periode data mentah.
+> 5. **Kalau TAB belum set deadline untuk pasangan+periode tertentu** — default
+>    aman: TIDAK ada pengecekan/pergeseran, repost jalan normal ke periode data
+>    yang dinyatakan. Fitur ini opt-in per pasangan, bukan wajib.
+> 6. **Open question yang BELUM dijawab** (coding agent JANGAN menebak): kalau TAB
+>    men-set/mengubah deadline SETELAH sebagian dinas sudah confirm duluan —
+>    apakah confirm yang sudah terjadi itu dievaluasi ulang terhadap deadline
+>    baru (retroaktif), atau deadline baru cuma berlaku untuk confirm yang
+>    terjadi SETELAH deadline itu di-set? Tanya pemilik proyek sebelum
+>    implementasi bagian ini.
 >
-> Detail lain (cara hitung "terlambat" persisnya, apakah ada grace period, dst)
-> MASIH BELUM final — implementasikan versi paling sederhana dulu (bandingkan
-> bulan/tahun periode vs bulan/tahun repost, telat = periode < bulan-tahun repost),
-> tanya pemilik proyek kalau butuh nuansa lebih rinci.
+> Tag **"Overdue"** (REQ-RDT-SAP-14 versi lama) sekarang MAKNANYA lebih presisi:
+> bukan cuma "telat diproses", tapi "periode repost efektifnya beneran kegeser
+> karena confirm dinas target lewat deadline" — tampil di samping tag "Reposted
+> by TAB with subdoc [nomor]" seperti sebelumnya.
+>
+> **UI yang dibutuhkan**: tempat buat TAB set/lihat deadline per pasangan+periode
+> — taruh di halaman "Wait to Repost" atau "Riwayat Repost TAB", coding agent
+> pilih yang lebih natural secara alur kerja TAB.
+>
+> **DIKONFIRMASI 5 Agu, malam (menjawab 2 hal)**:
+> 1. **Cara set deadline: BULK, bukan satu-satu**. Alur nyatanya: TAB set **SATU
+>    deadline** yang otomatis berlaku ke **SEMUA pasangan** dalam periode itu
+>    sekaligus (mis. akhir Juli, TAB set "deadline periode Agustus = 6 Agustus
+>    jam 15:00", langsung apply ke seluruh pasangan dinas_inisiasi×dinas_target
+>    yang aktif di periode itu). Override PER PASANGAN spesifik tetap bisa
+>    dilakukan TAB belakangan untuk kasus khusus — tabel `rdt.period_deadlines`
+>    (per pasangan) yang sudah dibangun TETAP DIPAKAI sebagai penyimpanan, cuma
+>    UI-nya perlu tambahan: **aksi "Set Deadline untuk Semua Dinas"** (input satu
+>    periode + satu tanggal/jam → upsert ke SEMUA pasangan aktif periode itu
+>    sekaligus, bukan cuma satu pasangan), di samping form override satu-pasangan
+>    yang sudah ada.
+> 2. **Snapshot per baris transaksi (implementasi sekarang) SUDAH BENAR, TIDAK
+>    perlu diubah** — dikonfirmasi lewat skenario kompleks (TJ→TC 80% confirm
+>    tanggal 4, redirect ke TL yang confirm 15% tanggal 5, sisa 5% balik ke TC
+>    yang confirm tanggal 6 pagi): masing-masing BARIS tetap dicap sesuai waktu
+>    konfirmasinya sendiri-sendiri (bukan digabung jadi satu timestamp buat
+>    seluruh pasangan), karena **TAB biasa repost yang udah beres duluan, gak
+>    nunggu semua cabang kelar** — granularitas per baris itu yang dibutuhkan
+>    prakteknya, bukan per pasangan.
 >
 > **Migrasi**: model per-dinas-pengaju (29 Jul) dan model batch global (24 Jul)
 > **DIGANTI TOTAL** oleh model per-pasangan ini. Kalau ada kode yang sudah
 > mengikuti model 29 Jul (gate nunggu semua pasangan satu dinas), itu HARUS
 > direvisi sebelum dipakai — jangan dijalankan berdampingan, itu bakal
 > membingungkan TAB soal antrian mana yang beneran real.
+>
+> **DIKERJAKAN 5 Agu, malam** (rencana ditunjukkan ke pemilik proyek dulu,
+> disetujui, baru eksekusi): migration `016_period_deadlines.sql`
+> (`rdt.period_deadlines`, UNIQUE per pasangan+periode), `rules/
+> periodEffective.js` (pure function `computeEffectivePeriod`, + Jest test 8
+> kasus), `routes/periodDeadlines.js` (GET/POST TAB-only, mounted
+> `/api/period-deadlines`). Frontend: `repost-history.component` grouping
+> bulan switch ke `period_efektif`, panel baru "Kelola Deadline Periode"
+> (collapsed `<details>`, TAB-only) buat set/lihat deadline per
+> pasangan+periode.
+>
+> **Open question poin 6 (retroaktif atau enggak) — REVISI 5 Agu, malam,
+> lebih larut**: keputusan final dari pemilik proyek adalah **SNAPSHOT,
+> BUKAN live-computed** (jawaban "computed live" sebelumnya sudah DIBATALKAN
+> — alasan: live-computed bikin edit deadline belakangan bisa diam-diam
+> mengubah status "overdue"/periode transaksi yang sudah terjadi di masa
+> lalu, data finansial jadi "melayang" tergantung edit belakangan, susah
+> diaudit — bertentangan dengan semangat "strict" yang diminta). Implementasi
+> final:
+> - Migration `017_periode_efektif_snapshot.sql`: kolom baru
+>   `rdt.transactions.periode_efektif` (nullable, NULL selama PENDING).
+> - `routes/confirmation.js`'s `snapshotPeriodeEfektif()`: dipanggil SEKALI,
+>   tepat saat dinas TARGET CONFIRM atau DECLINE (aksi target yang
+>   sebenarnya) — panggil `computeEffectivePeriod` dengan deadline yang
+>   berlaku SAAT ITU JUGA, simpan hasilnya permanen ke kolom di atas. TIDAK
+>   dipanggil untuk REJECT_REDIRECT (baris langsung pindah ke pasangan baru,
+>   belum "final" untuk pasangan ini) atau `BORNE_BY_INITIATOR`
+>   (`routes/reassignment.js` — itu keputusan INISIATOR, bukan target; nilai
+>   yang sudah terkunci saat DECLINE tetap dipakai apa adanya).
+> - `routes/reassignment.js`'s REASSIGN dan `confirmation.js`'s
+>   REJECT_REDIRECT: keduanya nge-NULL-kan `periode_efektif` — baris itu
+>   mulai episode confirm/reject baru di pasangan (dinas_target) yang
+>   berbeda, snapshot lama sudah tidak relevan.
+> - `routes/exportBatches.js`'s `GET /history`: TIDAK lagi menghitung apapun
+>   dari `audit_log`/`period_deadlines` — tinggal baca `MAX(rdt.transactions
+>   .periode_efektif)` per batch (agregasi "worst case"/paling telat di
+>   antara transaksi-transaksi satu batch, sama filosofi seperti agregasi
+>   `periodByBatch` yang sudah ada), fallback ke `period` (declared) kalau
+>   semua NULL (baris lama sebelum migration ini, atau baris tanpa periode).
+> `period` (declared) tetap tersimpan & ditampilkan apa adanya untuk arsip —
+> tidak berubah.
+>
+> **Verifikasi**: `npm test` 75/75 hijau (67 lama + 8 baru, tidak berubah —
+> `computeEffectivePeriod` sendiri logic-nya sama, cuma dipindah kapan
+> dipanggilnya). Live-verify via script sekali-pakai (sudah dihapus, tidak
+> di-commit), 8 skenario: CONFIRM setelah deadline -> snapshot geser +
+> terkunci; **hapus deadline SETELAHNYA -> snapshot yang sudah terkunci TIDAK
+> berubah (bukti non-retroaktif, ini inti dari revisi ini)**; CONFIRM tanpa
+> deadline -> tetap periode declared; DECLINE setelah deadline juga
+> snapshot; REASSIGN nge-clear snapshot lama; BORNE_BY_INITIATOR
+> mempertahankan snapshot dari DECLINE sebelumnya; `GET /history` baca
+> snapshot dengan benar (period declared vs period_efektif vs overdue).
+> Panel UI "Kelola Deadline Periode" juga diverifikasi end-to-end di browser
+> sebelumnya (isi form → submit → muncul di tabel) — tidak ada perubahan di
+> sisi UI untuk revisi snapshot ini (kontrak response API-nya sama persis,
+> cuma cara hitungnya yang pindah dari read-time ke write-time).
+>
+> Bug ketemu sambil kerja (tidak terkait fitur ini, diperbaiki karena
+> kebetulan lagi nyentuh file yang sama): satu byte null (`0x00`) nyasar di
+> `exportBatches.js`'s `/waiting` route (harusnya spasi di dalam template
+> literal) — diperbaiki jadi spasi biasa.
+>
+> **DIKERJAKAN 5 Agu, malam, lebih larut lagi** (jawaban poin 1 "DIKONFIRMASI"
+> di atas — bulk deadline — belum ada implementasinya sampai titik ini,
+> rencana ditunjukkan dulu, disetujui, baru eksekusi): **`POST
+> /api/period-deadlines/bulk`** — body `{ periode, deadline_at }`, TANPA
+> dinas_inisiasi/dinas_target. Upsert SATU SQL statement (`INSERT ... SELECT
+> DISTINCT ... ON CONFLICT DO UPDATE`, sama constraint dengan endpoint
+> per-pasangan yang sudah ada) ke SEMUA pasangan yang punya transaksi
+> non-terminal (`PENDING`/`DECLINED`/`NEEDS_REVIEW` — konstanta
+> `BLOCKING_STATUSES` yang sama dengan punya `exportBatches.js`) di periode
+> itu — pasangan yang sudah selesai (CONFIRMED/BORNE_BY_INITIATOR semua)
+> sengaja DILEWATI, karena `periode_efektif` itu snapshot yang cuma ditulis
+> saat ada aksi Confirm/Reject DI MASA DEPAN (lihat revisi di atas) — pasangan
+> yang sudah kelar gak akan pernah confirm/reject lagi, jadi deadline buat
+> pasangan itu gak akan pernah kepakai. Endpoint per-pasangan (`POST /` yang
+> sudah ada) TETAP DIPAKAI sebagai override — tidak diganti, tidak dibongkar.
+> Validasi periode/deadline_at di-share lewat helper
+> `validatePeriodAndDeadline` biar dua endpoint konsisten.
+>
+> Frontend: sub-section baru **"Set Deadline untuk Semua Dinas"** di dalam
+> panel "Kelola Deadline Periode" yang sudah ada (Riwayat Repost TAB) —
+> ditaruh DI ATAS form override satu-pasangan (dipisah `<hr>`, state Angular
+> terpisah `bulkDeadlineForm`), bukan menggantikannya. Ada konfirmasi
+> (`ModalService.confirm`) sebelum submit karena bisa menyentuh banyak
+> pasangan sekaligus — sama pola dengan "Assign All"-nya Investigation.
+> Sukses menampilkan pasangan mana saja yang ke-set (mis. "diterapkan ke 2
+> pasangan: TJ→TA, TJ→TE").
+>
+> **Verifikasi**: `npm test` 75/75 hijau (tidak ada test baru — endpoint ini,
+> sama seperti endpoint deadline lainnya, cuma diverifikasi via live DB
+> script sekali-pakai, bukan Jest, konsisten dengan pola sesi ini). Live-
+> verify via script (5/5 skenario, sudah dihapus): 2 pasangan sintetis
+> PENDING + 1 pasangan sintetis sudah CONFIRMED, semua di periode yang sama —
+> bulk-set cuma kena 2 pasangan yang PENDING, yang CONFIRMED benar-benar
+> dilewati (dicek langsung ke DB, bukan cuma response API); lalu dibuktikan
+> deadline hasil bulk-set itu BENERAN kepakai lewat jalur
+> `snapshotPeriodeEfektif` yang sama seperti deadline per-pasangan (confirm
+> telat -> `periode_efektif` geser), jadi tidak perlu logic khusus di
+> `confirmation.js` untuk asal-usul deadline-nya (bulk vs override, sama
+> saja begitu masuk `rdt.period_deadlines`). Ditambah live-verify di browser
+> sungguhan sebagai `demo-tab`: form muncul berdampingan dengan form
+> override (bukan menggantikan), dialog konfirmasi muncul dengan pesan yang
+> benar, submit berhasil dan pesan sukses menyebutkan pasangan yang tepat
+> (dites nyata ke pasangan TJ→TA/TJ→TE yang memang lagi PENDING — deadline
+> test ini dihapus lagi dari DB setelahnya, bukan dibiarkan nyangkut di data
+> pemilik proyek).
 
 **Functional Requirements**
 - `REQ-RDT-SAP-01`: Sistem harus menjalankan pengecekan status (`COUNT(*) WHERE status = 'PENDING'`) sebelum mengizinkan ekspor.

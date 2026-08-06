@@ -1,8 +1,9 @@
 import { Component, OnInit } from '@angular/core';
-import { ExportBatchService, HistoryBatch } from '../services/export-batch.service';
+import { ExportBatchService, HistoryBatch, PeriodDeadline } from '../services/export-batch.service';
 import { triggerBlobDownload, filenameFromResponse } from '../services/confirmation.service';
 import { ModalService } from '../services/modal.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
+import { DinasService, DinasEntry } from '../services/dinas.service';
 import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
 
 // Project owner request (31 Jul sore): split the list into month "sheets" (like separate tabs in
@@ -72,18 +73,19 @@ export class RepostHistoryComponent implements OnInit {
     this.subdocFilterValues = values;
   }
 
-  // Month "sheets" — REQ-RDT-SAP-13 (3 Agu): grouped by the DECLARED period (rdt.uploads.period,
-  // "which month this DT is FOR"), not confirmed_at (the repost action date) — a June DT reposted
-  // in August must archive under June, not August. Falls back to confirmed_at only for legacy
-  // batches confirmed before this field existed (b.period null). Sorted oldest to newest (same
-  // left-to-right order Excel workbook tabs get added in), independent of the subdoc paste-filter
-  // above.
+  // Month "sheets" — REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): grouped by the EFFECTIVE period
+  // (period_efektif) now, not the declared period — a pasangan whose dinas target confirmed after
+  // TAB's deadline archives under the NEXT month, not the month the data was declared for. Falls
+  // back to `period` (pre-SAP-14-revision batches, period_efektif null) then confirmed_at (legacy
+  // batches with neither). Sorted oldest to newest (same left-to-right order Excel workbook tabs
+  // get added in), independent of the subdoc paste-filter above.
   selectedMonthKey: string | null = null;
 
   get monthGroups(): MonthGroup[] {
     const byKey = new Map<string, HistoryBatch[]>();
     for (const b of this.filteredBatches) {
-      const key = b.period ? periodToMonthKey(b.period) : monthKeyOf(b.confirmed_at);
+      const effective = b.period_efektif || b.period;
+      const key = effective ? periodToMonthKey(effective) : monthKeyOf(b.confirmed_at);
       if (!byKey.has(key)) byKey.set(key, []);
       byKey.get(key)!.push(b);
     }
@@ -109,18 +111,109 @@ export class RepostHistoryComponent implements OnInit {
     this.selectedMonthKey = key;
   }
 
+  // REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): TAB-only panel to set/view deadlines — placed on THIS
+  // page (Riwayat Repost TAB) rather than Wait to Repost, since it's already period-oriented (TAB
+  // naturally reviews one month here, then plans the next one's deadline). Not tied to
+  // `selectedMonthKey`/the batch list above — a deadline can be set independent of whether any
+  // pasangan in that periode has archived (or even started) yet.
+  dinasOptions: DinasEntry[] = [];
+  // Bulk form (confirmed 5 Agu malam: the REAL workflow — one deadline, applies to every active
+  // pasangan in the periode at once) and the per-pasangan override form are deliberately separate
+  // state — the project owner was explicit the override form stays as-is, not replaced.
+  bulkDeadlineForm = { periode: '', deadline_at: '' };
+  bulkDeadlineFormBusy = false;
+  bulkDeadlineFormMessage = '';
+  deadlineForm = { dinas_inisiasi: '', dinas_target: '', periode: '', deadline_at: '' };
+  deadlineFormBusy = false;
+  deadlineFormMessage = '';
+  existingDeadlines: PeriodDeadline[] = [];
+
   constructor(
     private exportBatches: ExportBatchService,
     private modal: ModalService,
     public currentUser: CurrentUserService,
+    private dinasService: DinasService,
   ) {}
 
   ngOnInit(): void {
     this.load();
+    if (this.isTab) {
+      this.dinasService.getActiveDinas().subscribe((rows) => { this.dinasOptions = rows; });
+      this.loadExistingDeadlines();
+    }
   }
 
   get isTab(): boolean {
     return this.currentUser.current?.role === 'TAB';
+  }
+
+  // Refreshed on load and after every successful set/update — scoped to the currently-selected
+  // pasangan in the form (both dinas picked), otherwise the full list (still useful as an
+  // overview while the form is only partly filled in).
+  loadExistingDeadlines(): void {
+    const { dinas_inisiasi, dinas_target } = this.deadlineForm;
+    const args: [string?, string?] = dinas_inisiasi && dinas_target ? [dinas_inisiasi, dinas_target] : [undefined, undefined];
+    this.exportBatches.getPeriodDeadlines(...args).subscribe({
+      next: (rows) => { this.existingDeadlines = rows; },
+      error: () => { /* supplementary panel — don't block the rest of the page on it */ },
+    });
+  }
+
+  // Bulk — the actual real-world workflow (confirmed 5 Agu malam): one deadline applies to every
+  // pasangan currently active in that periode (routes/periodDeadlines.js's POST /bulk decides
+  // "active" server-side — has a non-terminal transaction in that periode). Confirmed before
+  // submitting since it can touch many pasangan at once, same pattern as other multi-row actions
+  // in this app (Investigation's "Assign All", Confirmation's batch resolve).
+  async submitBulkDeadline(): Promise<void> {
+    const { periode, deadline_at } = this.bulkDeadlineForm;
+    if (!periode || !deadline_at) return;
+    const ok = await this.modal.confirm(
+      `Set deadline periode ${periode} = ${new Date(deadline_at).toLocaleString('id-ID')} untuk SEMUA pasangan aktif di periode itu? ` +
+      `Ini akan menimpa deadline yang sudah ada untuk pasangan-pasangan tersebut.`
+    );
+    if (!ok) return;
+    this.bulkDeadlineFormBusy = true;
+    this.bulkDeadlineFormMessage = '';
+    this.exportBatches.setBulkPeriodDeadline(periode, new Date(deadline_at).toISOString()).subscribe({
+      next: (rows) => {
+        this.bulkDeadlineFormBusy = false;
+        this.bulkDeadlineFormMessage = rows.length
+          ? `Deadline periode ${periode} diterapkan ke ${rows.length} pasangan: ${rows.map((r) => `${r.dinas_inisiasi}→${r.dinas_target}`).join(', ')}.`
+          : `Tidak ada pasangan aktif di periode ${periode} — tidak ada deadline yang di-set.`;
+        this.loadExistingDeadlines();
+      },
+      error: async (err) => {
+        this.bulkDeadlineFormBusy = false;
+        await this.modal.alert('Gagal menyimpan deadline massal: ' + (err?.message || err));
+      },
+    });
+  }
+
+  // Per-pasangan OVERRIDE — for exceptions after the bulk deadline above has already been set
+  // (or for a pasangan the bulk call skipped because it wasn't active yet at the time).
+  async submitDeadline(): Promise<void> {
+    const { dinas_inisiasi, dinas_target, periode, deadline_at } = this.deadlineForm;
+    if (!dinas_inisiasi || !dinas_target || !periode || !deadline_at) return;
+    this.deadlineFormBusy = true;
+    this.deadlineFormMessage = '';
+    this.exportBatches.setPeriodDeadline(dinas_inisiasi, dinas_target, periode, new Date(deadline_at).toISOString()).subscribe({
+      next: async () => {
+        this.deadlineFormBusy = false;
+        this.deadlineFormMessage = `Deadline ${dinas_inisiasi} → ${dinas_target} periode ${periode} tersimpan.`;
+        this.loadExistingDeadlines();
+        // periode_efektif adalah SNAPSHOT (dikunci sekali saat dinas target Confirm/Reject, lihat
+        // confirmation.js's snapshotPeriodeEfektif) — bukan computed live lagi (keputusan lama
+        // sudah dibatalkan, lihat SRS.md). Deadline yang baru di-set/diubah di sini TIDAK mengubah
+        // pasangan yang sudah pernah confirm/decline; re-fetch di bawah ini murni supaya UI-nya
+        // gak stale kalau ada state lain yang kebetulan berubah, bukan karena history-nya
+        // benar-benar bisa bergeser dari sini.
+        this.load();
+      },
+      error: async (err) => {
+        this.deadlineFormBusy = false;
+        await this.modal.alert('Gagal menyimpan deadline: ' + (err?.message || err));
+      },
+    });
   }
 
   load(): void {
