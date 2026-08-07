@@ -1,9 +1,8 @@
 // dev-shell-only. RdtModule deliberately does NOT set a global font/reset (see
 // repost-budgeting.component.scss: "Font mengikuti font host platform ... supaya modul
 // menyatu dengan OCX") because in the real integration it inherits the host app's global
-// styles. dev-shell has no host to inherit from, so it plays that role itself here — same
-// base values ui-demo.html sets on <body> when it's the standalone page. This file stays out
-// of src/frontend/rdt on purpose; do not port it there.
+// styles. dev-shell has no host to inherit from, so it plays that role itself here. This file
+// stays out of src/frontend/rdt on purpose; do not port it there.
 * { box-sizing: border-box; }
 
 body {
@@ -21,8 +20,7 @@ body {
 // component" convention (see rdt/README.md) -- there's nothing component-specific to duplicate
 // here. Same reasoning as the font/background reset above: this file plays the role the real
 // OCX host's own global styles would play in production, so it's the right (and only) place for
-// an app-wide visual reset like this to live; ui-demo.html mirrors it in its own <style> block
-// per the usual ground-truth sync rule.
+// an app-wide visual reset like this to live.
 * {
   scrollbar-width: thin; // Firefox
   scrollbar-color: #cccccc transparent; // Firefox: thumb / track

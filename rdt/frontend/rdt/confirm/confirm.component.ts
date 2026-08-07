@@ -134,8 +134,8 @@ export class ConfirmComponent implements OnInit {
 
   // REQ-RDT-LEDGER-10 restructure (29 Jul, project owner request): Investigation/Ask TA folded
   // into Confirmation as a third TAB-only sub-tab (was a standalone InvestigationComponent/route
-  // before) — same "swap the whole normal-queue section for a differently-shaped queue" approach
-  // as ui-demo.html's ground truth. selectedTarget === 'INVESTIGATION' is the sentinel (not a
+  // before) — swaps the whole normal-queue section for a differently-shaped queue.
+  // selectedTarget === 'INVESTIGATION' is the sentinel (not a
   // real dinas code, driven by the shell sidebar's sub-nav via ?target=INVESTIGATION).
   isInvestigation = false;
   investigationRows: InvestigationRow[] = [];

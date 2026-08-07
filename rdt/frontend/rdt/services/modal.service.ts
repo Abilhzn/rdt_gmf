@@ -14,7 +14,7 @@ export interface ModalState {
 // Replaces window.confirm()/alert() with an in-page centered dialog (white box, dark
 // overlay) per the project owner's request. Rendered once at the shell level
 // (shell.component.html) since it needs to sit above whichever routed page triggered it —
-// mirrors ui-demo.html's single body-level #modal-overlay.
+// a single body-level #modal-overlay.
 @Injectable({ providedIn: 'root' })
 export class ModalService {
   private readonly stateSubject = new BehaviorSubject<ModalState | null>(null);

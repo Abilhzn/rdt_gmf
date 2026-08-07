@@ -50,18 +50,16 @@ Dokumen requirement lengkap ADA DI SINI, WAJIB DIBACA sebelum kerja apapun:
   — lihat `../auth/` dan `../data_user/`, dan `../CLAUDE.md` untuk kenapa.
   `rdt/backend` memanggil `auth` service untuk verifikasi session, bukan
   `require()` file lokal.
-- **Ada DUA frontend RDT di repo ini, sengaja, jangan bingung:**
-  - `backend/src/frontend/rdt/ui-demo.html` — Vanilla HTML/JS satu file,
-    di-serve backend di `localhost:4000`. Ground truth visual untuk resync
-    Angular (lihat section 8) — TIDAK lagi dipakai untuk uji coba
-    interaktif sehari-hari (itu sekarang langsung di Angular dev-shell,
-    `frontend/dev-shell/`, `ng serve` port 4200), tapi tetap WAJIB
-    disinkronkan setiap kali Angular berubah.
-  - `frontend/rdt/` — source Angular (component/service/module/guard)
-    untuk ditempel ke repo Angular tim IT nanti. Auth-related pieces
-    (Login/SelectPlatform/current-user.service.ts) sudah pindah ke
-    `../auth/frontend/` — bukan di sini lagi.
-  - Baca `README.md` (di folder ini) untuk detail aturan sinkronisasi ini.
+- **Satu frontend RDT** — `frontend/rdt/`, source Angular
+  (component/service/module/guard) untuk ditempel ke repo Angular tim IT
+  nanti. Auth-related pieces (Login/SelectPlatform/current-user.service.ts)
+  sudah pindah ke `../auth/frontend/` — bukan di sini lagi. Uji coba lokal
+  lewat `frontend/dev-shell/` (`ng serve`, port 4200) — lihat section 8.
+  **7 Agu 2026**: `backend/src/frontend/rdt/ui-demo.html` (frontend vanilla
+  HTML/JS kedua yang dulu di-serve backend, dipakai sebagai ground truth
+  visual) sudah **dihapus** atas instruksi user — Angular satu-satunya
+  frontend sekarang, gak ada lagi kewajiban sinkronisasi dua sisi. Baca
+  `README.md` (di folder ini) untuk detail struktur yang tersisa.
 - Database: schema terpisah `rdt` di PostgreSQL (bukan bikin instance
   sendiri) — lihat `backend/sql/schema.sql`. Kolom `*_user_id` di semua
   tabel TIDAK punya FK ke tabel user — itu disengaja, karena tabel
@@ -103,7 +101,7 @@ Dokumen requirement lengkap ADA DI SINI, WAJIB DIBACA sebelum kerja apapun:
 
 ## 4. Status implementasi saat ini (per 24 Jul 2026, verifikasi ulang saat mulai)
 
-**Sudah jalan, verified (backend + Angular dev-shell + `ui-demo.html`):**
+**Sudah jalan, verified (backend + Angular dev-shell):**
 - Parser lengkap: deteksi sheet pivot/summary (REQ-RDT-EXT-07, sheet
   bernama mengandung "summary" ATAU cell A3="Sum of In PCLC"), format
   kedua (Cost.Ctr1/Cost.Element/Amount/Cost.Ctr2/Qty/UoM/Text, REQ-RDT-EXT-01),
@@ -120,7 +118,7 @@ Dokumen requirement lengkap ADA DI SINI, WAJIB DIBACA sebelum kerja apapun:
 - Login + Select Platform (REQ-RDT-NAV-08) — username/password sungguhan
   (synthetic/demo), session token, sekarang tinggal di `../auth/frontend/`.
 - Sidebar + routing (Dashboard/Repost/Confirmation/Need Approval) —
-  REQ-RDT-NAV-01/06, termasuk di Angular (bukan cuma ui-demo.html).
+  REQ-RDT-NAV-01/06, di Angular.
 - Dashboard 2-panel (REQ-RDT-NAV-02) — progress ring 3-warna per pasangan
   dinas + panel "Need to Confirm", termasuk global view untuk role TAB.
 - Dashboard-Detailing (REQ-RDT-NAV-03) + comment thread berjenjang +
@@ -153,7 +151,7 @@ Dokumen requirement lengkap ADA DI SINI, WAJIB DIBACA sebelum kerja apapun:
     `description` opsional — di-post sebagai REPLY di bawah comment
     repost initiator-nya (fallback ke top-level comment baru kalau belum
     ada comment repost untuk pasangan itu). Field ini ada di Angular
-    (`confirm.component`) dan `ui-demo.html` (`#mp-description`).
+    (`confirm.component`).
 
 **BELUM ada / masih terbuka:**
 - Auth/data_user sebagai service HTTP terpisah beneran (Phase 2 dari
@@ -214,10 +212,44 @@ Claude Code:
   edit dulu, jelaskan rencana dan tunggu konfirmasi saya" untuk perubahan
   besar.
 
-## 8. Urutan kerja untuk fitur baru (preferensi user, 23 Jul 2026)
+## 8. Urutan kerja untuk fitur baru (preferensi user, terakhir diperbarui 7 Agu 2026)
 
-Untuk fitur baru ke depannya: **kerjakan backend + Angular dev-shell
-langsung** (bukan lagi ui-demo.html dulu — preferensi user berubah 24 Jul,
-sekarang trial-and-test langsung di Angular). `ui-demo.html` tetap harus
-disinkronkan sebagai ground truth visual, tapi bukan lagi tempat uji coba
-interaktif utama.
+Untuk fitur baru: **kerjakan backend + Angular dev-shell langsung**
+(`frontend/dev-shell/`, `ng serve` port 4200) — satu-satunya frontend.
+`ui-demo.html` (frontend vanilla HTML/JS kedua yang dulu jadi ground truth
+visual dan wajib disinkronkan) **sudah dihapus 7 Agu 2026** atas instruksi
+user — gak ada lagi langkah sinkronisasi kedua sisi untuk fitur baru
+manapun ke depannya.
+
+## 9. Manajemen token (baru 7 Agu, temuan dari `/context` nyata sesi ini)
+
+Sesi 6-7 Agu kepake $637,91 & 81% limit mingguan sebelum reset. Breakdown
+`/context` nunjukin dua penyebab dominan (>95% dari total "Messages"):
+
+1. **`mcp__claude-in-chrome__browser_batch` = 762,6k token (79% context)**.
+   Ini dari verifikasi screenshot yang sering diminta user tiap task
+   ("kasih bukti visual sebelum lapor selesai") — valid & tetap dibutuhin
+   buat nangkep bug UI beneran, TAPI mahal. Aturan baru:
+   - Screenshot verifikasi tetap WAJIB untuk perubahan visual/UI, tapi
+     **batching**: kumpulin beberapa perubahan kecil dulu, verifikasi
+     sekali di akhir — jangan buka browser ulang tiap 1 baris CSS berubah.
+   - Setelah task yang banyak verifikasi browser selesai dan sudah
+     dikonfirmasi user, **user akan `/clear` sebelum task berikutnya** —
+     jangan asumsikan histori screenshot sebelumnya masih relevan/perlu
+     diinget lintas task.
+2. **File read tanpa `offset`/`limit` = 150,6k token (16% context)**. Biasain
+   baca file besar (`docs/SRS.md` khususnya, sudah ratusan baris) dengan
+   `head`/`tail`/range spesifik kalau cuma butuh cek satu section — jangan
+   baca full file kalau gak perlu semuanya. Kalau udah baca satu file dalam
+   sesi yang sama dan belum ada perubahan, jangan baca ulang dari nol.
+
+**Riwayat progress harian**: user sudah mulai nulis log harian di
+`docs/progress-log/YYYY-MM-DD.md`. Kalau butuh histori kerjaan lintas sesi
+(setelah `/clear`), cek folder itu dulu (urut tanggal terbaru) SEBELUM
+nanya user ulang atau re-explore kode dari nol — kemungkinan besar
+konteksnya udah ada di situ.
+
+**Sebelum `/clear`**: kalau ada keputusan/temuan penting dari sesi berjalan
+yang BELUM sempat masuk ke `docs/SRS.md` atau `docs/progress-log/`, tulis
+dulu sebelum di-clear — jangan biarkan keputusan cuma ada di riwayat chat
+yang bakal hilang.

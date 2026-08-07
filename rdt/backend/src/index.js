@@ -1,10 +1,11 @@
 /**
- * Minimal backend server to expose parser endpoint for RDT module.
+ * Backend server exposing the RDT API, consumed by the Angular dev-shell frontend
+ * (rdt/frontend/dev-shell, `ng serve`, port 4200) — the standalone ui-demo.html frontend this
+ * used to also serve was removed 7 Agu 2026.
  * - POST /api/parse  : accepts multipart/form-data with field `file` and returns parsed rows + aggregation
- * - GET  /rdt/demo  : serves a simple demo UI to upload Excel and preview parsed results
  *
- * This server is intentionally minimal for demo purposes; in production this should be
- * integrated into the team's existing Node.js backend with proper auth, logging, and error handling.
+ * This server should eventually be integrated into the team's existing Node.js backend with
+ * proper auth, logging, and error handling.
  */
 
 require('dotenv').config();
@@ -127,15 +128,10 @@ app.post('/api/parse', requireUser, upload.single('file'), async (req, res) => {
   }
 });
 
-// Serve demo UI static file (bundled under backend/src/frontend/rdt)
-// Root URL diarahkan ke demo supaya localhost:4000 langsung menampilkan UI.
-app.get('/', (req, res) => res.redirect('/rdt/demo'));
-app.get('/rdt/demo', (req, res) => {
-  const demo = path.join(__dirname, 'frontend', 'rdt', 'ui-demo.html');
-  if (!fs.existsSync(demo)) return res.status(404).send('demo not found');
-  res.sendFile(demo);
-});
-app.use('/rdt/assets', express.static(path.join(__dirname, 'frontend', 'rdt', 'assets')));
+// ui-demo.html (the standalone vanilla-JS demo UI this used to serve at '/' and '/rdt/demo')
+// was removed 7 Agu 2026 — the Angular dev-shell (rdt/frontend/dev-shell, `ng serve`, port 4200)
+// is now the only frontend, per project owner instruction. This server is API-only from here on.
+app.get('/', (req, res) => res.json({ ok: true, service: 'rdt-backend', frontend: 'http://localhost:4200/rdt' }));
 
 // GET /api/directory — employee directory, used for the @mention autocomplete + comment/
 // notification author display names. Restructured 24 Jul 2026: proxies to the data_user

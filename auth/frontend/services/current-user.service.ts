@@ -7,7 +7,7 @@ import { CurrentUser, DirectoryEntry } from './current-user.model';
 // TODO(IT-AUTH): mirrors the `auth` service's provisional REQ-RDT-NAV-08 login — POST
 // /auth-api/login exchanges username+password (verified against the `data_user` service +
 // auth's own credentials.seed.json) for an opaque session token, kept IN MEMORY ONLY (no
-// localStorage/sessionStorage), same as ui-demo.html: the server's session store is also
+// localStorage/sessionStorage) — the server's session store is also
 // in-memory and wiped on restart, so persisting the token client-side would just mean a
 // refresh silently "worked" with a token the server no longer recognizes until the next API
 // call 401s. A refresh always bounces back to Login instead. Replace once GMF IT confirms

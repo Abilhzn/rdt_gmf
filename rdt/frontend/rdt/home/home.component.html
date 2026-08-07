@@ -29,7 +29,10 @@
               [ngClass]="stateLabelClass(d.state_label)"
               [class.pair-card__state-label--empty]="!d.state_label"
             >{{ d.state_label || ' ' }}</div>
-            <span class="pair-card__reply">{{ d.reply_count || 0 }} comment</span>
+            <span class="pair-card__reply">
+              <svg class="pair-card__reply-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              {{ d.reply_count || 0 }} comment
+            </span>
           </div>
           <div class="pair-card__bar-right">
             <div class="pair-card__bar-row">
@@ -57,7 +60,10 @@
           <div class="dinas-circle" [ngStyle]="{'--pct': d.percent, '--ring-color': ringColor(d.percent)}">
             <span class="pct-label" [style.color]="ringColor(d.percent)">{{ d.percent | number: '1.1-1' }}%</span>
           </div>
-          <span class="pair-card__reply">{{ d.reply_count || 0 }} comment</span>
+          <span class="pair-card__reply">
+            <svg class="pair-card__reply-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            {{ d.reply_count || 0 }} comment
+          </span>
         </div>
         <div class="pair-card__state-label" [ngClass]="stateLabelClass(d.state_label)" *ngIf="d.state_label">{{ d.state_label }}</div>
       </ng-template>

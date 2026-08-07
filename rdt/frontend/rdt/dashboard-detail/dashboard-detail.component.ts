@@ -15,9 +15,9 @@ interface ThreadRow {
 // progress circle for that pair specifically, plus a forum-style comment thread (parent/child
 // replies, @mention autocomplete/notifications/linked render — see shared/mention-input.component
 // .ts and shared/mention-text.component.ts, REQ-RDT-COMMENT-03 diperluas 3 Agu: one shared
-// implementation, no longer this component's own copy). Ground truth ui-demo.html's
-// view-dashboard-detail — reached only by clicking a Dashboard card (see HomeComponent), not a
-// sidebar item, so it isn't in PAGE_TITLES/nav — nested under HomeModule's routes precisely so
+// implementation, no longer this component's own copy). This view is reached only by clicking
+// a Dashboard card (see HomeComponent), not a sidebar item, so it isn't in PAGE_TITLES/nav —
+// nested under HomeModule's routes precisely so
 // the "Dashboard" sidebar link + page title stay active/correct here too (see home.module.ts).
 @Component({
   selector: 'rdt-dashboard-detail',
@@ -119,8 +119,8 @@ export class DashboardDetailComponent implements OnInit {
     });
   }
 
-  // Mirrors ui-demo.html's renderDdThread: builds a parent/child tree from the flat,
-  // oldest-first comment list, then flattens it back into render order with a depth per row
+  // Builds a parent/child tree from the flat, oldest-first comment list, then flattens it
+  // back into render order with a depth per row
   // (Angular templates don't recurse as naturally as string-building, so depth-annotated rows
   // work better than a nested structure here).
   private buildThreadRows(comments: Comment[]): ThreadRow[] {

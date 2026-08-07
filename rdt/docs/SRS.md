@@ -915,8 +915,8 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
     parse SEBELUM benar-benar diunggah ke staging.
   - **Kolom kanan, panel persisten "Confirm to Repost"**: tombol **Confirm** dan
     **Cancel** — aksi final setelah review (Cancel = batalkan, tidak menyimpan apapun).
-    Ini menggantikan tombol tunggal "Simpan ke staging" di `ui-demo.html` versi
-    sebelumnya — perlu ada opsi batal yang eksplisit.
+    Ini menggantikan tombol tunggal "Simpan ke staging" versi desain sebelumnya —
+    perlu ada opsi batal yang eksplisit.
   - **Kolom tabel preview/Review (baru 31 Jul, feedback presentasi progress; diperjelas
     1 Agu)**: urutan kolom yang diminta — **Sub Group** di paling kiri, lalu kolom data
     yang sudah ada, **Remark** di kanan, dan **kolom baru "Catatan editable oleh
@@ -978,11 +978,11 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
   > comment". Badge jumlah comment dan tag status (state label REQ-RDT-SAP-07) yang
   > sekarang nempel dempet-dempetan di kartu yang sama harus dikasih jarak (gap) yang
   > jelas — lihat REQ-RDT-UI-04.
-- `REQ-RDT-NAV-06`: Struktur ini berlaku untuk `ui-demo.html` MAUPUN source Angular di
-  `src/frontend/rdt/` — keduanya harus tetap sinkron secara struktur navigasi, sesuai
-  aturan sinkronisasi di `src/README.md`. Modul Angular yang sudah ada (`home/`,
-  `confirm/`, `need-approval/`, `pages/repost-budgeting/`) kemungkinan sudah dipetakan
-  sebagian ke struktur ini — cek dulu sebelum bikin struktur baru dari nol.
+- `REQ-RDT-NAV-06`: Struktur ini berlaku untuk source Angular di `frontend/rdt/`
+  (satu-satunya frontend sejak `ui-demo.html` dihapus 7 Agu 2026 — lihat `README.md`).
+  Modul Angular yang sudah ada (`home/`, `confirm/`, `need-approval/`,
+  `pages/repost-budgeting/`) kemungkinan sudah dipetakan sebagian ke struktur ini —
+  cek dulu sebelum bikin struktur baru dari nol.
 - `REQ-RDT-NAV-07` **(baru 22 Jul, DIREVISI 5 Agu)**: Tabel besar (Review di halaman
   Repost, tabel di halaman Confirmation, dan SEMUA fitur lain yang menampilkan DT)
   menggunakan pagination pola "Google-style": maksimum **50 baris per halaman**
@@ -1071,9 +1071,10 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap komponen.
 
 - `REQ-RDT-UI-01` **(baru 27 Jul)**: Semua ikon di sidebar dan tombol aksi menggunakan
-  **Lucide** (lucide-react untuk Angular via lucide-angular, atau lucide static SVG
-  untuk `ui-demo.html`) — bukan kotak warna polos placeholder yang ada sekarang di
-  draf Figma, dan bukan emoji. Satu icon set konsisten, jangan campur sumber lain.
+  **Lucide** (inline SVG path Lucide, lihat `shell.component.html` untuk pola yang
+  sudah dipakai — tanpa package `lucide-angular`, cuma markup SVG-nya) — bukan kotak
+  warna polos placeholder yang ada sekarang di draf Figma, dan bukan emoji. Satu icon
+  set konsisten, jangan campur sumber lain.
 - `REQ-RDT-UI-02` **(baru 27 Jul, override draf Figma)**: Border-radius elemen (card,
   tombol, input) **moderat, TIDAK terlalu bulat** — draf Figma sekarang pakai radius
   16px–32px untuk card besar, itu di luar preferensi pemilik proyek yang eksplisit
@@ -1083,7 +1084,7 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   pixel value di file Figma — kecuali pemilik proyek eksplisit bilang sudah berubah
   preferensi.
 - Warna aksen di draf Figma terbaru: `#006298` (biru GMF versi terbaru) — sedikit
-  beda dari `#0b5ba7` yang dipakai duluan di `ui-demo.html`/`pagination.component`.
+  beda dari `#0b5ba7` yang dipakai duluan di `pagination.component`.
   **Perlu diselaraskan** ke satu nilai (rekomendasi: pakai `#006298` karena itu yang
   ada di aset logo & Figma terbaru, anggap versi lama sebagai draf awal yang belum
   final) — jangan biarkan dua nilai biru berbeda nyampur di halaman yang beda.
@@ -1222,6 +1223,10 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
 >    sama sekali (bukan cuma soal "Rp"/padding — fitur KPI row-nya sendiri
 >    belum di-port ke sana) — perlu sinkronisasi terpisah kalau/ketika
 >    `ui-demo.html` dipakai lagi sebagai ground truth.
+
+**Moot per 7 Agu 2026**: `ui-demo.html` dihapus atas instruksi user — item 4 di
+atas gak lagi berlaku, gak ada sinkronisasi kedua sisi lagi ke depannya. Note
+di atas dibiarkan apa adanya sebagai record historis, bukan direvisi.
 
 ### 3.11 Frozen Column di Tabel Confirmation (baru 5 Agu)
 

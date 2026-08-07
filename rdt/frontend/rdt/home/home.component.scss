@@ -19,7 +19,7 @@ $red: #d14040;
 $red-bg: rgba(209, 64, 64, 0.14);
 $bar-track: #ebedf0;
 // REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px, not Figma's literal 32px — project owner
-// asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-xl.
+// asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
@@ -114,7 +114,11 @@ $radius-md: 8px;
   // P4.5: badge & tag sit flush together with only the tag's own margin-top for spacing — this
   // display:block + margin-bottom gives a guaranteed gap regardless of layout (bar-row's plain
   // span flow vs donut's flex row).
-  &__reply { display: block; font-size: 14.5px; color: $ink-600; margin-bottom: 10px; }
+  &__reply { display: flex; align-items: center; gap: 4px; font-size: 14.5px; color: $ink-600; margin-bottom: 10px; }
+  // Bug fix (7 Agu): icon was never added when this span was built — text-only "N comment" read
+  // ambiguous without it. Reuses the same inline Lucide "message-square" path shell.component.html
+  // already uses for the sidebar's Feedback Application nav item, per REQ-RDT-UI-04's icon-set rule.
+  &__reply-icon { flex: 0 0 auto; width: 13px; height: 13px; }
   &__state-label {
     display: inline-block;
     margin-top: 12px;

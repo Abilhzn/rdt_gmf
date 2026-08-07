@@ -3,7 +3,7 @@
 // is unit-testable without a DB connection, same rationale as reassignmentRules.js.
 //
 // Two mention forms, matching what the Repost description's @mention autocomplete already lets
-// people insert (see ui-demo.html's mentionOptions()): a specific user_id (@demo-pic-tj) or a
+// people insert: a specific user_id (@demo-pic-tj) or a
 // dinas code (@TJ) — a dinas mention fans out to every directory entry whose `dinas` matches
 // (today that's exactly one PIC per dinas, but this generalizes if a dinas ever gets more than
 // one login). This is PURELY for notification targeting — it never changes transaction state.

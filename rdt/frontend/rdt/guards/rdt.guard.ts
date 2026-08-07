@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivate, Router, UrlTree } from '@angular/router';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
-// REQ-RDT-NAV-08 — gates the app shell behind an active session. ui-demo.html's session is
+// REQ-RDT-NAV-08 — gates the app shell behind an active session. The session is
 // deliberately in-memory only (no localStorage), so a refresh always bounces back to Login
 // (see CurrentUserService's header comment) — this guard mirrors that exactly rather than
 // trying to restore/validate a persisted token.

@@ -21,8 +21,7 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
-// wrapping <router-outlet>, the Angular-side equivalent of ui-demo.html's hash-based view
-// switching. "Guidance Application"/"Feedback Application" are inert placeholders in the
+// wrapping <router-outlet>. "Guidance Application"/"Feedback Application" are inert placeholders in the
 // updated Figma (plain non-clickable divs there too) — no spec/annotation exists for them,
 // so they're rendered disabled rather than routed anywhere invented.
 @Component({
@@ -59,7 +58,7 @@ export class ShellComponent implements OnInit {
     private elementRef: ElementRef<HTMLElement>,
   ) {}
 
-  // Ground truth ui-demo.html closes both dropdowns on any click outside their .user-menu-wrap.
+  // Closes both dropdowns on any click outside their .user-menu-wrap.
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!this.showUserMenu && !this.showNotifMenu) return;
@@ -105,8 +104,8 @@ export class ShellComponent implements OnInit {
       }
       // REQ-RDT-NAV-02a: which Dashboard sub-link reads bold — HomeComponent owns the ?sub=
       // query param, read here too so the sidebar (a sibling, not an ancestor of HomeComponent)
-      // can reflect it. Also a natural opportunistic refresh point for the badge count, same
-      // idea as ui-demo.html's loadDashboard() re-rendering it on every Dashboard load.
+      // can reflect it. Also a natural opportunistic refresh point for the badge count, refreshed
+      // on every Dashboard load.
       if (segment === 'dashboard') {
         const sub = this.route.firstChild?.firstChild?.snapshot.queryParamMap.get('sub');
         // REQ-RDT-NAV-10 (1 Agu sore, reversed): TAB's "Need Identification" Dashboard sub-view
@@ -155,8 +154,7 @@ export class ShellComponent implements OnInit {
     return this.currentUser.current?.role === 'TAB';
   }
 
-  // ---------- notifications (REQ-RDT-COMMENT-03), ground truth ui-demo.html's loadNotifCount/
-  // toggleNotifMenu ----------
+  // ---------- notifications (REQ-RDT-COMMENT-03) ----------
   private loadNotifCount(): void {
     this.notificationsSvc.list().subscribe({
       next: (res) => { this.unreadCount = res.unreadCount; },
@@ -185,7 +183,7 @@ export class ShellComponent implements OnInit {
     });
   }
 
-  // Ground truth ui-demo.html's renderNotifList: clicking a notification jumps straight to
+  // Clicking a notification jumps straight to
   // its dinas pair's Dashboard-Detailing thread. 'dashboard' is a DIRECT CHILD of ShellComponent
   // here (see rdt-routing.module.ts), so no '../' — 'detail/...' is then nested further inside
   // HomeModule's own routes (see home.module.ts).

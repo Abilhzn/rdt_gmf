@@ -8,13 +8,12 @@ import { RdtGuard } from './guards/rdt.guard';
 
 // REQ-RDT-NAV-01/05/08 — restructured from the old single-page-at-root layout into
 // Dashboard/Repost/Confirmation/Need Approval siblings under a persistent ShellComponent
-// (sidebar + topbar), mirroring the hash-based view switching in ui-demo.html. '' redirects
+// (sidebar + topbar). '' redirects
 // to 'dashboard' since Dashboard is now the landing page under the shell. "Guidance
 // Application"/"Feedback Application" from the updated Figma sidebar are inert placeholders
 // (no spec/annotation exists for them) — not routed.
 //
-// login/select-platform sit OUTSIDE the shell (no sidebar/topbar there, ground truth
-// ui-demo.html's screen-login/screen-select-platform). RdtGuard on the shell route redirects
+// login/select-platform sit OUTSIDE the shell (no sidebar/topbar there). RdtGuard on the shell route redirects
 // to /login whenever there's no active session — including on a plain refresh, since the
 // session is deliberately in-memory only (see CurrentUserService).
 const routes: Routes = [

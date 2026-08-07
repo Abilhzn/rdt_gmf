@@ -13,7 +13,7 @@ $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
 $radius-md: 8px;
 // REQ-RDT-UI-02 (28 Jul, override draf Figma): 10px, not Figma's literal 16px — project owner
-// asked explicitly for "jangan round banget". Matches ui-demo.html's --radius-lg.
+// asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
 $radius-lg: 10px;
 $danger-600: #b3261e;
 

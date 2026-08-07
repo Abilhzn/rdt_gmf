@@ -616,7 +616,7 @@ router.get('/summary', async (req, res) => {
 // as_initiator cards (state_label-enriched, see buildChainAwareProgress above).
 
 // REQ-RDT-NAV-02a: lightweight count-only endpoint for the sidebar "Dashboard" badge, visible
-// from any page — called once at shell load (see selectPlatform() in ui-demo.html), not the
+// from any page — called once at shell load, not the
 // full /summary aggregation. Deliberately just a count, not the dinas list itself, so this stays
 // cheap to call opportunistically (e.g. after Confirmation submit) without re-fetching more than
 // the badge needs.

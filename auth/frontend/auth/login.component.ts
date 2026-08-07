@@ -2,9 +2,8 @@ import { Component } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CurrentUserService } from '../services/current-user.service';
 
-// REQ-RDT-NAV-08 — synthetic username+password login screen, ground truth ui-demo.html
-// (screen-login). On success, always continues to Select Platform (not straight to the app
-// shell) even though RDT is the only platform today — mirrors enterSelectPlatform().
+// REQ-RDT-NAV-08 — synthetic username+password login screen. On success, always continues to
+// Select Platform (not straight to the app shell) even though RDT is the only platform today.
 @Component({
   selector: 'rdt-login',
   standalone: false,

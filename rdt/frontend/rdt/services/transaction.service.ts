@@ -27,7 +27,7 @@ export class TransactionService {
   constructor(private http: HttpClient, private currentUser: CurrentUserService) {}
 
   // "Dinas pengunggah" is no longer a manual field — it mirrors whichever dinas the logged-in
-  // account belongs to (see CurrentUserService), same as ui-demo.html's doParse().
+  // account belongs to (see CurrentUserService).
   uploadAndParse(file: File): Observable<ParseResponse> {
     const user = this.currentUser.current;
     if (!user) return throwError(() => new Error('Pilih "Login sebagai" dulu — dinas pengunggah mengikuti akun yang login.'));
@@ -41,7 +41,7 @@ export class TransactionService {
     return this.http.post<CommitResponse>(`${this.base}/commit`, { rows, aggregation });
   }
 
-  // Bug fix mirrored from ui-demo.html's doCommit(): rdt.uploads.original_filename is
+  // Bug fix: rdt.uploads.original_filename is
   // NOT NULL in the schema, but this never sent it — persisting a real file would 500 on
   // that constraint. dinas_code/uploaded_by_user_id are now derived server-side from the
   // X-User-Id header (never trusted from the body) — see index.js's /api/persist.

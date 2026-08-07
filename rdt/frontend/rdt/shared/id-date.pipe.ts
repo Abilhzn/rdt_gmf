@@ -1,6 +1,6 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
-// Ground truth ui-demo.html formats every timestamp with `new Date(x).toLocaleString('id-ID')`
+// Every timestamp is formatted with `new Date(x).toLocaleString('id-ID')`
 // (e.g. "24/7/2026, 10.21.02") — Angular's DatePipe 'medium' format doesn't reproduce that exact
 // shape even with the id-ID locale registered (different date/time punctuation), so this calls
 // the same native API directly instead of fighting Angular's i18n locale-data system for a

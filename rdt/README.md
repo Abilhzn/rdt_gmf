@@ -6,18 +6,12 @@ dipakai app lain juga nantinya) — lihat `../CLAUDE.md`. Login/Select
 Platform + `current-user.service.ts` sudah pindah ke `../auth/frontend/`,
 bukan di `frontend/rdt/` lagi.
 
-Project ini (RDT) punya DUA frontend dengan peran berbeda. Jangan bingung,
-jangan dihapus salah satu, dan jaga keduanya tetap sinkron secara desain.
+**7 Agu 2026**: `ui-demo.html` (frontend vanilla HTML/JS kedua yang dulu
+di-serve backend di `localhost:4000`) sudah **dihapus**. Angular adalah
+satu-satunya frontend sekarang — gak ada lagi kewajiban sinkronisasi dua
+sisi. Semua trial-and-test langsung di Angular dev-shell.
 
-## 1. `backend/src/frontend/rdt/ui-demo.html` — GROUND TRUTH VISUAL
-Halaman demo satu-file (vanilla HTML/CSS/JS), di-serve oleh Express di
-`http://localhost:4000` (root redirect ke `/rdt/demo`). Tidak butuh build
-tooling apapun. **Bukan lagi tempat uji coba interaktif sehari-hari**
-(preferensi user berubah 24 Jul — sekarang langsung trial-and-test di
-Angular dev-shell), tapi tetap WAJIB disinkronkan sebagai acuan visual
-setiap kali Angular berubah.
-
-## 2. `frontend/rdt/` — SOURCE ANGULAR UNTUK INTEGRASI NANTI
+## `frontend/rdt/` — SOURCE ANGULAR UNTUK INTEGRASI NANTI
 Module Angular (component, service, model, guard, routing) yang TIDAK bisa
 jalan standalone dengan sendirinya — tidak ada Angular workspace
 (angular.json, main.ts) di folder ini sendiri, dan itu disengaja: file-file
@@ -34,18 +28,11 @@ tsconfig.app.json`) — siapapun yang integrasikan module `rdt/` ini ke app
 Angular lain WAJIB menyediakan alias yang sama, menunjuk ke lokasi
 `auth/frontend/` mereka.
 
-## Aturan sinkronisasi
-- `ui-demo.html` adalah ACUAN VISUAL: alur 3 langkah (unggah → ringkasan +
-  matriks rekap ala pivot → detail baris + simpan), palet biru GMF, chip
-  status (PENDING/EXCLUDED/INVALID/NEEDS_REVIEW/APPROVED/REJECTED).
-- Kalau mengubah tampilan/alur di satu sisi, samakan sisi lainnya.
-- Kontrak API RDT-nya sendiri sama untuk keduanya: `POST /api/parse`,
-  `POST /api/persist`, `GET/PUT /api/mapping`, `GET/PUT /api/exclusions`
-  (lihat `backend/src/index.js`). Login/session sekarang lewat `auth`
-  service terpisah (`/auth-api/*`, bukan `/api/auth/*` lagi), directory
-  employee lewat `data_user` service (`/data-api/*` dari Angular,
-  `/api/directory` dari ui-demo.html — backend RDT tetap proxy itu untuk
-  ui-demo.html spesifik).
+## Kontrak API
+Sama untuk backend: `POST /api/parse`, `POST /api/persist`, `GET/PUT
+/api/mapping`, `GET/PUT /api/exclusions` (lihat `backend/src/index.js`).
+Login/session lewat `auth` service terpisah (`/auth-api/*`), directory
+employee lewat `data_user` service (`/data-api/*`).
 
 ## Menjalankan
 
@@ -55,11 +42,11 @@ Backend RDT butuh `auth` dan `data_user` service jalan juga (port 4001 dan
 ```bash
 cd auth && npm install && npm start        # port 4001
 cd data_user && npm install && npm start   # port 4002
-cd rdt/backend && npm install && npm start # port 4000, buka http://localhost:4000
+cd rdt/backend && npm install && npm start # port 4000, API only, tidak serve UI apapun
 npm test           # test parser vs angka pivot terverifikasi (SRS #8)
 ```
 
-Angular dev-shell (uji coba interaktif, preferensi utama sejak 24 Jul):
+Angular dev-shell (satu-satunya cara uji coba interaktif):
 ```bash
 cd rdt/frontend/dev-shell
 npm install
