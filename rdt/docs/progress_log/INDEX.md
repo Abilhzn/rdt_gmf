@@ -27,6 +27,7 @@ ada di `rdt/CLAUDE.md`.
 | 4 | 26 Jul 2026 | [04_2026-07-26.md](04_2026-07-26.md) | Batch 5 item (parsing TJ, routing Ask TA/TMM, auto-comment repost/confirm, visibilitas dashboard, Corp di antrian TAB) + 3 bug lanjutan (double-counting TJ, auto-navigate, pivot-only file) |
 | 5 | 30 Jul 2026 | [05_2026-07-30.md](05_2026-07-30.md) | Pivot besar: Need Approval digeser dari gating per-dinas-inisiasi ke per-pasangan (dinas_inisiasi, dinas_target), subdoc table + state label, Riwayat Repost TAB, 4 gap pasca-review, redesign filter Excel-style (belum sempat commit) |
 | 6 | 6 Agu 2026 | [06_2026-08-06.md](06_2026-08-06.md) | Dashboard fidelity + USD currency, fix Notes column + reassign-chain access, **REQ-RDT-SAP-14** (mekanisme deadline: per-pasangan → snapshot bukan live-computed → bulk-set), lalu task rangkuman ini sendiri |
+| 7 | 7–11 Agu 2026 | [07_2026-08-11.md](07_2026-08-11.md) | ui-demo.html dihapus total, **Setting Periode** restructure (Override Deadline jadi list-driven + re-evaluate) + 5 item Bagian 2 (termasuk bug SAP-09 auto-archive yang ketemu & diperbaiki), audit repo lokal vs GitHub, rename `develop`→`pc-lab` + branch `lenovo` baru, **migrasi database ke Supabase**, `main` di-fast-forward ke kerjaan terbaru |
 
 ## Garis besar evolusi arsitektur
 
@@ -43,23 +44,23 @@ ada di `rdt/CLAUDE.md`.
   snapshot periode_efektif) — fitur bisnis besar terakhir sebelum sesi ini
   ditutup.
 
-## Status akhir per 6 Agu 2026 (akhir sesi 6)
+## Status akhir per 11 Agu 2026 (akhir sesi 7)
 
-- Branch aktif: `rdt/ui-batch-5-agu-symmetry-sticky-cols`, commit terakhir
-  `9659a0d`, **belum di-push, belum di-merge/PR ke `main`**.
+- Branch aktif: `lenovo` (device branch PC ini, per-device convention baru
+  — lihat sesi 7), commit terakhir `6fe8292`.
+- **`main` sudah di-fast-forward ke `6fe8292` dan di-push ke GitHub (11
+  Agu)** — pertama kalinya kerjaan sesi-sesi ini nyampe `main` beneran.
+  `origin` juga punya `pc-lab` (branch device PC lain, dulu namanya
+  `develop`) dan `lenovo` (device PC ini).
+- **Database production/dev sekarang Supabase** (Postgres remote), bukan
+  lokal lagi — `rdt/backend/.env`'s `DATABASE_URL` di-update user sendiri
+  (Claude di-block akses baca/tulis file itu, by design). Schema `rdt`
+  lengkap 13 tabel, sudah ada data real dari PC lain ("pc lab").
 - `npm test` hijau di akhir setiap sesi yang menyentuh backend.
-- Backlog terbuka (lihat detail di `06_2026-08-06.md`):
-  - ~~`ui-demo.html` tidak sinkron dengan redesign dashboard Angular.~~
-    **Resolved 7 Agu**: `ui-demo.html` dihapus, bukan disinkron — Angular
-    satu-satunya frontend sekarang. Lihat sesi 7 Agu.
-  - Sidebar hover-expand (REQ-RDT-UI-06 diperluas) — suspended, nunggu link
-    Dribbble yang bisa diakses. **7 Agu**: ditunda lebih lanjut sampai
-    Minggu malam atas permintaan user.
-  - ~~Chat-bubble icon kecil yang hilang di pair-card (kosmetik minor).~~
-    **Fixed 7 Agu** — bukan kosmetik, dibutuhkan untuk nunjukin jumlah
-    komen.
-  - Branch belum di-merge/PR. **7 Agu**: dipush ke remote, TETAP TIDAK
-    di-merge ke `main` atas instruksi user.
+- Backlog terbuka:
+  - Sidebar hover-expand (REQ-RDT-UI-06 diperluas) — masih suspended,
+    nunggu link Dribbble yang bisa diakses.
+  - `graphify-out/` masih untracked, belum diputusin gitignore atau commit.
   - Auth/data_user masih provisional/synthetic (TODO(IT-AUTH)) — nunggu
     tabel karyawan resmi tim IT GMF.
 
