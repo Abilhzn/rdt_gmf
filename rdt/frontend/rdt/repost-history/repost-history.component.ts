@@ -1,9 +1,9 @@
 import { Component, OnInit } from '@angular/core';
-import { ExportBatchService, HistoryBatch, PeriodDeadline } from '../services/export-batch.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { ExportBatchService, HistoryBatch, OverdueDeadlineEntry, PeriodDeadline } from '../services/export-batch.service';
 import { triggerBlobDownload, filenameFromResponse } from '../services/confirmation.service';
 import { ModalService } from '../services/modal.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
-import { DinasService, DinasEntry } from '../services/dinas.service';
 import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
 
 // Project owner request (31 Jul sore): split the list into month "sheets" (like separate tabs in
@@ -116,29 +116,35 @@ export class RepostHistoryComponent implements OnInit {
   // naturally reviews one month here, then plans the next one's deadline). Not tied to
   // `selectedMonthKey`/the batch list above — a deadline can be set independent of whether any
   // pasangan in that periode has archived (or even started) yet.
-  dinasOptions: DinasEntry[] = [];
-  // Bulk form (confirmed 5 Agu malam: the REAL workflow — one deadline, applies to every active
-  // pasangan in the periode at once) and the per-pasangan override form are deliberately separate
-  // state — the project owner was explicit the override form stays as-is, not replaced.
   bulkDeadlineForm = { periode: '', deadline_at: '' };
   bulkDeadlineFormBusy = false;
   bulkDeadlineFormMessage = '';
-  deadlineForm = { dinas_inisiasi: '', dinas_target: '', periode: '', deadline_at: '' };
-  deadlineFormBusy = false;
-  deadlineFormMessage = '';
   existingDeadlines: PeriodDeadline[] = [];
+
+  // DIPERJELAS 7 Agu — "Override Deadline" is now list-driven, not a manual dinas-picker form:
+  // TAB picks a periode, sees every pasangan that's 100% confirmed but overdue (un-batched, per
+  // GET /overdue), and re-evaluates one at a time with a new deadline.
+  overdueListPeriode = '';
+  overdueList: OverdueDeadlineEntry[] = [];
+  overdueListLoading = false;
+  overdueListMessage = '';
+  // Keyed by "dinas_inisiasi dinas_target" — the new-deadline input and busy/result state for
+  // each row in the list, since more than one could in principle be mid-entry at once (same
+  // per-row-keyed-state pattern as subdocInputByBatchId above).
+  overrideDeadlineInputByPair: Record<string, string> = {};
+  overrideBusyPair: string | null = null;
 
   constructor(
     private exportBatches: ExportBatchService,
     private modal: ModalService,
     public currentUser: CurrentUserService,
-    private dinasService: DinasService,
+    private router: Router,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
     this.load();
     if (this.isTab) {
-      this.dinasService.getActiveDinas().subscribe((rows) => { this.dinasOptions = rows; });
       this.loadExistingDeadlines();
     }
   }
@@ -147,15 +153,71 @@ export class RepostHistoryComponent implements OnInit {
     return this.currentUser.current?.role === 'TAB';
   }
 
-  // Refreshed on load and after every successful set/update — scoped to the currently-selected
-  // pasangan in the form (both dinas picked), otherwise the full list (still useful as an
-  // overview while the form is only partly filled in).
+  // Read-only overview table, independent of the Setting Deadline / Override Deadline forms above
+  // it — always the full list now (no more per-pasangan form to scope it to).
   loadExistingDeadlines(): void {
-    const { dinas_inisiasi, dinas_target } = this.deadlineForm;
-    const args: [string?, string?] = dinas_inisiasi && dinas_target ? [dinas_inisiasi, dinas_target] : [undefined, undefined];
-    this.exportBatches.getPeriodDeadlines(...args).subscribe({
+    this.exportBatches.getPeriodDeadlines().subscribe({
       next: (rows) => { this.existingDeadlines = rows; },
       error: () => { /* supplementary panel — don't block the rest of the page on it */ },
+    });
+  }
+
+  private pairKey(dinasInisiasi: string, dinasTarget: string): string {
+    return `${dinasInisiasi} ${dinasTarget}`;
+  }
+
+  // DIPERJELAS 7 Agu — loads "Override Deadline"'s candidate list for the selected periode.
+  // Empty result is a valid, expected state (nothing overdue, or TAB already moved on to periode
+  // berikutnya — see routes/periodDeadlines.js's periodeNextAlreadySet), not an error.
+  loadOverdueList(): void {
+    if (!this.overdueListPeriode) { this.overdueList = []; return; }
+    this.overdueListLoading = true;
+    this.overdueListMessage = '';
+    this.exportBatches.getOverdueDeadlines(this.overdueListPeriode).subscribe({
+      next: (rows) => {
+        this.overdueListLoading = false;
+        this.overdueList = rows;
+        if (!rows.length) {
+          this.overdueListMessage = `Tidak ada pasangan overdue yang bisa di-override untuk periode ${this.overdueListPeriode} (sudah semua sesuai, sudah di-repost, atau periode berikutnya sudah di-set deadline-nya).`;
+        }
+      },
+      error: async (err) => {
+        this.overdueListLoading = false;
+        this.overdueList = [];
+        await this.modal.alert('Gagal memuat daftar overdue: ' + (err?.message || err));
+      },
+    });
+  }
+
+  // Re-opens one pasangan with a new deadline — the one deliberate exception to periode_efektif
+  // being a permanent snapshot, always on the strength of an out-of-band team agreement (same
+  // pattern as Investigation's assign flow), hence the explicit confirm dialog before submitting.
+  async submitOverride(entry: OverdueDeadlineEntry): Promise<void> {
+    const key = this.pairKey(entry.dinas_inisiasi, entry.dinas_target);
+    const deadlineAt = this.overrideDeadlineInputByPair[key];
+    if (!deadlineAt) return;
+    const ok = await this.modal.confirm(
+      `Override deadline ${entry.dinas_inisiasi} → ${entry.dinas_target} periode ${this.overdueListPeriode} ` +
+      `jadi ${new Date(deadlineAt).toLocaleString('id-ID')}? Ini akan RE-EVALUASI periode_efektif pasangan ini ` +
+      `berdasarkan deadline baru — pastikan sudah ada kesepakatan tim di luar sistem sebelum lanjut.`
+    );
+    if (!ok) return;
+    this.overrideBusyPair = key;
+    this.exportBatches.overrideDeadline(entry.dinas_inisiasi, entry.dinas_target, this.overdueListPeriode, new Date(deadlineAt).toISOString()).subscribe({
+      next: async (result) => {
+        this.overrideBusyPair = null;
+        delete this.overrideDeadlineInputByPair[key];
+        await this.modal.success(
+          `${result.dinas_inisiasi} → ${result.dinas_target}: ${result.reevaluated.length} transaksi di-re-evaluasi. ` +
+          `periode_efektif baru: ${result.reevaluated[0]?.new_periode_efektif ?? this.overdueListPeriode}.`
+        );
+        this.loadOverdueList();
+        this.loadExistingDeadlines();
+      },
+      error: async (err) => {
+        this.overrideBusyPair = null;
+        await this.modal.alert('Gagal override deadline: ' + (err?.message || err));
+      },
     });
   }
 
@@ -189,33 +251,6 @@ export class RepostHistoryComponent implements OnInit {
     });
   }
 
-  // Per-pasangan OVERRIDE — for exceptions after the bulk deadline above has already been set
-  // (or for a pasangan the bulk call skipped because it wasn't active yet at the time).
-  async submitDeadline(): Promise<void> {
-    const { dinas_inisiasi, dinas_target, periode, deadline_at } = this.deadlineForm;
-    if (!dinas_inisiasi || !dinas_target || !periode || !deadline_at) return;
-    this.deadlineFormBusy = true;
-    this.deadlineFormMessage = '';
-    this.exportBatches.setPeriodDeadline(dinas_inisiasi, dinas_target, periode, new Date(deadline_at).toISOString()).subscribe({
-      next: async () => {
-        this.deadlineFormBusy = false;
-        this.deadlineFormMessage = `Deadline ${dinas_inisiasi} → ${dinas_target} periode ${periode} tersimpan.`;
-        this.loadExistingDeadlines();
-        // periode_efektif adalah SNAPSHOT (dikunci sekali saat dinas target Confirm/Reject, lihat
-        // confirmation.js's snapshotPeriodeEfektif) — bukan computed live lagi (keputusan lama
-        // sudah dibatalkan, lihat SRS.md). Deadline yang baru di-set/diubah di sini TIDAK mengubah
-        // pasangan yang sudah pernah confirm/decline; re-fetch di bawah ini murni supaya UI-nya
-        // gak stale kalau ada state lain yang kebetulan berubah, bukan karena history-nya
-        // benar-benar bisa bergeser dari sini.
-        this.load();
-      },
-      error: async (err) => {
-        this.deadlineFormBusy = false;
-        await this.modal.alert('Gagal menyimpan deadline: ' + (err?.message || err));
-      },
-    });
-  }
-
   load(): void {
     this.errorMessage = '';
     this.exportBatches.getHistory(this.from || undefined, this.to || undefined).subscribe({
@@ -241,6 +276,16 @@ export class RepostHistoryComponent implements OnInit {
       },
       error: async (err) => { await this.modal.alert('Gagal mengunduh: ' + (err?.message || err)); },
     });
+  }
+
+  // Feedback tambahan 7 Agu: an archived pair's thread/chain is already fully queryable via
+  // GET /api/dashboard/detail/:initiator/:target (dashboard.js's getPairTransactions filters by
+  // status_konfirmasi only, not export_batch_id) — Dashboard-Detailing works for archived pairs
+  // with zero backend changes, this page just never linked to it. Same relative-navigation
+  // pattern HomeComponent.goToInvestigation() uses ('repost-history' and 'dashboard' are sibling
+  // routes under the same ShellComponent, see rdt-routing.module.ts).
+  goToDetail(batch: HistoryBatch): void {
+    this.router.navigate(['../dashboard/detail', batch.dinas_inisiasi, batch.dinas_target], { relativeTo: this.route });
   }
 
   // Defaults to covering every remaining unassigned line in the batch (see

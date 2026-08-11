@@ -101,12 +101,16 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
 
 // ::ng-deep: passed as [extraClass] into <rdt-mention-input> — see shared/mention-input.component
 // .scss's note on why this needs ::ng-deep to reach a child component's own template.
+// Feedback tambahan 7 Agu: fixed height + internal scroll instead of growing on every keystroke —
+// see confirm.component.scss's matching note.
 ::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
   padding: 8px 10px;
   font-size: 13.5px;
   font-family: inherit;
+  height: 90px;
+  overflow-y: auto;
   resize: vertical;
 }
 

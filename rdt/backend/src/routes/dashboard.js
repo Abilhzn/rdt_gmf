@@ -209,28 +209,45 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     }
   }
 
-  const rows = Object.keys(agg).sort().map((key) => {
-    const a = agg[key];
-    const subdocNumbers = a.hasUnbatchedResolved ? [] : Array.from(a.batchIds).flatMap((id) => subdocsByBatch[id] || []);
-    const base = {
-      total: a.total,
-      resolved: a.resolved,
-      // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): the segmented progress bar needs PENDING
-      // ("Open") as its own count, not just folded into `percent` — `resolved` already lumps
-      // CONFIRMED+BORNE_BY_INITIATOR together for that computation, so this is the missing piece.
-      open: a.pending,
-      percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
-      declined_pending_action: a.declined_pending_action,
-      reply_count: a.reply_count,
-      state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target, subdocNumbers }),
-      // REQ-RDT-NAV-03 (31 Jul): full redirect breadcrumb (e.g. ['TJ','TC','TL']), only present
-      // when every transaction under this card agrees on the same path — see bump()'s comment.
-      chain: a.chainConsistent ? a.chain : undefined,
-    };
-    return groupBy === 'pair'
-      ? { dinas: a.dinasInisiasi, target_dinas: a.target, ...base }
-      : { dinas: a.target, ...base };
-  });
+  // Bug fix (7 Agu, REQ-RDT-SAP-09 live-verification): this function used to have NO
+  // export_batch_id filter at all — unlike GET /waiting and buildNeedToConfirmProgress below,
+  // which both correctly exclude archived rows, a fully-reposted pair just sat here forever with
+  // state_label "Reposted by TAB with subdoc ..." instead of disappearing into Riwayat Repost.
+  // Can't fix this with a plain WHERE export_batch_id IS NULL on the query above though — the
+  // hasUnbatchedResolved/batchIds tracking in bump() deliberately needs to SEE already-batched
+  // rows too, to keep showing a card that's only PARTIALLY reposted (some rows batched via an
+  // earlier subdoc, others newly resolved and not yet batched — the SAP-08 multi-subdoc-over-time
+  // flow). So the filter has to happen here instead, after aggregation: drop a key only once it's
+  // fully resolved AND every resolved row already has a batch (truly done, nothing left to ever
+  // repost) — a still-partial card keeps showing exactly as before.
+  const rows = Object.keys(agg)
+    .filter((key) => {
+      const a = agg[key];
+      return !(a.total > 0 && a.total === a.resolved && !a.hasUnbatchedResolved && a.batchIds.size > 0);
+    })
+    .sort()
+    .map((key) => {
+      const a = agg[key];
+      const subdocNumbers = a.hasUnbatchedResolved ? [] : Array.from(a.batchIds).flatMap((id) => subdocsByBatch[id] || []);
+      const base = {
+        total: a.total,
+        resolved: a.resolved,
+        // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): the segmented progress bar needs PENDING
+        // ("Open") as its own count, not just folded into `percent` — `resolved` already lumps
+        // CONFIRMED+BORNE_BY_INITIATOR together for that computation, so this is the missing piece.
+        open: a.pending,
+        percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
+        declined_pending_action: a.declined_pending_action,
+        reply_count: a.reply_count,
+        state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target, subdocNumbers }),
+        // REQ-RDT-NAV-03 (31 Jul): full redirect breadcrumb (e.g. ['TJ','TC','TL']), only present
+        // when every transaction under this card agrees on the same path — see bump()'s comment.
+        chain: a.chainConsistent ? a.chain : undefined,
+      };
+      return groupBy === 'pair'
+        ? { dinas: a.dinasInisiasi, target_dinas: a.target, ...base }
+        : { dinas: a.target, ...base };
+    });
 
   // See fetchInvestigationCounts's header comment.
   const investigationRows = await fetchInvestigationCounts(client, groupBy === 'pair' ? null : initiatorDinas);
@@ -756,6 +773,19 @@ router.get('/per-dinas-rollup', requireRole('TAB'), async (req, res) => {
     // reposted" only once every row is resolved AND (see per-row check below) already has a
     // subdoc — a 100%-resolved dinas that TAB hasn't reposted yet stays unbadged rather than
     // claiming "reposted" prematurely.
+    //
+    // Bug fix (7 Agu): the two branches above were the ONLY cases that ever set `status` — every
+    // other row (the common case: a dinas with pairs still PENDING/DECLINED) fell through to
+    // `null`, and the template only renders the pill `*ngIf="row.status"` — so "Status" read empty
+    // for basically every row in practice. Added the two branches below to cover the rest of
+    // REQ-RDT-SAP-07's three-state vocabulary (rules/stateLabel.js's deriveStateLabel), rolled up
+    // to dinas level instead of one target: `open` (PENDING) rows mean someone's still waiting on
+    // a confirmation, same as deriveStateLabel's own first branch; everything else that isn't
+    // "Semua reposted" yet (including a 100%-confirmed-but-not-reposted dinas, AND a dinas whose
+    // only outstanding rows are DECLINED with none PENDING) falls to "Waiting to repost" — mirrors
+    // deriveStateLabel's own fallback branch exactly, same DECLINED-counts-as-basically-done
+    // quirk that's already established at every pair-level call site (exportBatches.js's
+    // GET /waiting, buildNeedToConfirmProgress) — not something to invent new wording for here.
     const rows = await Promise.all(r.rows.map(async (row) => {
       const total = row.total;
       const percent = total > 0 ? Math.round((row.confirmed / total) * 1000) / 10 : 0;
@@ -763,13 +793,17 @@ router.get('/per-dinas-rollup', requireRole('TAB'), async (req, res) => {
       let status = null;
       if (investigationCount > 0) {
         status = { kind: 'investigation', label: `Butuh Investigasi (${investigationCount})` };
-      } else if (total > 0 && row.confirmed === total) {
+      } else if (row.open > 0) {
+        status = { kind: 'pending', label: 'Waiting for confirmation' };
+      } else if (total > 0) {
         const unrepostedRes = await client.query(
           `SELECT COUNT(*)::int AS c FROM rdt.transactions
            WHERE dinas_inisiasi = $1 AND status_konfirmasi = ANY($2) AND subdoc_id IS NULL`,
           [row.dinas, RESOLVED_STATUSES]
         );
-        if (unrepostedRes.rows[0].c === 0) status = { kind: 'reposted', label: 'Semua reposted' };
+        status = unrepostedRes.rows[0].c === 0
+          ? { kind: 'reposted', label: 'Semua reposted' }
+          : { kind: 'waiting-repost', label: 'Waiting to repost' };
       }
       return { dinas: row.dinas, total, confirmed: row.confirmed, open: row.open, declined: row.declined, percent, status };
     }));

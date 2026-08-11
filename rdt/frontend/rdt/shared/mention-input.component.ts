@@ -47,6 +47,12 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
    * width/padding (repost-desc, reviewer-note-input, batch-note, ...) instead of every field in
    * the app looking identical. */
   @Input() extraClass = '';
+  /** Feedback tambahan 7 Agu: defaults to the existing grow-to-fit-content behavior (added 3 Agu
+   * specifically for Catatan Reviewer's "no scroll, ever" requirement) — but the `.batch-note`
+   * call sites (Confirmation/Need Approval/Share-Cost's "Deskripsi (opsional)" and friends) want
+   * the OPPOSITE: a fixed box matching the surrounding layout, with internal scroll for long text.
+   * Set `false` at those call sites; every other existing use is untouched by default. */
+  @Input() autoGrow = true;
   @ViewChild('inputEl') inputEl?: ElementRef<HTMLTextAreaElement>;
 
   value = '';
@@ -85,13 +91,13 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
     // inputEl may not exist yet on the very first call, ngAfterViewInit below covers that case.
     // Skip when empty: an empty textarea has nothing to measure, and forcing an inline height at
     // that point risks fighting the [rows] attribute's own natural sizing for no benefit.
-    if (this.inputEl && this.value) setTimeout(() => this.autoGrow(this.inputEl!.nativeElement));
+    if (this.autoGrow && this.inputEl && this.value) setTimeout(() => this.autoGrow_(this.inputEl!.nativeElement));
   }
   registerOnChange(fn: (v: string) => void): void { this.onChangeFn = fn; }
   registerOnTouched(fn: () => void): void { this.onTouchedFn = fn; }
 
   ngAfterViewInit(): void {
-    if (this.inputEl && this.value) this.autoGrow(this.inputEl.nativeElement);
+    if (this.autoGrow && this.inputEl && this.value) this.autoGrow_(this.inputEl.nativeElement);
   }
 
   // REQ-RDT-NAV-04 (3 Agu, "Catatan Reviewer" bug): field must be fully readable with NO scroll —
@@ -99,7 +105,7 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
   // both violate that. Auto-growing the height to fit content on every keystroke (the standard
   // "shadow textarea" trick, minus the shadow element since we can just measure scrollHeight
   // directly) means overflow:hidden never actually hides anything.
-  private autoGrow(el: HTMLTextAreaElement): void {
+  private autoGrow_(el: HTMLTextAreaElement): void {
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';
   }
@@ -115,7 +121,7 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
     const el = ev.target as HTMLTextAreaElement;
     this.value = el.value;
     this.onChangeFn(this.value);
-    this.autoGrow(el);
+    if (this.autoGrow) this.autoGrow_(el);
     const cursor = el.selectionStart ?? el.value.length;
     const upToCursor = el.value.slice(0, cursor);
     const match = /@([\w-]*)$/.exec(upToCursor);

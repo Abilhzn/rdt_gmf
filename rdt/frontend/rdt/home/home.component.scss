@@ -390,10 +390,21 @@ $radius-md: 8px;
 .rollup-status {
   display: inline-block;
   padding: 5px 13px;
-  border-radius: 13px;
+  // Symmetry audit (7 Agu, no reference screenshot this round — see B2#4): was a hardcoded 13px,
+  // not matching either of this file's two established pill/badge treatments (.pair-card__state
+  // -label's $radius-md=8px, or .pair-card__chain-badge's explicit 999px full-pill) — TAB sees
+  // .pair-card__state-label pills on the "Need Identification" sub-view and .rollup-status pills
+  // on "Summary Progress All Dinas", same underlying REQ-RDT-SAP-07 concept, different shape.
+  // Aligned to 999px (the pill this element is already closest in proportions to) rather than
+  // inventing a third value.
+  border-radius: 999px;
   font-size: 11.5px;
   font-weight: 600;
 
   &--investigation { background: $red-bg; color: $red; }
   &--reposted { background: $green-bg; color: $green; }
+  // Bug fix (7 Agu): the two tones below were missing — dashboard.js's per-dinas-rollup route
+  // only ever emitted 'investigation'/'reposted' before, so every other row had no status at all.
+  &--pending { background: $amber-bg; color: $amber; }
+  &--waiting-repost { background: rgba(0, 98, 152, 0.14); color: $accent; }
 }

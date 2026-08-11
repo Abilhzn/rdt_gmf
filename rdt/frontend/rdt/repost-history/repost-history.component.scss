@@ -91,6 +91,16 @@ $radius-md: 8px;
   }
   // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
   &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
+  // Feedback tambahan 7 Agu: "Lihat thread & riwayat lengkap" link per batch row — same variant
+  // confirm.component.scss already defines for its own Dashboard-Detailing link.
+  &--link {
+    background: none;
+    box-shadow: none;
+    padding: 0;
+    color: $accent;
+    text-decoration: underline;
+    &:hover { box-shadow: none; }
+  }
 }
 
 .alert {

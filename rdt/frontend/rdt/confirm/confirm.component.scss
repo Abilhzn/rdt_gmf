@@ -358,12 +358,19 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
 // ::ng-deep: passed as [extraClass] into <rdt-mention-input>, which lives inside a CHILD
 // component's own template — see shared/mention-input.component.scss's note on why this needs
 // ::ng-deep to be reached from here.
+// Feedback tambahan 7 Agu: was growing on every keystroke via MentionInputComponent's default
+// autoGrow behavior, reading as too small/disproportionate to the surrounding empty space —
+// fixed height matching the space around it instead, with internal scroll for long text (see
+// [autoGrow]="false" at each call site in confirm.component.html and mention-input.component.ts's
+// autoGrow input).
 ::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
   padding: 8px 10px;
   font-size: 13.5px;
   font-family: inherit;
+  height: 90px;
+  overflow-y: auto;
   resize: vertical;
 }
 

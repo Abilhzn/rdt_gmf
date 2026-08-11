@@ -540,6 +540,51 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 >    nunggu semua cabang kelar** — granularitas per baris itu yang dibutuhkan
 >    prakteknya, bukan per pasangan.
 >
+> **DIPERJELAS 7 Agu — struktur final section ini (naming + perilaku Override)**:
+> - **Rename section**: "Kelola Deadline Periode" → **"Setting Periode"**, dengan
+>   2 sub-bagian: **"Setting Deadline"** (aksi bulk, sebelumnya "Set Deadline
+>   untuk Semua Dinas") dan **"Override Deadline"** (sebelumnya "Override Satu
+>   Pasangan"). Analogi: "Setting Deadline" itu broad/sekali-jalan kayak halaman
+>   Dashboard, "Override Deadline" itu spesifik/per-item kayak halaman Need
+>   Identification.
+> - **"Override Deadline" BUKAN form isi manual** — isinya **DAFTAR pasangan yang
+>   SUDAH 100% confirmed TAPI confirm-nya terjadi SETELAH deadline** (alias
+>   overdue/periode_efektif sudah kegeser). TAB pilih dari daftar itu, baru kasih
+>   deadline baru buat "buka ulang"/re-evaluasi pasangan itu — SELALU atas dasar
+>   kesepakatan tim di luar sistem (WhatsApp dkk, sama polanya kayak
+>   REQ-RDT-LEDGER-10), bukan keputusan sepihak sistem.
+> - **Batas waktu penting**: daftar "Override Deadline" ini **RESET/HILANG begitu
+>   TAB men-set deadline periode BERIKUTNYA** (aksi "Setting Deadline" untuk
+>   periode N+1). Kalau ada pasangan overdue di periode N yang "gak dikasih
+>   ampun" (gak di-override) sebelum TAB lanjut setup periode N+1, pasangan itu
+>   PERMANEN masuk periode N+1 — gak ada kesempatan override lagi setelah itu.
+>   Ini perlu dicek di query: daftar override cuma tampilin pasangan overdue dari
+>   periode yang BELUM ada deadline periode berikutnya di-set.
+>
+> **Feedback tambahan 7 Agu**:
+> - **REQ-RDT-SAP-09 (auto-archive) ditegaskan ulang**: begitu status jadi
+>   "Reposted by TAB with subdoc", hilang dari Dashboard (TAB maupun per-dinas),
+>   tetap ada di Riwayat Repost. Verifikasi ini beneran jalan di kode sekarang.
+> - **Baru**: Riwayat Repost (TAB maupun per-dinas) harus BISA nunjukin **riwayat
+>   komentar/diskusi DAN riwayat redirect/reassign ("lempar-lemparan")** untuk
+>   pasangan yang diarsipkan itu — bukan cuma ringkasan subdoc/angka. Reuse
+>   tampilan detail yang sudah ada di Dashboard-Detailing (thread komentar +
+>   chain arrow) buat item yang statusnya udah archived, jangan bikin tampilan
+>   detail baru dari nol.
+> - **Bug ditemukan**: kolom "Status" di tabel Dashboard "Summary Progress All
+>   Dinas" (TAB) KOSONG TOTAL untuk semua baris di screenshot terbaru — harusnya
+>   ada state label (REQ-RDT-SAP-07, mis. "Waiting for confirmation TB").
+>   Investigasi kenapa kosong.
+> - **Simetri dashboard TAB masih dilaporkan kurang rapi** (feedback berulang) —
+>   minta coding agent bandingkan langsung ke screenshot yang dilampirkan user,
+>   cari beda konkretnya (jangan cuma "rapi-rapiin" tanpa referensi persis, ini
+>   sudah pernah jadi masalah sebelumnya).
+> - **Textarea "Deskripsi (opsional)"** (dipakai di Confirm Reposted dkk) terlalu
+>   kecil/gak proporsional ke ruang kosong di sekitarnya. Ukuran box HARUS
+>   **fixed mengikuti ruang yang tersedia** (bukan shrink-to-content), dengan
+>   **scroll INTERNAL** di dalam box kalau isinya panjang — bukan bikin box-nya
+>   melar atau halaman ikut scroll.
+>
 > **Migrasi**: model per-dinas-pengaju (29 Jul) dan model batch global (24 Jul)
 > **DIGANTI TOTAL** oleh model per-pasangan ini. Kalau ada kode yang sudah
 > mengikuti model 29 Jul (gate nunggu semua pasangan satu dinas), itu HARUS

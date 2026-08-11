@@ -44,6 +44,7 @@
       <rdt-mention-input
         [(ngModel)]="confirmDescription"
         [rows]="2"
+        [autoGrow]="false"
         extraClass="batch-note"
         placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"
       ></rdt-mention-input>
@@ -195,7 +196,7 @@
       <div class="batch-resolve-footer">
         <label class="batch-note-label">
           Keterangan (opsional)
-          <rdt-mention-input [(ngModel)]="batchNote" [rows]="2" extraClass="batch-note" placeholder="Catatan tambahan untuk keputusan ini..."></rdt-mention-input>
+          <rdt-mention-input [(ngModel)]="batchNote" [rows]="2" [autoGrow]="false" extraClass="batch-note" placeholder="Catatan tambahan untuk keputusan ini..."></rdt-mention-input>
         </label>
         <button class="btn btn--primary" type="button" [disabled]="!canSubmitAll()" (click)="submitAllResolutions()">
           Confirm All ({{ stagedCount }})
@@ -238,6 +239,7 @@
         <rdt-mention-input
           [(ngModel)]="investigationDescription"
           [rows]="2"
+          [autoGrow]="false"
           extraClass="batch-note"
           placeholder="Kenapa baris ini di-assign ke dinas yang dipilih... akan muncul sebagai komentar di Dashboard-Detailing pasangan dinas tersebut"
         ></rdt-mention-input>

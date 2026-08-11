@@ -62,6 +62,26 @@ export interface PeriodDeadline {
   updated_at: string;
 }
 
+// DIPERJELAS 7 Agu — one row in "Override Deadline"'s list: a pasangan that's 100% confirmed for
+// this periode but un-batched, whose periode_efektif already shifted away from the declared
+// periode (overdue). See routes/periodDeadlines.js's GET /overdue.
+export interface OverdueDeadlineEntry {
+  dinas_inisiasi: string;
+  dinas_target: string;
+  total: number;
+  periode_efektif: string;
+}
+
+// Result of re-evaluating one pasangan's periode_efektif per row (routes/periodDeadlines.js's
+// POST /override-reevaluate) — one entry per transaction actually touched.
+export interface OverrideReevaluateResult {
+  dinas_inisiasi: string;
+  dinas_target: string;
+  periode: string;
+  deadline_at: string;
+  reevaluated: Array<{ id: number; old_periode_efektif: string | null; new_periode_efektif: string }>;
+}
+
 // REQ-RDT-SAP-11 — one subdoc entry with the transaction ids it actually covers, not just the
 // bare number.
 export interface SubdocDetail {
@@ -271,6 +291,36 @@ export class ExportBatchService {
       .pipe(map((res) => {
         if (!res.ok) throw new Error(res.error || 'gagal menyimpan deadline massal');
         return res.deadlines;
+      }));
+  }
+
+  // DIPERJELAS 7 Agu — "Override Deadline"'s list, replacing the old manual dinas-picker form.
+  getOverdueDeadlines(periode: string): Observable<OverdueDeadlineEntry[]> {
+    return this.http
+      .get<{ ok: boolean; overdue: OverdueDeadlineEntry[]; error?: string }>(
+        `${this.deadlinesBase}/overdue?periode=${encodeURIComponent(periode)}`,
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal memuat daftar overdue');
+        return res.overdue;
+      }));
+  }
+
+  // DIPERJELAS 7 Agu — re-opens one overdue pasangan with a new deadline: re-evaluates (not just
+  // records) its periode_efektif per row. The one deliberate exception to periode_efektif being a
+  // permanent snapshot — always on the strength of an out-of-band team agreement, gated behind
+  // ModalService.confirm() at the call site.
+  overrideDeadline(dinasInisiasi: string, dinasTarget: string, periode: string, deadlineAt: string): Observable<OverrideReevaluateResult> {
+    return this.http
+      .post<{ ok: boolean; error?: string } & OverrideReevaluateResult>(
+        `${this.deadlinesBase}/override-reevaluate`,
+        { dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, periode, deadline_at: deadlineAt },
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal override deadline');
+        return res;
       }));
   }
 }
