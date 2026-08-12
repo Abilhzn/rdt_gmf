@@ -6,6 +6,7 @@ import { Comment } from '../services/comment.model';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { MentionInputComponent } from '../shared/mention-input.component';
 import { extractErrorMessage } from '../shared/error-message.util';
+import { ModalService } from '../services/modal.service';
 
 interface ThreadRow {
   comment: Comment;
@@ -50,6 +51,7 @@ export class DashboardDetailComponent implements OnInit {
     private router: Router,
     private detailSvc: DashboardDetailService,
     public currentUser: CurrentUserService,
+    private modal: ModalService,
   ) {}
 
   ngOnInit(): void {
@@ -208,9 +210,15 @@ export class DashboardDetailComponent implements OnInit {
         this.clearReplyTarget();
         this.load();
       },
-      error: (err) => {
+      // Mutating-action error pattern (see confirm.component.ts's resolveBorne/resolveReassign,
+      // share-cost.component.ts's splitRow, repost-history.component.ts's addSubdoc): modal.alert,
+      // not the inline `errorMessage` banner — that banner is reserved for load()'s GET failure
+      // above. Was previously the load()-error pattern here by mistake (graphify trace, 12 Agu) —
+      // easy to miss since the banner renders at the TOP of the page, far from the comment box at
+      // the bottom, unlike the modal every other mutating call site here already uses.
+      error: async (err) => {
         this.submitting = false;
-        this.errorMessage = extractErrorMessage(err, 'Gagal mengirim komentar');
+        await this.modal.alert('Gagal mengirim komentar: ' + extractErrorMessage(err, String(err)));
       },
     });
   }
