@@ -69,8 +69,15 @@ export class TransactionService {
   }
 
   getContractFields(): Observable<ContractField[]> {
+    // Checklist 3 (12 Agu, caught during manual browser smoke test after service restart): this
+    // call went out with NO auth header at all — broke silently (previewColumns just stayed
+    // empty, no visible error to the user) once checklist 1.1 added requireUser to
+    // GET /api/contract-fields. Same regression class as admin/mapping-editor's fetch() bug,
+    // just missed during the original loading-state/error-message audit because this call
+    // doesn't have its own explicit error handler — see confirm.component.ts, need-approval,
+    // repost-budgeting, share-cost, all of which call this.
     return this.http
-      .get<{ ok: boolean; fields: ContractField[]; error?: string }>(`${this.base}/contract-fields`)
+      .get<{ ok: boolean; fields: ContractField[]; error?: string }>(`${this.base}/contract-fields`, { headers: this.currentUser.authHeaders() })
       .pipe(map((res) => {
         if (!res.ok) throw new Error(res.error || 'gagal memuat daftar kolom kontrak');
         return res.fields;
