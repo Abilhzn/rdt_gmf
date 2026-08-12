@@ -28,6 +28,7 @@ ada di `rdt/CLAUDE.md`.
 | 5 | 30 Jul 2026 | [05_2026-07-30.md](05_2026-07-30.md) | Pivot besar: Need Approval digeser dari gating per-dinas-inisiasi ke per-pasangan (dinas_inisiasi, dinas_target), subdoc table + state label, Riwayat Repost TAB, 4 gap pasca-review, redesign filter Excel-style (belum sempat commit) |
 | 6 | 6 Agu 2026 | [06_2026-08-06.md](06_2026-08-06.md) | Dashboard fidelity + USD currency, fix Notes column + reassign-chain access, **REQ-RDT-SAP-14** (mekanisme deadline: per-pasangan → snapshot bukan live-computed → bulk-set), lalu task rangkuman ini sendiri |
 | 7 | 7–11 Agu 2026 | [07_2026-08-11.md](07_2026-08-11.md) | ui-demo.html dihapus total, **Setting Periode** restructure (Override Deadline jadi list-driven + re-evaluate) + 5 item Bagian 2 (termasuk bug SAP-09 auto-archive yang ketemu & diperbaiki), audit repo lokal vs GitHub, rename `develop`→`pc-lab` + branch `lenovo` baru, **migrasi database ke Supabase**, `main` di-fast-forward ke kerjaan terbaru |
+| 8 | 12 Agu 2026 | [08_2026-08-12.md](08_2026-08-12.md) | **`CHECKLIST_LAUNCH.md` diselesaikan end-to-end**: security headers/rate-limit/session TTL, validasi teks bebas, audit secrets, backup/restore tooling, monitoring/health/timeout, re-audit integritas data, 404/403 + a11y + WCAG contrast, dokumentasi per-service, loading-state + error-message audit (2 regresi self-caught & diperbaiki: admin editors, lalu DinasService/TransactionService), `/graphify` dijalankan atas seluruh repo + 2 trace eksploratif (nemu 1 gap modal-error belum diperbaiki, ditunda) |
 
 ## Garis besar evolusi arsitektur
 
@@ -44,20 +45,31 @@ ada di `rdt/CLAUDE.md`.
   snapshot periode_efektif) — fitur bisnis besar terakhir sebelum sesi ini
   ditutup.
 
-## Status akhir per 11 Agu 2026 (akhir sesi 7)
+## Status akhir per 12 Agu 2026 (akhir sesi 8)
 
-- Branch aktif: `lenovo` (device branch PC ini, per-device convention baru
-  — lihat sesi 7), commit terakhir `6fe8292`.
-- **`main` sudah di-fast-forward ke `6fe8292` dan di-push ke GitHub (11
-  Agu)** — pertama kalinya kerjaan sesi-sesi ini nyampe `main` beneran.
-  `origin` juga punya `pc-lab` (branch device PC lain, dulu namanya
-  `develop`) dan `lenovo` (device PC ini).
-- **Database production/dev sekarang Supabase** (Postgres remote), bukan
-  lokal lagi — `rdt/backend/.env`'s `DATABASE_URL` di-update user sendiri
-  (Claude di-block akses baca/tulis file itu, by design). Schema `rdt`
-  lengkap 13 tabel, sudah ada data real dari PC lain ("pc lab").
+- Branch aktif: `lenovo`, commit terakhir `daf1421`.
+- **`rdt/docs/CHECKLIST_LAUNCH.md` sekarang selesai end-to-end** kecuali
+  2 item yang memang tanggung jawab tim IT eksternal (IP/VPN whitelisting,
+  HTTPS/TLS saat hosting di-setup) — lihat sesi 8 untuk rincian tiap
+  section (1.1–1.4, 2.1–2.3, 3, 4).
+- Sesi 8 nemu dan langsung memperbaiki **2 regresi self-caught** (bukan
+  dilaporkan user) — keduanya akibat guard auth baru dari checklist 1.1
+  sendiri belum di-propagate ke semua caller: admin editors
+  (`fetch()` tanpa auth) dan `DinasService`/`TransactionService`
+  (`HttpClient` tanpa auth header). Keduanya diperbaiki + diverifikasi
+  live via browser sebelum sesi ditutup.
+- **Database production/dev tetap Supabase** (Postgres remote) sejak sesi
+  7 — `rdt/backend/.env`'s `DATABASE_URL` di-update user sendiri (Claude
+  di-block akses baca/tulis file itu, by design). Schema `rdt` lengkap 13
+  tabel.
 - `npm test` hijau di akhir setiap sesi yang menyentuh backend.
+- **`/graphify` sudah pernah dijalankan** (sesi 8, 12 Agu) atas seluruh
+  repo — graf 1277 node/1957 edge/155 komunitas tersimpan di
+  `graphify-out/graph.json` (masih untracked di git, lihat backlog).
 - Backlog terbuka:
+  - **`DashboardDetailComponent.submitComment()` — gap modal-error belum
+    diperbaiki**, ditunda buat didiskusikan user dulu (temuan sesi 8 lewat
+    trace graphify).
   - Sidebar hover-expand (REQ-RDT-UI-06 diperluas) — masih suspended,
     nunggu link Dribbble yang bisa diakses.
   - `graphify-out/` masih untracked, belum diputusin gitignore atau commit.
