@@ -29,7 +29,7 @@ ada di `rdt/CLAUDE.md`.
 | 6 | 6 Agu 2026 | [06_2026-08-06.md](06_2026-08-06.md) | Dashboard fidelity + USD currency, fix Notes column + reassign-chain access, **REQ-RDT-SAP-14** (mekanisme deadline: per-pasangan → snapshot bukan live-computed → bulk-set), lalu task rangkuman ini sendiri |
 | 7 | 7–11 Agu 2026 | [07_2026-08-11.md](07_2026-08-11.md) | ui-demo.html dihapus total, **Setting Periode** restructure (Override Deadline jadi list-driven + re-evaluate) + 5 item Bagian 2 (termasuk bug SAP-09 auto-archive yang ketemu & diperbaiki), audit repo lokal vs GitHub, rename `develop`→`pc-lab` + branch `lenovo` baru, **migrasi database ke Supabase**, `main` di-fast-forward ke kerjaan terbaru |
 | 8 | 12 Agu 2026 | [08_2026-08-12.md](08_2026-08-12.md) | **`CHECKLIST_LAUNCH.md` diselesaikan end-to-end**: security headers/rate-limit/session TTL, validasi teks bebas, audit secrets, backup/restore tooling, monitoring/health/timeout, re-audit integritas data, 404/403 + a11y + WCAG contrast, dokumentasi per-service, loading-state + error-message audit (2 regresi self-caught & diperbaiki: admin editors, lalu DinasService/TransactionService), `/graphify` dijalankan atas seluruh repo + 2 trace eksploratif (nemu 1 gap modal-error belum diperbaiki, ditunda) |
-| 9 | 12 Agu 2026 | [09_2026-08-12.md](09_2026-08-12.md) | Plugin `ponytail` diinstall, **REQ-RDT-SAP-15** (breakdown per pasangan di Summary Progress All Dinas, full reuse `buildChainAwareProgress`+`#pairCard`), debug "icon unclickable" (root cause: proses backend lama belum di-restart, bukan bug kode), fix gap modal-error `DashboardDetailComponent.submitComment()` yang ditunda sesi 8 — commit `2c19d31`+`4ca58be`, sudah di-push ke `origin/lenovo` |
+| 9 | 12 Agu 2026 | [09_2026-08-12.md](09_2026-08-12.md) | **SESI DITUTUP.** Plugin `ponytail` diinstall, **REQ-RDT-SAP-15** (breakdown per pasangan di Summary Progress All Dinas, full reuse `buildChainAwareProgress`+`#pairCard`), debug "icon unclickable" (root cause: proses backend lama belum di-restart, bukan bug kode), fix gap modal-error `DashboardDetailComponent.submitComment()` yang ditunda sesi 8, cleanup backlog (`_tmp_check.md` dihapus, `graphify-out/` di-gitignore) — commit `2c19d31`/`4ca58be`/`ca7416c`/`a163f2f`, semua sudah di-push ke `origin/lenovo` |
 
 ## Garis besar evolusi arsitektur
 
@@ -46,10 +46,10 @@ ada di `rdt/CLAUDE.md`.
   snapshot periode_efektif) — fitur bisnis besar terakhir sebelum sesi ini
   ditutup.
 
-## Status akhir per 12 Agu 2026 (akhir sesi 9)
+## Status akhir per 12 Agu 2026 (akhir sesi 9, sesi ditutup)
 
-- Branch aktif: `lenovo`, commit terakhir `4ca58be` — sudah di-push ke
-  `origin/lenovo` (`2c19d31`+`4ca58be`).
+- Branch aktif: `lenovo`, commit terakhir `a163f2f` — sudah di-push ke
+  `origin/lenovo` (`2c19d31`/`4ca58be`/`ca7416c`/`a163f2f`).
 - **`rdt/docs/CHECKLIST_LAUNCH.md` selesai end-to-end** kecuali 2 item
   tanggung jawab tim IT eksternal (IP/VPN whitelisting, HTTPS/TLS saat
   hosting di-setup) — lihat sesi 8 untuk rincian tiap section.
@@ -76,11 +76,14 @@ ada di `rdt/CLAUDE.md`.
 - **`/graphify` sudah pernah dijalankan** (sesi 8, 12 Agu) atas seluruh
   repo — graf 1277 node/1957 edge/155 komunitas tersimpan di
   `graphify-out/graph.json` (masih untracked di git, lihat backlog).
+- ~~`graphify-out/` untracked, belum diputusin gitignore~~ dan
+  ~~`rdt/docs/_tmp_check.md` untracked~~ — **dibereskan sesi 9**:
+  `_tmp_check.md` dihapus (placeholder kosong), `graphify-out/` tetap ada
+  di disk tapi di-gitignore (regenerable via `/graphify`, sayang buang
+  hasil compute-nya).
 - Backlog terbuka:
   - Sidebar hover-expand (REQ-RDT-UI-06 diperluas) — masih suspended,
     nunggu link Dribbble yang bisa diakses.
-  - `graphify-out/` masih untracked, belum diputusin gitignore atau commit.
-  - `rdt/docs/_tmp_check.md` masih untracked, belum dibersihkan/diputuskan.
   - Auth/data_user masih provisional/synthetic (TODO(IT-AUTH)) — nunggu
     tabel karyawan resmi tim IT GMF.
 
