@@ -13,6 +13,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
+const helmet = require('helmet');
 
 function loadDirectory() {
   const p = path.join(__dirname, '..', 'employee-directory.seed.json');
@@ -22,6 +23,22 @@ function loadDirectory() {
 }
 
 const app = express();
+// Checklist 1.2 (11 Agu): baseline security headers — JSON-only service, same 'none' CSP
+// rationale as auth/src/index.js (see its comment for why).
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      scriptSrc: ["'none'"],
+      styleSrc: ["'none'"],
+      imgSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  frameguard: { action: 'deny' }, // X-Frame-Options: DENY — matches frameAncestors 'none' above
+  hsts: { maxAge: 15552000, includeSubDomains: true },
+}));
 app.use(cors());
 
 app.get('/health', (req, res) => res.json({ ok: true, service: 'data_user' }));

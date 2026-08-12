@@ -83,22 +83,29 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     });
   }
 
-  // REQ-RDT-NAV-04: Sub Group leftmost, then EVERY contract field in its contract order (In PCLC
-  // swapped for the specially-formatted Nominal cell at that same position — see
-  // PreviewColumn.numeric), then the existing operational columns (Dinas target/Kategori/Status),
-  // Remark, and finally Catatan Reviewer.
-  // REQ-RDT-UI-08 (4 Agu): Sheet/Baris (raw_row_index) dropped — technical parser metadata, not
-  // real DT data, not useful to the reviewing user.
+  // REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "tampilkan SEMUA kolom" 1/3 Agu): preview kolom
+  // dipersempit ke 11 kolom tetap + Notes, SAMA di setiap fitur preview (Repost, Confirmation,
+  // transparansi Need Approval) — bukan lagi "setiap kolom kontrak" (dulu 62). Urutan persis SRS
+  // 3.8: Sub Group, Dinas Pengaju, Account, Profit Ctr, Ref.Doc., Period, Text, Material,
+  // Value (In PCLC), Group (nama baru utk `category`, dulu "Kategori"), Remark. CURATED_KEYS
+  // difilter dari CONTRACT_FIELDS (bukan hardcode urutan manual) supaya kalau backend mengubah
+  // urutan/label field itu sendiri, preview ikut — tapi field MANA yang muncul sekarang memang
+  // daftar tetap, bukan lagi "semua". PENTING: ini TIDAK mengubah REQ-RDT-SAP-06 — file export ke
+  // SAP (exportBatches.js's streamContractExport) tetap 53 kolom kontrak penuh, artifact terpisah.
+  // "Dinas target"/"Status" (bukan bagian dari 53 kolom kontrak, jadi tidak kena pembatasan ini)
+  // tetap perlu terlihat di halaman Review INI secara khusus — itu justru yang sedang dicek PIC
+  // sebelum repost (routing benar? baris valid?) — dipindah jadi kolom tetap sendiri di
+  // luar previewColumns (lihat template), bukan dihapus.
+  private static readonly CURATED_CONTRACT_KEYS = ['account', 'profit_ctr', 'ref_doc', 'period', 'text_desc', 'material', 'in_pclc'];
   private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
-    const contractCols: PreviewColumn[] = fields.map((f) =>
-      f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Nominal', numeric: true } : { key: f.key, label: f.label },
-    );
+    const contractCols: PreviewColumn[] = fields
+      .filter((f) => RepostBudgetingComponent.CURATED_CONTRACT_KEYS.includes(f.key))
+      .map((f) => f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Value (In PCLC)', numeric: true } : { key: f.key, label: f.label });
     return [
       { key: 'sub_group', label: 'Sub Group' },
+      { key: 'dinas_inisiasi', label: 'Dinas Pengaju' },
       ...contractCols,
-      { key: 'dinas_target', label: 'Dinas target' },
-      { key: 'category', label: 'Kategori' },
-      { key: 'status_konfirmasi', label: 'Status' },
+      { key: 'category', label: 'Group' },
       { key: 'remark', label: 'Remark' },
     ];
   }

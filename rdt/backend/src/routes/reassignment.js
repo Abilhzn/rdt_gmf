@@ -21,6 +21,7 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireDinasAccess } = require('../middleware/auth');
 const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
+const { validateFreeText } = require('../rules/textValidation');
 
 const router = express.Router();
 
@@ -115,7 +116,10 @@ router.post('/:id/resolve', express.json(), async (req, res) => {
   const newTarget = req.body && req.body.new_dinas_target;
   // Optional free-text note (items 7/10) — stored in audit_log.detail (jsonb) rather than a
   // new schema column, since audit_log already carries free-form per-action context elsewhere.
-  const note = (req.body && typeof req.body.note === 'string' && req.body.note.trim()) || null;
+  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  const noteCheck = validateFreeText(req.body && req.body.note, { fieldLabel: 'Catatan' });
+  if (!noteCheck.ok) return res.status(400).json(noteCheck);
+  const note = noteCheck.value;
   const user = req.rdtUser;
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -141,7 +145,10 @@ router.post('/:id/resolve', express.json(), async (req, res) => {
 // /:id/resolve endpoint above stays available unchanged.
 router.post('/batch-resolve', express.json(), async (req, res) => {
   const items = req.body && req.body.items;
-  const note = (req.body && typeof req.body.note === 'string' && req.body.note.trim()) || null;
+  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  const noteCheck = validateFreeText(req.body && req.body.note, { fieldLabel: 'Catatan' });
+  if (!noteCheck.ok) return res.status(400).json(noteCheck);
+  const note = noteCheck.value;
   const user = req.rdtUser;
   if (!Array.isArray(items) || !items.length) {
     return res.status(400).json({ ok: false, error: 'invalid body, expected { items: [{id, action, new_dinas_target?}] }' });

@@ -27,3 +27,16 @@ npm start     # ng serve, http://localhost:4200 -> redirects to /rdt
 
 `proxy.conf.json` forwards `/api/*` calls to `http://localhost:4000`, so
 upload/parse/confirm actually hit the real backend instead of 404ing.
+
+## Security headers (checklist 1.2, 11 Agu)
+
+`angular.json`'s `serve.options.headers` sets a CSP/`X-Frame-Options`/
+`X-Content-Type-Options` on every response from this dev server —
+**dev-only**, deliberately looser than the 3 backend services' CSP (helmet
+locks theirs to `'none'` everywhere, since those are pure JSON APIs).
+`'unsafe-eval'`/`'unsafe-inline'` here are dev-server realities (Vite/esbuild
+HMR transforms, Angular's un-nonced inline component styles), not something
+to copy into production as-is. This ISN'T what production gets anyway — RDT
+isn't a standalone app, it's embedded into GMF's OCX platform in production
+(see `rdt/CLAUDE.md` section 2), which owns its own server/headers; this
+config only covers local `ng serve` testing.

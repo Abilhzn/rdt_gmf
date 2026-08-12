@@ -31,6 +31,9 @@ const routes: Routes = [
       { path: 'need-approval', loadChildren: () => import('./need-approval/need-approval.module').then(m => m.NeedApprovalModule) },
       { path: 'share-cost', loadChildren: () => import('./share-cost/share-cost.module').then(m => m.ShareCostModule) },
       { path: 'repost-history', loadChildren: () => import('./repost-history/repost-history.module').then(m => m.RepostHistoryModule) },
+      // REQ-RDT-SAP-14 (11 Agu): moved out of the Riwayat Repost TAB <details> panel into its own
+      // sidebar nav item + route, TAB-only (see shell.component.html/ts).
+      { path: 'setting-periode', loadChildren: () => import('./setting-periode/setting-periode.module').then(m => m.SettingPeriodeModule) },
       { path: 'admin', loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule) },
     ],
   },

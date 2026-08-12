@@ -98,15 +98,15 @@
                 Dinas Pengaju
                 <rdt-multi-value-filter placeholder="Tempel banyak Dinas Pengaju sekaligus..." (valuesChange)="onPendingColumnFilterChange('dinas_inisiasi', $event)"></rdt-multi-value-filter>
               </th>
-              <!-- REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu): kolom dinamis, sumber sama persis
-                   dengan Upload Detail Transaction (GET /api/contract-fields) — bukan subset
-                   Account/Ref.Doc/Nominal/Remark yang di-hardcode terpisah. -->
+              <!-- REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "sama persis Upload Detail
+                   Transaction, semua kolom" 5 Agu): kolom dinamis sekarang 11 kolom+Notes tetap,
+                   sama di semua fitur preview — lihat buildPreviewColumns di .ts-nya. -->
               <!-- SRS 3.11 (REQ-RDT-UI-06 diperluas, 5 Agu; notes-vs-remark bug fixed 5 Agu): Notes
                    (the uploading user's own per-row note, reviewer_note — NOT Remark), Jika
-                   Reject, dan Select All frozen horizontal at the right edge of this ~53-column
-                   table — see .sticky-notes-col/.sticky-reject-col/.sticky-select-col below.
-                   Matches the Figma reference's own Select All placement (node 20:712: far right
-                   of the table, not the left) and these 3 columns' existing rightmost order here. -->
+                   Reject, dan Select All frozen horizontal at the right edge of this table — see
+                   .sticky-notes-col/.sticky-reject-col/.sticky-select-col below. Matches the Figma
+                   reference's own Select All placement (node 20:712: far right of the table, not
+                   the left) and these 3 columns' existing rightmost order here. -->
               <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric" [class.sticky-notes-col]="col.key === 'reviewer_note'">
                 {{ col.label }}
                 <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->

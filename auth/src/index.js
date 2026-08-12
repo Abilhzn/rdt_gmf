@@ -16,9 +16,30 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const { router: authRouter } = require('./auth.routes');
 
 const app = express();
+// Checklist 1.2 (11 Agu): baseline security headers (CSP, X-Frame-Options, X-Content-Type-Options,
+// Strict-Transport-Security) — this service is JSON-only (never renders its own HTML/script/style),
+// so the CSP directives below are locked to 'none' as defense-in-depth rather than tuned for any
+// page this service itself serves. HSTS is safe to send even before TLS is actually terminated
+// (checklist 1.1) — browsers only start enforcing it once they've seen it over a real https
+// response, so it's a no-op until IT finishes that, not a footgun to ship early.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      scriptSrc: ["'none'"],
+      styleSrc: ["'none'"],
+      imgSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  frameguard: { action: 'deny' }, // X-Frame-Options: DENY — matches frameAncestors 'none' above
+  hsts: { maxAge: 15552000, includeSubDomains: true }, // 180 hari
+}));
 app.use(cors());
 app.use(authRouter);
 

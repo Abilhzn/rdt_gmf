@@ -43,6 +43,7 @@ const { CONTRACT_FIELDS } = require('../parser/excelParser');
 const { loadDirectory } = require('../dataUserClient');
 const { deriveStateLabel } = require('../rules/stateLabel');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
+const { validateFreeText } = require('../rules/textValidation');
 // REQ-RDT-SAP-14 (revisi open question, 5 Agu malam): computeEffectivePeriod is now called at
 // SNAPSHOT time in routes/confirmation.js, not here — GET /history below just reads the already-
 // locked rdt.transactions.periode_efektif column.
@@ -343,9 +344,13 @@ router.get('/transparency/:dinasInisiasi/:dinasTarget', requireRole('TAB'), asyn
 
 // POST /api/export-batches/confirm — REQ-RDT-SAP-05 (REVISED 31 Jul, presentation feedback).
 // Body: { dinas_inisiasi, dinas_target, closing_description, subdoc_number, transaction_ids? }.
-// Both closing_description AND subdoc_number are now MANDATORY — the real-world action this
-// button represents is "I already downloaded the file and posted it to SAP, here's the resulting
-// subdoc number", not just a bare approval. One atomic transaction: re-checks readiness
+// subdoc_number is MANDATORY — the real-world action this button represents is "I already
+// downloaded the file and posted it to SAP, here's the resulting subdoc number", not just a bare
+// approval. closing_description is OPTIONAL (flipped 12 Agu, project owner request — used to be
+// mandatory too, see migration 018) — but the NOTIFICATION to the target dinas always fires
+// either way (same-day follow-up correction): they may be waiting on it, so an unwritten note
+// falls back to a short system-generated comment instead of skipping notification. One atomic
+// transaction: re-checks readiness
 // server-side (defensive — same all-or-nothing-gate-on-both-sides pattern as investigation.js's
 // assign-all), creates the batch, sweeps in every currently attachable row for this pair, THEN
 // immediately attaches the first subdoc to those same rows — collapsing what used to be two
@@ -363,13 +368,17 @@ router.get('/transparency/:dinasInisiasi/:dinasTarget', requireRole('TAB'), asyn
 router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => {
   const dinasInisiasi = req.body && req.body.dinas_inisiasi;
   const dinasTarget = req.body && req.body.dinas_target;
-  const closingDescription = req.body && String(req.body.closing_description || '').trim();
   const subdocNumber = req.body && String(req.body.subdoc_number || '').trim();
   const requestedIds = req.body && Array.isArray(req.body.transaction_ids) ? req.body.transaction_ids.map(Number) : null;
   const userId = req.rdtUser.id;
   if (!dinasInisiasi) return res.status(400).json({ ok: false, error: 'dinas_inisiasi is required' });
   if (!dinasTarget) return res.status(400).json({ ok: false, error: 'dinas_target is required' });
-  if (!closingDescription) return res.status(400).json({ ok: false, error: 'closing_description is required' });
+  // Project owner request (12 Agu): closing_description flipped from mandatory to optional —
+  // was required (see migration 006/018's history), TAB can now confirm a repost with no
+  // closing note at all. Still length-capped when it IS given (checklist 1.3).
+  const closingDescriptionCheck = validateFreeText(req.body && req.body.closing_description, { fieldLabel: 'closing_description' });
+  if (!closingDescriptionCheck.ok) return res.status(400).json(closingDescriptionCheck);
+  const closingDescription = closingDescriptionCheck.value;
   if (!subdocNumber) return res.status(400).json({ ok: false, error: 'subdoc_number is required' });
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
 
@@ -422,32 +431,41 @@ router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => 
     // Exactly one target dinas per pair now, so this collapses to a single comment + notification
     // block instead of the 006 model's per-target loop — anchor to the highest attached id,
     // matching dashboard.js's own top-level-comment convention.
-    const anchorId = attachRes.rows.reduce((max, row) => Math.max(max, row.id), 0);
-    const directory = await loadDirectory();
-    const commentRes = await client.query(
-      `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body)
-       VALUES ($1, NULL, $2, $3) RETURNING id`,
-      [anchorId, userId, closingDescription]
-    );
-    const commentId = commentRes.rows[0].id;
-    // REQ-RDT-COMMENT-03 (diperluas 3 Agu): implicit dinasTarget recipients (this closing
-    // description IS addressed to them) PLUS anyone explicitly @mentioned — same union pattern
-    // as every other note field now.
-    // Privacy bug fix (4 Agu): a mention of a dinas outside THIS pair must not leak a notification
-    // that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
-    const mentioned = filterMentionsToPair(resolveMentionedUserIds(closingDescription, directory), directory, [dinasInisiasi, dinasTarget]);
-    const recipientIds = new Set(mentioned);
-    Object.keys(directory).forEach((id) => {
-      if (String(directory[id].dinas).toUpperCase() === String(dinasTarget).toUpperCase()) recipientIds.add(id);
-    });
-    recipientIds.delete(userId);
+    // Project owner request (12 Agu, REVISED same day): closing_description is optional, but the
+    // NOTIFICATION always fires regardless — the target dinas may be actively waiting on it to
+    // know their repost landed, they shouldn't miss that just because TAB left the note blank.
+    // A comment still needs SOME body (rdt.comments.body stays NOT NULL) to hang the notification
+    // off of, so an empty closing_description falls back to a short system-generated line instead
+    // of skipping the whole block.
+    const commentBody = closingDescription || `Repost ${dinasInisiasi} → ${dinasTarget} dikonfirmasi oleh TAB (subdoc ${subdocNumber}).`;
     const notifiedUserIds = [];
-    for (const recipientId of recipientIds) {
-      await client.query(
-        'INSERT INTO rdt.notifications (recipient_user_id, comment_id) VALUES ($1, $2)',
-        [recipientId, commentId]
+    {
+      const anchorId = attachRes.rows.reduce((max, row) => Math.max(max, row.id), 0);
+      const directory = await loadDirectory();
+      const commentRes = await client.query(
+        `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body)
+         VALUES ($1, NULL, $2, $3) RETURNING id`,
+        [anchorId, userId, commentBody]
       );
-      notifiedUserIds.push(recipientId);
+      const commentId = commentRes.rows[0].id;
+      // REQ-RDT-COMMENT-03 (diperluas 3 Agu): implicit dinasTarget recipients (this closing
+      // description IS addressed to them) PLUS anyone explicitly @mentioned — same union pattern
+      // as every other note field now.
+      // Privacy bug fix (4 Agu): a mention of a dinas outside THIS pair must not leak a notification
+      // that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
+      const mentioned = filterMentionsToPair(resolveMentionedUserIds(commentBody, directory), directory, [dinasInisiasi, dinasTarget]);
+      const recipientIds = new Set(mentioned);
+      Object.keys(directory).forEach((id) => {
+        if (String(directory[id].dinas).toUpperCase() === String(dinasTarget).toUpperCase()) recipientIds.add(id);
+      });
+      recipientIds.delete(userId);
+      for (const recipientId of recipientIds) {
+        await client.query(
+          'INSERT INTO rdt.notifications (recipient_user_id, comment_id) VALUES ($1, $2)',
+          [recipientId, commentId]
+        );
+        notifiedUserIds.push(recipientId);
+      }
     }
 
     await client.query(

@@ -1329,6 +1329,37 @@ kolom data yang scroll di antaranya.
   SUDAH DIREVISI LEBIH LANJUT oleh pemilik proyek di Figma. Tarik `get_design_context`
   ke node ini buat versi terbaru sebelum implementasi — JANGAN pakai screenshot/
   deskripsi lama yang mungkin sudah ketinggalan dari revisi pemilik proyek.
+- **Kolom preview DT dipersempit (baru 8 Agu, MEMBATALKAN instruksi "tampilkan
+  SEMUA kolom" sebelumnya di REQ-RDT-NAV-04)**: preview UI (di SEMUA fitur yang
+  menampilkan preview DT — Repost, Confirmation, transparansi Need Approval,
+  Wait to Repost, dst) HANYA menampilkan kolom-kolom berikut, urutan sebagai
+  berikut: **Sub Group, Dinas Pengaju, Account, Profit Ctr, Ref.Doc., Period,
+  Text, Material, Value (In PCLC), Group, Remark**, PLUS kolom "Notes"/Catatan
+  Reviewer (`reviewer_note`, lihat section 3.11 — WAJIB tetap ada, sudah persist
+  sejak migration `015`). Kolom lain dari 53 kontrak TIDAK ditampilkan di preview
+  UI manapun lagi.
+  > **PENTING — ini BUKAN mengubah REQ-RDT-SAP-06** (file export/download buat
+  > di-repost ke SAP): file yang di-download TAB buat posting ke SAP TETAP HARUS
+  > 53 kolom kontrak PENUH, karena itu harus cocok skema import SAP. Yang
+  > dipersempit di sini CUMA tampilan tabel di layar (preview), bukan isi file
+  > yang dihasilkan — dua artifact berbeda, jangan disamakan.
+- **Deskripsi opsional saat Confirm/Reject (ditegaskan ulang 8 Agu)**: field
+  "Deskripsi (opsional)" di alur Confirm/Reject (`confirmation.js`'s
+  `trimmedDescription`) sudah BERLABEL opsional di UI — pastikan backend juga
+  BENERAN tidak mewajibkan (submit harus tetap sukses walau field ini kosong).
+- **closing_description TAB jadi opsional juga (DIBALIK 12 Agu, project owner
+  request)**: field "Deskripsi penutup" di "Confirm Reposted" (REQ-RDT-SAP-05,
+  `exportBatches.js POST /confirm`) SEBELUMNYA wajib diisi (lihat migration
+  006) — sekarang TAB bisa confirm/repost tanpa catatan penutup sama sekali.
+  Migration `018` buka constraint `NOT NULL` di kolom
+  `rdt.export_batches.closing_description`.
+  **REVISI sama hari**: notifikasi ke dinas target TETAP JALAN walau field ini
+  dikosongkan — project owner khawatir dinas target nungguin notifikasi itu.
+  Kalau diisi, jadi komentar + notifikasi persis seperti biasa (tetap kena cap
+  panjang 2000 karakter, checklist 1.3); kalau kosong, komentar fallback
+  system-generated ("Repost [inisiasi] → [target] dikonfirmasi oleh TAB
+  (subdoc [nomor]).") yang dipakai buat nge-attach notifikasinya — bukan
+  komentar/notifikasi yang di-skip.
 
 ### 3.10 Share-Cost oleh TAB (Split Transaksi)
 

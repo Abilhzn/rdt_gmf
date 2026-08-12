@@ -5,6 +5,7 @@ const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassign
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 const { computeEffectivePeriod } = require('../rules/periodEffective');
+const { validateFreeText } = require('../rules/textValidation');
 
 const router = express.Router();
 
@@ -98,9 +99,12 @@ async function snapshotPeriodeEfektif(client, { transactionId, dinasInisiasi, di
 router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async (req, res) => {
   const dinas = req.params.dinas;
   const decisions = req.body && req.body.decisions;
-  const description = req.body && req.body.description;
   const userId = req.rdtUser.id;
   if (!Array.isArray(decisions)) return res.status(400).json({ ok: false, error: 'invalid body, expected { decisions: [{id,claim}] }' });
+  // Checklist 1.3 (12 Agu): was trusted as free text with no length cap straight into a comment.
+  const descriptionCheck = validateFreeText(req.body && req.body.description, { fieldLabel: 'Deskripsi' });
+  if (!descriptionCheck.ok) return res.status(400).json(descriptionCheck);
+  const description = descriptionCheck.value;
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {

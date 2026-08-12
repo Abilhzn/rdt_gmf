@@ -15,6 +15,11 @@ interface PreviewColumn {
   numeric?: boolean;
 }
 
+// REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu): same curated 7-contract-field set every previewColumns
+// builder in this app filters down to now — duplicated per component, matching this app's own
+// "duplicate styles/logic per component" convention (see rdt/README.md).
+const CURATED_CONTRACT_KEYS = ['account', 'profit_ctr', 'ref_doc', 'period', 'text_desc', 'material', 'in_pclc'];
+
 // REQ-RDT-SAP-03..06 (SRS.md 3.3) — approval unit is one PASANGAN (dinas_inisiasi, dinas_target):
 // a WAITING entry appears (computed, not stored) once that specific pair is resolved — other
 // pairs from the same dinas_inisiasi never block or get blocked by it. TAB can open full
@@ -102,15 +107,25 @@ export class NeedApprovalComponent implements OnInit {
     });
   }
 
+  // REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "tampilkan SEMUA kolom"): sama 11-kolom+Notes
+  // tetap dipakai di repost-budgeting/confirm (lihat komentar lengkap di
+  // repost-budgeting.component.ts's buildPreviewColumns). "Dinas Pengaju" masuk di sini (BEDA dari
+  // confirm.component) karena transparansi ini tidak punya kolom Dinas Pengaju tersendiri di luar
+  // previewColumns. `reviewer_note`/Notes ditambahkan (SEBELUMNYA HILANG di tabel ini — gap yang
+  // baru ketemu 8 Agu). `status_konfirmasi` DIKELUARKAN dari sini (bukan bagian dari 11 kolom) —
+  // tapi TAB masih perlu lihatnya sebelum Confirm Reposted, jadi tetap kolom tetap sendiri di
+  // luar previewColumns (lihat template), bukan dihapus datanya.
   private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
-    const contractCols: PreviewColumn[] = fields.map((f) =>
-      f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Nominal', numeric: true } : { key: f.key, label: f.label },
-    );
+    const contractCols: PreviewColumn[] = fields
+      .filter((f) => CURATED_CONTRACT_KEYS.includes(f.key))
+      .map((f) => f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Value (In PCLC)', numeric: true } : { key: f.key, label: f.label });
     return [
       { key: 'sub_group', label: 'Sub Group' },
+      { key: 'dinas_inisiasi', label: 'Dinas Pengaju' },
       ...contractCols,
-      { key: 'status_konfirmasi', label: 'Status' },
+      { key: 'category', label: 'Group' },
       { key: 'remark', label: 'Remark' },
+      { key: 'reviewer_note', label: 'Notes' },
     ];
   }
 
@@ -187,12 +202,13 @@ export class NeedApprovalComponent implements OnInit {
     this.transparencyRows = [];
   }
 
-  // REQ-RDT-SAP-05 (revised): Confirm now requires BOTH the closing description AND every subdoc
-  // number — one per chunk (see subdocNumbers/chunkCount above), "aksi Confirm yang sebenarnya =
-  // memasukkan nomor subdoc BERSAMAAN dengan deskripsi penutup, dalam SATU aksi", extended to
-  // however many chunks this pair actually needs.
+  // REQ-RDT-SAP-05 (revised): Confirm requires every subdoc number — one per chunk (see
+  // subdocNumbers/chunkCount above). Project owner request (12 Agu): closing description is no
+  // longer part of this gate — it flipped from mandatory to optional (see
+  // exportBatches.js POST /confirm's own header comment), TAB can confirm with the field left
+  // blank.
   canConfirm(): boolean {
-    return !!this.closingDescription.trim() && this.subdocNumbers.every((s) => !!s.trim());
+    return this.subdocNumbers.every((s) => !!s.trim());
   }
 
   // REQ-RDT-SAP-08/11 REVISI (5 Agu): chunk 1's subdoc is attached atomically with the batch

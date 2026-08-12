@@ -25,6 +25,11 @@ interface PreviewColumn {
   numeric?: boolean;
 }
 
+// REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu): the same curated 7-contract-field set every previewColumns
+// builder in this app filters down to now — duplicated per component rather than shared/imported,
+// matching this app's own "duplicate styles/logic per component" convention (see rdt/README.md).
+const CURATED_CONTRACT_KEYS = ['account', 'profit_ctr', 'ref_doc', 'period', 'text_desc', 'material', 'in_pclc'];
+
 interface ThreadRow {
   comment: Comment;
   depth: number;
@@ -184,18 +189,21 @@ export class ConfirmComponent implements OnInit {
     });
   }
 
-  // Same "sub_group first, then every contract field, then the operational extras that matter
-  // in THIS specific queue" shape as need-approval.component.ts's own buildPreviewColumns —
-  // dinas_target/status_konfirmasi are dropped here since every row in this queue already shares
-  // the same value for both (this dinas, PENDING), unlike Repost Review's mixed preview.
+  // REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "tampilkan SEMUA kolom"): sama 11-kolom+Notes
+  // tetap yang dipakai repost-budgeting.component.ts's buildPreviewColumns (lihat komentarnya di
+  // sana untuk rasional lengkap) — MINUS "Dinas Pengaju": queue ini sudah punya kolom "Dinas
+  // Pengaju" sendiri di luar previewColumns (dengan chain-popover per-hop, lihat template),
+  // menambahkannya lagi di sini akan bikin kolom duplikat, bukan menghilangkan datanya.
+  // status_konfirmasi TIDAK pernah ada di sini — setiap baris di queue ini sudah PENDING (sama
+  // untuk semua), beda dari Repost Review yang butuh Status per-baris.
   private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
-    const contractCols: PreviewColumn[] = fields.map((f) =>
-      f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Nominal', numeric: true } : { key: f.key, label: f.label },
-    );
+    const contractCols: PreviewColumn[] = fields
+      .filter((f) => CURATED_CONTRACT_KEYS.includes(f.key))
+      .map((f) => f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Value (In PCLC)', numeric: true } : { key: f.key, label: f.label });
     return [
       { key: 'sub_group', label: 'Sub Group' },
       ...contractCols,
-      { key: 'category', label: 'Kategori' },
+      { key: 'category', label: 'Group' },
       { key: 'remark', label: 'Remark' },
       // BUG FIX (5 Agu, project owner): the sticky column at the right edge was pinning `remark`
       // (raw Excel routing text) under the label "Notes" — but "Notes" is supposed to be the

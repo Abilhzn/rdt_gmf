@@ -3,6 +3,7 @@ const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { buildValidCodeMap } = require('../rules/reassignmentRules');
+const { validateFreeText } = require('../rules/textValidation');
 const { loadDirectory } = require('../dataUserClient');
 
 const router = express.Router();
@@ -55,11 +56,12 @@ router.get('/candidates', async (req, res) => {
 router.post('/:transactionId/split', express.json(), async (req, res) => {
   const transactionId = req.params.transactionId;
   const splits = req.body && req.body.splits;
-  const note = req.body && req.body.note;
   const userId = req.rdtUser.id;
 
-  const trimmedNote = note && String(note).trim();
-  if (!trimmedNote) return res.status(400).json({ ok: false, error: 'note (alasan split) wajib diisi' });
+  // Checklist 1.3 (12 Agu): was trusted with no length cap once past the non-empty check.
+  const noteCheck = validateFreeText(req.body && req.body.note, { required: true, fieldLabel: 'note (alasan split)' });
+  if (!noteCheck.ok) return res.status(400).json(noteCheck);
+  const trimmedNote = noteCheck.value;
   if (!Array.isArray(splits) || splits.length < 2) {
     return res.status(400).json({ ok: false, error: 'splits harus berisi minimal 2 baris' });
   }

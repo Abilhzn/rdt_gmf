@@ -14,6 +14,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const helmet = require('helmet');
 
 const { parseExcelFile, CONTRACT_FIELDS } = require('./parser/excelParser');
 const { flagDuplicates } = require('./persist/duplicateCheck');
@@ -31,9 +32,29 @@ const periodDeadlinesRouter = require('./routes/periodDeadlines');
 const { requireUser } = require('./middleware/auth');
 const { loadDirectory } = require('./dataUserClient');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('./rules/mentionRules');
+const { validateFreeText } = require('./rules/textValidation');
 const { Client } = require('pg');
 
 const app = express();
+// Checklist 1.2 (11 Agu): baseline security headers — same 'none' CSP rationale as
+// auth/data_user (see auth/src/index.js's comment): this service is JSON API + file
+// download/upload only, never renders its own HTML/script/style, so lock CSP down as
+// defense-in-depth. Content-Disposition:attachment downloads (original file, SAP export) are
+// unaffected — CSP governs how a page loads resources, not how a browser handles a download.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      scriptSrc: ["'none'"],
+      styleSrc: ["'none'"],
+      imgSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  frameguard: { action: 'deny' }, // X-Frame-Options: DENY — matches frameAncestors 'none' above
+  hsts: { maxAge: 15552000, includeSubDomains: true },
+}));
 // Default express.json() body limit is 100kb — a real monthly Excel file easily produces
 // thousands of rows x 53+ columns (+ raw_payload) as JSON, well past that. Without this,
 // POST /api/persist silently 413s and Express's default HTML error page gets returned
@@ -316,6 +337,38 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
     return res.status(400).json({ ok: false, error: 'period is required, format YYYY-MM' });
   }
 
+  // Bug fix (11 Agu, found via live-DB testing): rdt.uploads.original_filename is NOT NULL in
+  // the schema, but this route treated it as optional (defaulted to null below) — a caller that
+  // omits it hit a raw Postgres constraint-violation 500 instead of a clean validation error.
+  // The real Angular Repost flow always sends it (transaction.service.ts falls back to
+  // 'unknown.xlsx' when there's no File object), so this should never fire in normal use — this
+  // just turns a latent gap into a proper 400 for any other caller.
+  const originalFilenameTrimmed = typeof body.original_filename === 'string' ? body.original_filename.trim() : '';
+  if (!originalFilenameTrimmed) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+    return res.status(400).json({ ok: false, error: 'original_filename is required' });
+  }
+
+  // Checklist 1.3 (12 Agu): description (Keterangan Repost, level upload) and each row's
+  // reviewer_note (Catatan Reviewer, per-baris) were never length-checked — trusted entirely as
+  // free text straight into an unbounded `text` column. All-or-nothing: one row's reviewer_note
+  // too long rejects the whole persist call, same convention `period`/`original_filename` above
+  // already use for this endpoint (no partial-write half-state).
+  const descriptionCheck = validateFreeText(body.description, { fieldLabel: 'Deskripsi' });
+  if (!descriptionCheck.ok) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+    return res.status(400).json(descriptionCheck);
+  }
+  body.description = descriptionCheck.value;
+  for (let i = 0; i < body.rows.length; i++) {
+    const reviewerNoteCheck = validateFreeText(body.rows[i].reviewer_note, { fieldLabel: `Catatan Reviewer (baris ${i + 1})` });
+    if (!reviewerNoteCheck.ok) {
+      if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+      return res.status(400).json(reviewerNoteCheck);
+    }
+    body.rows[i].reviewer_note = reviewerNoteCheck.value;
+  }
+
   // If no DB config, fallback to staging JSON
   const hasDb = !!(process.env.DATABASE_URL || process.env.PGHOST || process.env.PGUSER || process.env.PGDATABASE);
   if (!hasDb) {
@@ -346,7 +399,7 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
     // the authenticated user, never trusted from the client body (same rule as elsewhere).
     const uploader = req.rdtUser.dinas;
     const uploadedBy = req.rdtUser.id;
-    const originalFilename = body.original_filename || null;
+    const originalFilename = originalFilenameTrimmed;
     const description = body.description || null; // item 6: optional free-text note on Repost submit
     const rawCount = body.rows.length;
     try {

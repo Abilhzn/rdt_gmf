@@ -18,6 +18,8 @@ const PAGE_TITLES: Record<string, string> = {
   // SRS 3.10 (Share-Cost, 3 Agu): TAB-only page, lives under the "Need Identification" sub-nav
   // (see shell.component.html) — fixed title, no PIC-facing variant exists.
   'share-cost': 'Share-Cost',
+  // REQ-RDT-SAP-14 (11 Agu): split out of Riwayat Repost TAB into its own TAB-only sidebar item.
+  'setting-periode': 'Setting Periode',
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
@@ -151,6 +153,12 @@ export class ShellComponent implements OnInit {
   // queue, no sub-nav needed (backend's requireRole('TAB') on /api/investigation is the real
   // enforcement either way, this is just UI-level nav visibility).
   get canSeeConfirmSubnav(): boolean {
+    return this.currentUser.current?.role === 'TAB';
+  }
+
+  // REQ-RDT-SAP-14 (11 Agu, user request: "taruh di sidebar-nya TAB") — moved out of the Riwayat
+  // Repost TAB <details> panel into its own nav item, same TAB-only gate it already had there.
+  get canSeeSettingPeriode(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 

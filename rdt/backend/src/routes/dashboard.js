@@ -35,6 +35,7 @@ const { requireUser, requireRole } = require('../middleware/auth');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 const { deriveStateLabel } = require('../rules/stateLabel');
+const { validateFreeText } = require('../rules/textValidation');
 
 const router = express.Router();
 router.use(requireUser);
@@ -497,9 +498,12 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
   if (!canAccessPair(req.rdtUser, initiatorDinas, targetDinas)) {
     return res.status(403).json({ ok: false, error: `user ${req.rdtUser.id} not authorized for pair ${initiatorDinas}->${targetDinas}` });
   }
-  const body = (req.body && req.body.body || '').trim();
+  // Checklist 1.3 (12 Agu): was trusted with no length cap — this is the most direct
+  // free-text-comment endpoint of the 8, no upstream field name to disambiguate from.
+  const bodyCheck = validateFreeText(req.body && req.body.body, { required: true, fieldLabel: 'body' });
+  if (!bodyCheck.ok) return res.status(400).json(bodyCheck);
+  const body = bodyCheck.value;
   const parentCommentId = req.body && req.body.parent_comment_id;
-  if (!body) return res.status(400).json({ ok: false, error: 'body is required' });
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();

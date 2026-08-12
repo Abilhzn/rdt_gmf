@@ -47,9 +47,10 @@
 
     <div class="transparency-panel" *ngIf="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)">
       <p class="alert alert--error" *ngIf="transparencyError">{{ transparencyError }}</p>
-      <!-- REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): SEMUA kolom kontrak, satu
-           sumber (previewColumns) sama seperti Repost Review — bukan subset Account/Ref.Doc/
-           Nominal/Remark/Status yang di-hardcode terpisah. -->
+      <!-- REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "SEMUA kolom kontrak" 1/3 Agu): 11 kolom
+           tetap + Notes, satu sumber (previewColumns) — lihat need-approval.component.ts's
+           buildPreviewColumns. Status TIDAK termasuk 11 kolom itu tapi TAB masih perlu lihatnya
+           di sini sebelum Confirm Reposted, jadi tetap kolom tetap sendiri (bukan dihapus). -->
       <div class="table-scroll" *ngIf="transparencyRows.length">
         <table class="rows">
           <thead>
@@ -59,17 +60,18 @@
                 <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
                 <rdt-multi-value-filter [placeholder]="'Tempel banyak ' + col.label + ' sekaligus...'" (valuesChange)="onTransparencyColumnFilterChange(col.key, $event)"></rdt-multi-value-filter>
               </th>
+              <th>Status</th>
               <th>Reassign</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let t of pagedTransparencyRows">
               <ng-container *ngFor="let col of previewColumns">
-                <td *ngIf="col.key === 'status_konfirmasi'">{{ t.status_konfirmasi }}</td>
                 <td *ngIf="col.numeric" class="rows__num">{{ getCellValue(t, col.key) | number: '1.2-2' }}</td>
                 <td *ngIf="col.key === 'remark'" class="rows__remark" [title]="t.remark || ''">{{ t.remark }}</td>
-                <td *ngIf="col.key !== 'status_konfirmasi' && col.key !== 'remark' && !col.numeric">{{ getCellValue(t, col.key) ?? '—' }}</td>
+                <td *ngIf="col.key !== 'remark' && !col.numeric">{{ getCellValue(t, col.key) ?? '—' }}</td>
               </ng-container>
+              <td>{{ t.status_konfirmasi }}</td>
               <td>{{ t.reassign_count > 0 ? (t.reassigned_from + ' → ' + w.dinas_target) : '—' }}</td>
             </tr>
           </tbody>
@@ -87,7 +89,7 @@
       <!-- REQ-RDT-SAP-05 (revised 31 Jul): ONE form — deskripsi penutup + nomor subdoc pertama
            sekaligus. Submit ini SEKALIGUS bikin batch dan attach subdoc pertamanya. -->
       <label class="batch-note-label">
-        Deskripsi penutup (wajib)
+        Deskripsi penutup (opsional)
         <rdt-mention-input
           [(ngModel)]="closingDescription"
           [rows]="2"

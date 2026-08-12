@@ -4,6 +4,7 @@ const { requireUser, requireRole } = require('../middleware/auth');
 const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
+const { validateFreeText } = require('../rules/textValidation');
 
 const router = express.Router();
 
@@ -90,7 +91,10 @@ router.get('/', async (req, res) => {
 router.post('/:transactionId/assign', express.json(), async (req, res) => {
   const transactionId = req.params.transactionId;
   const newTarget = req.body && req.body.dinas_target;
-  const description = req.body && req.body.description;
+  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  const descriptionCheck = validateFreeText(req.body && req.body.description, { fieldLabel: 'Deskripsi' });
+  if (!descriptionCheck.ok) return res.status(400).json(descriptionCheck);
+  const description = descriptionCheck.value;
   const userId = req.rdtUser.id;
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -156,7 +160,10 @@ router.post('/:transactionId/assign', express.json(), async (req, res) => {
 // comment fan-out.
 router.post('/assign-all', express.json(), async (req, res) => {
   const items = req.body && req.body.items;
-  const description = req.body && req.body.description;
+  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  const descriptionCheck = validateFreeText(req.body && req.body.description, { fieldLabel: 'Deskripsi' });
+  if (!descriptionCheck.ok) return res.status(400).json(descriptionCheck);
+  const description = descriptionCheck.value;
   const userId = req.rdtUser.id;
   if (!Array.isArray(items) || !items.length) {
     return res.status(400).json({ ok: false, error: 'items is required and must be a non-empty array' });
