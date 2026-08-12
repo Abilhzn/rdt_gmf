@@ -13,6 +13,10 @@ build/
 *.log
 *.log.err
 
+# /graphify output — regenerable knowledge-graph artifact (cache, graph.html/json, manifest),
+# not source. Untracked since sesi 8 (12 Agu); decided sesi 9 to gitignore rather than commit.
+graphify-out/
+
 # Backend runtime data (bukan source, jangan ikut commit)
 rdt/backend/staging/*
 !rdt/backend/staging/.gitkeep
