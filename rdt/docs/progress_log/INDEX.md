@@ -29,6 +29,7 @@ ada di `rdt/CLAUDE.md`.
 | 6 | 6 Agu 2026 | [06_2026-08-06.md](06_2026-08-06.md) | Dashboard fidelity + USD currency, fix Notes column + reassign-chain access, **REQ-RDT-SAP-14** (mekanisme deadline: per-pasangan → snapshot bukan live-computed → bulk-set), lalu task rangkuman ini sendiri |
 | 7 | 7–11 Agu 2026 | [07_2026-08-11.md](07_2026-08-11.md) | ui-demo.html dihapus total, **Setting Periode** restructure (Override Deadline jadi list-driven + re-evaluate) + 5 item Bagian 2 (termasuk bug SAP-09 auto-archive yang ketemu & diperbaiki), audit repo lokal vs GitHub, rename `develop`→`pc-lab` + branch `lenovo` baru, **migrasi database ke Supabase**, `main` di-fast-forward ke kerjaan terbaru |
 | 8 | 12 Agu 2026 | [08_2026-08-12.md](08_2026-08-12.md) | **`CHECKLIST_LAUNCH.md` diselesaikan end-to-end**: security headers/rate-limit/session TTL, validasi teks bebas, audit secrets, backup/restore tooling, monitoring/health/timeout, re-audit integritas data, 404/403 + a11y + WCAG contrast, dokumentasi per-service, loading-state + error-message audit (2 regresi self-caught & diperbaiki: admin editors, lalu DinasService/TransactionService), `/graphify` dijalankan atas seluruh repo + 2 trace eksploratif (nemu 1 gap modal-error belum diperbaiki, ditunda) |
+| 9 | 12 Agu 2026 | [09_2026-08-12.md](09_2026-08-12.md) | Plugin `ponytail` diinstall, **REQ-RDT-SAP-15** (breakdown per pasangan di Summary Progress All Dinas, full reuse `buildChainAwareProgress`+`#pairCard`), debug "icon unclickable" (root cause: proses backend lama belum di-restart, bukan bug kode), fix gap modal-error `DashboardDetailComponent.submitComment()` yang ditunda sesi 8 — commit `2c19d31`+`4ca58be`, sudah di-push ke `origin/lenovo` |
 
 ## Garis besar evolusi arsitektur
 
@@ -45,19 +46,28 @@ ada di `rdt/CLAUDE.md`.
   snapshot periode_efektif) — fitur bisnis besar terakhir sebelum sesi ini
   ditutup.
 
-## Status akhir per 12 Agu 2026 (akhir sesi 8)
+## Status akhir per 12 Agu 2026 (akhir sesi 9)
 
-- Branch aktif: `lenovo`, commit terakhir `daf1421`.
-- **`rdt/docs/CHECKLIST_LAUNCH.md` sekarang selesai end-to-end** kecuali
-  2 item yang memang tanggung jawab tim IT eksternal (IP/VPN whitelisting,
-  HTTPS/TLS saat hosting di-setup) — lihat sesi 8 untuk rincian tiap
-  section (1.1–1.4, 2.1–2.3, 3, 4).
-- Sesi 8 nemu dan langsung memperbaiki **2 regresi self-caught** (bukan
-  dilaporkan user) — keduanya akibat guard auth baru dari checklist 1.1
-  sendiri belum di-propagate ke semua caller: admin editors
-  (`fetch()` tanpa auth) dan `DinasService`/`TransactionService`
-  (`HttpClient` tanpa auth header). Keduanya diperbaiki + diverifikasi
-  live via browser sebelum sesi ditutup.
+- Branch aktif: `lenovo`, commit terakhir `4ca58be` — sudah di-push ke
+  `origin/lenovo` (`2c19d31`+`4ca58be`).
+- **`rdt/docs/CHECKLIST_LAUNCH.md` selesai end-to-end** kecuali 2 item
+  tanggung jawab tim IT eksternal (IP/VPN whitelisting, HTTPS/TLS saat
+  hosting di-setup) — lihat sesi 8 untuk rincian tiap section.
+- **REQ-RDT-SAP-15 selesai** (sesi 9): breakdown per pasangan di tabel
+  Summary Progress All Dinas — endpoint baru TAB-only + ikon expand-row
+  di frontend, full reuse `buildChainAwareProgress` dan template
+  `#pairCard` yang sudah ada, gak ada halaman/komponen baru.
+- **`DashboardDetailComponent.submitComment()` gap modal-error (temuan
+  sesi 8) sudah diperbaiki sesi 9** — disamakan ke pola
+  `ModalService.alert()` yang dipakai 20+ pemanggil mutating lain di app.
+- Plugin Claude Code **`ponytail@ponytail`** terinstall (sesi 9,
+  scope user) — minimalism/reuse-first decision ladder,
+  `/ponytail-review` & `/ponytail-audit` tersedia.
+- **Catatan operasional (sesi 9)**: `rdt/backend` (`npm start`) gak punya
+  watch/hot-reload — proses lama yang masih jalan pas source di-edit
+  WAJIB di-restart manual sebelum verifikasi live, kalau tidak endpoint
+  baru kelihatan "gak berfungsi" padahal kodenya benar (lihat sesi 9
+  Bagian 3 untuk kronologi debug-nya).
 - **Database production/dev tetap Supabase** (Postgres remote) sejak sesi
   7 — `rdt/backend/.env`'s `DATABASE_URL` di-update user sendiri (Claude
   di-block akses baca/tulis file itu, by design). Schema `rdt` lengkap 13
@@ -67,12 +77,10 @@ ada di `rdt/CLAUDE.md`.
   repo — graf 1277 node/1957 edge/155 komunitas tersimpan di
   `graphify-out/graph.json` (masih untracked di git, lihat backlog).
 - Backlog terbuka:
-  - **`DashboardDetailComponent.submitComment()` — gap modal-error belum
-    diperbaiki**, ditunda buat didiskusikan user dulu (temuan sesi 8 lewat
-    trace graphify).
   - Sidebar hover-expand (REQ-RDT-UI-06 diperluas) — masih suspended,
     nunggu link Dribbble yang bisa diakses.
   - `graphify-out/` masih untracked, belum diputusin gitignore atau commit.
+  - `rdt/docs/_tmp_check.md` masih untracked, belum dibersihkan/diputuskan.
   - Auth/data_user masih provisional/synthetic (TODO(IT-AUTH)) — nunggu
     tabel karyawan resmi tim IT GMF.
 
