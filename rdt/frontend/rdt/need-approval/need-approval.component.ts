@@ -8,6 +8,7 @@ import { triggerBlobDownload, filenameFromResponse } from '../services/confirmat
 import { ModalService } from '../services/modal.service';
 import { matchesAllColumnFilters } from '../shared/multi-value-filter.component';
 import { TransactionService, ContractField } from '../services/transaction.service';
+import { extractErrorMessage } from '../shared/error-message.util';
 
 interface PreviewColumn {
   key: string;
@@ -141,7 +142,7 @@ export class NeedApprovalComponent implements OnInit {
     this.errorMessage = '';
     this.exportBatches.getWaiting().subscribe({
       next: (waiting) => { this.waiting = waiting; },
-      error: (err) => { this.errorMessage = err?.message || 'Gagal memuat antrian'; },
+      error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat antrian'); },
     });
   }
 
@@ -165,7 +166,7 @@ export class NeedApprovalComponent implements OnInit {
         // array to match now that it has.
         this.subdocNumbers = new Array(this.chunkCount).fill('');
       },
-      error: (err) => { this.transparencyError = err?.message || 'Gagal memuat transparansi'; },
+      error: (err) => { this.transparencyError = extractErrorMessage(err, 'Gagal memuat transparansi'); },
     });
   }
 
@@ -237,7 +238,7 @@ export class NeedApprovalComponent implements OnInit {
             });
           } catch (err: any) {
             this.confirming = false;
-            await this.modal.alert(`Batch sudah tersimpan dengan ${chunk - 1} subdoc, tapi subdoc chunk ${chunk} gagal disimpan: ${err?.message || err}. Tambahkan sisanya dari Riwayat Repost TAB.`);
+            await this.modal.alert(`Batch sudah tersimpan dengan ${chunk - 1} subdoc, tapi subdoc chunk ${chunk} gagal disimpan: ${extractErrorMessage(err, String(err))}. Tambahkan sisanya dari Riwayat Repost TAB.`);
             this.closeTransparency();
             this.load();
             return;
@@ -250,7 +251,7 @@ export class NeedApprovalComponent implements OnInit {
       },
       error: async (err) => {
         this.confirming = false;
-        await this.modal.alert('Error: ' + (err?.message || err));
+        await this.modal.alert('Error: ' + extractErrorMessage(err, String(err)));
       },
     });
   }
@@ -271,7 +272,7 @@ export class NeedApprovalComponent implements OnInit {
       },
       error: async (err) => {
         this.downloadingPairKey = null;
-        await this.modal.alert('Gagal mengunduh: ' + (err?.message || err));
+        await this.modal.alert('Gagal mengunduh: ' + extractErrorMessage(err, String(err)));
       },
     });
   }

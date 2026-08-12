@@ -11,6 +11,7 @@ import { Comment } from '../services/comment.model';
 import { InvestigationService, InvestigationRow } from '../services/investigation.service';
 import { matchesAllColumnFilters } from '../shared/multi-value-filter.component';
 import { TransactionService, ContractField } from '../services/transaction.service';
+import { extractErrorMessage } from '../shared/error-message.util';
 
 interface PendingRowVm extends PendingRow {
   checked: boolean;
@@ -101,6 +102,18 @@ export class ConfirmComponent implements OnInit {
   statusError = '';
   emptyNote = '';
   reassignTargetByRowId: Record<number, string> = {};
+
+  // Checklist section 3 (12 Agu, loading-state audit): none of this page's 6 async actions had
+  // any busy-state guard — a double-click (or an impatient second click while a slow request was
+  // still in flight) could fire the same mutation twice. Per-row flags follow the same pattern
+  // already used elsewhere in this file (addingSubdocBatchId-style) for actions scoped to one row;
+  // page-wide flags for actions that affect the whole visible set at once.
+  submittingDecisions = false;
+  resolvingRowId: number | null = null;
+  submittingAllResolutions = false;
+  assigningRowId: number | null = null;
+  assigningAllInvestigation = false;
+  bulkAssigning = false;
 
   // REQ-RDT-NAV-07 (direvisi 5 Agu, 100->50): paginate the pending table instead of dumping every
   // row on one page, using the shared pager (50 rows/page) also used by Repost's review table.
@@ -308,14 +321,14 @@ export class ConfirmComponent implements OnInit {
         this.pendingRows = filtered.map((r) => ({ ...r, checked: false, redirectTo: '' }));
         this.maybeSetEmptyNote();
       },
-      error: (err) => { this.statusError = err?.message || 'Gagal memuat data pending'; },
+      error: (err) => { this.statusError = extractErrorMessage(err, 'Gagal memuat data pending'); },
     });
     // Declined-resolution list stays scoped to the user's OWN dinas as initiator — switching
     // the Confirmation target to Corp only changes which incoming queue is being confirmed, it
     // doesn't make the user an initiator of Corp's outgoing submissions.
     this.reassignment.getDeclined(this.dinas).subscribe({
       next: (rows) => { this.declinedRows = rows; this.maybeSetEmptyNote(); },
-      error: (err) => { this.statusError = err?.message || 'Gagal memuat data declined'; },
+      error: (err) => { this.statusError = extractErrorMessage(err, 'Gagal memuat data declined'); },
     });
   }
 
@@ -326,7 +339,7 @@ export class ConfirmComponent implements OnInit {
     this.bulkTargetDinas = '';
     this.investigation.list().subscribe({
       next: (rows) => { this.investigationRows = rows; },
-      error: (err) => { this.statusError = err?.message || 'Gagal memuat antrian investigasi'; },
+      error: (err) => { this.statusError = extractErrorMessage(err, 'Gagal memuat antrian investigasi'); },
     });
   }
 
@@ -340,12 +353,14 @@ export class ConfirmComponent implements OnInit {
     const ok = await this.modal.confirm(`Assign baris ini ke dinas ${target}? Aksi ini FINAL — baris LANGSUNG berstatus Confirmed, dinas target tidak perlu konfirmasi ulang.`);
     if (!ok) return;
     const description = this.investigationDescription.trim() || undefined;
+    this.assigningRowId = row.id;
     this.investigation.assign(row.id, target, description).subscribe({
       next: async (dinasTarget) => {
+        this.assigningRowId = null;
         await this.modal.success('Baris di-assign ke ' + dinasTarget);
         this.loadInvestigation();
       },
-      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+      error: async (err) => { this.assigningRowId = null; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -362,12 +377,14 @@ export class ConfirmComponent implements OnInit {
     if (!ok) return;
     const items = this.investigationRows.map((r) => ({ transaction_id: r.id, dinas_target: this.investigationTargetByRowId[r.id] }));
     const description = this.investigationDescription.trim() || undefined;
+    this.assigningAllInvestigation = true;
     this.investigation.assignAll(items, description).subscribe({
       next: async () => {
+        this.assigningAllInvestigation = false;
         await this.modal.success('Semua baris sudah di-assign');
         this.loadInvestigation();
       },
-      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+      error: async (err) => { this.assigningAllInvestigation = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -416,12 +433,14 @@ export class ConfirmComponent implements OnInit {
       .filter((r) => this.selectedInvestigationIds.has(r.id))
       .map((r) => ({ transaction_id: r.id, dinas_target: target }));
     const description = this.investigationDescription.trim() || undefined;
+    this.bulkAssigning = true;
     this.investigation.assignAll(items, description).subscribe({
       next: async () => {
+        this.bulkAssigning = false;
         await this.modal.success(`${count} baris sudah di-assign ke ${target}`);
         this.loadInvestigation();
       },
-      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+      error: async (err) => { this.bulkAssigning = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -553,7 +572,7 @@ export class ConfirmComponent implements OnInit {
   downloadOriginal(uploadId: number, filename: string): void {
     this.confirmation.downloadOriginal(uploadId, filename).subscribe({
       next: (blob) => triggerBlobDownload(blob, filename),
-      error: async (err) => { await this.modal.alert('Gagal mengunduh file asli: ' + (err?.message || err)); },
+      error: async (err) => { await this.modal.alert('Gagal mengunduh file asli: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -586,8 +605,10 @@ export class ConfirmComponent implements OnInit {
       claim: r.checked ? 'YA' : 'TIDAK',
       redirect_to: !r.checked && r.redirectTo ? r.redirectTo : undefined,
     }));
+    this.submittingDecisions = true;
     this.confirmation.submit(this.selectedTarget, decisions, this.confirmDescription).subscribe({
       next: async (outcome) => {
+        this.submittingDecisions = false;
         this.confirmDescription = '';
         this.loadStatus();
         this.justDeclined = outcome.declined;
@@ -607,7 +628,7 @@ export class ConfirmComponent implements OnInit {
         }
         await this.modal.alert(parts.length ? `Keputusan tersimpan.\n\n${parts.join('\n\n')}` : 'Keputusan tersimpan');
       },
-      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+      error: async (err) => { this.submittingDecisions = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -620,9 +641,10 @@ export class ConfirmComponent implements OnInit {
   async resolveBorne(row: DeclinedRow): Promise<void> {
     const ok = await this.modal.confirm('Apakah kamu sudah yakin?');
     if (!ok) return;
+    this.resolvingRowId = row.id;
     this.reassignment.resolveBorne(row.id).subscribe({
-      next: async () => { await this.modal.alert('Tersimpan'); this.loadStatus(); },
-      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+      next: async () => { this.resolvingRowId = null; await this.modal.alert('Tersimpan'); this.loadStatus(); },
+      error: async (err) => { this.resolvingRowId = null; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -631,9 +653,10 @@ export class ConfirmComponent implements OnInit {
     if (!target) { await this.modal.alert('Pilih dinas target dulu.'); return; }
     const ok = await this.modal.confirm('Apakah kamu sudah yakin?');
     if (!ok) return;
+    this.resolvingRowId = row.id;
     this.reassignment.resolveReassign(row.id, target).subscribe({
-      next: async () => { await this.modal.alert('Tersimpan'); this.loadStatus(); },
-      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+      next: async () => { this.resolvingRowId = null; await this.modal.alert('Tersimpan'); this.loadStatus(); },
+      error: async (err) => { this.resolvingRowId = null; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -670,14 +693,16 @@ export class ConfirmComponent implements OnInit {
     if (missingTarget) { await this.modal.alert('Pilih dinas target dulu untuk semua baris yang diajukan ulang.'); return; }
     const ok = await this.modal.confirm(`Apakah kamu sudah yakin? ${items.length} transaksi akan diselesaikan sekaligus.`);
     if (!ok) return;
+    this.submittingAllResolutions = true;
     this.reassignment.resolveBatch(items as any, this.batchNote).subscribe({
       next: async () => {
+        this.submittingAllResolutions = false;
         this.pendingActionByRowId = {};
         this.batchNote = '';
         await this.modal.alert('Tersimpan');
         this.loadStatus();
       },
-      error: async (err) => { await this.modal.alert('Error: ' + (err?.message || err)); },
+      error: async (err) => { this.submittingAllResolutions = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
     });
   }
 }

@@ -32,8 +32,11 @@
   ></rdt-multi-value-filter>
 
   <hr />
-  <p class="note" *ngIf="!batches.length">Belum ada pasangan yang di-repost dengan subdoc.</p>
-  <p class="note" *ngIf="batches.length && !filteredBatches.length">Tidak ada pasangan yang cocok dengan filter subdoc.</p>
+  <!-- Checklist section 3 (12 Agu, loading-state audit): loading dulu, baru bedain "genuinely
+       kosong" vs "belum kelar loading" — sebelumnya dua-duanya keliatan sama (blank). -->
+  <p class="note" *ngIf="loading">Memuat riwayat repost...</p>
+  <p class="note" *ngIf="!loading && !batches.length">Belum ada pasangan yang di-repost dengan subdoc.</p>
+  <p class="note" *ngIf="!loading && batches.length && !filteredBatches.length">Tidak ada pasangan yang cocok dengan filter subdoc.</p>
 
   <!-- Project owner request (31 Jul sore): satu "sheet" per bulan-tahun (MM-YYYY), seperti sheet
        terpisah di satu file Excel — dipisah dari confirmed_at, bukan tab baru per fitur. -->

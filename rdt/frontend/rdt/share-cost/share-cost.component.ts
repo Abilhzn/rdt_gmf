@@ -3,6 +3,7 @@ import { ShareCostService, SplitCandidate } from '../services/share-cost.service
 import { DinasService, DinasEntry } from '../services/dinas.service';
 import { ModalService } from '../services/modal.service';
 import { ConfirmationService, triggerBlobDownload } from '../services/confirmation.service';
+import { extractErrorMessage } from '../shared/error-message.util';
 
 interface SplitRowVm {
   dinas_target: string;
@@ -47,7 +48,7 @@ export class ShareCostComponent implements OnInit {
     this.errorMessage = '';
     this.shareCost.getCandidates(this.query).subscribe({
       next: (rows) => { this.candidates = rows; this.loading = false; },
-      error: (err) => { this.errorMessage = err?.message || 'Gagal memuat daftar baris'; this.loading = false; },
+      error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat daftar baris'); this.loading = false; },
     });
   }
 
@@ -70,7 +71,7 @@ export class ShareCostComponent implements OnInit {
     const filename = this.selected.upload_filename || `upload-${uploadId}.xlsx`;
     this.confirmation.downloadOriginal(uploadId, filename).subscribe({
       next: (blob) => triggerBlobDownload(blob, filename),
-      error: async (err) => { await this.modal.alert('Gagal mengunduh file asli: ' + (err?.message || err)); },
+      error: async (err) => { await this.modal.alert('Gagal mengunduh file asli: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -127,7 +128,7 @@ export class ShareCostComponent implements OnInit {
       },
       error: async (err) => {
         this.submitting = false;
-        await this.modal.alert('Error: ' + (err?.message || err));
+        await this.modal.alert('Error: ' + extractErrorMessage(err, String(err)));
       },
     });
   }

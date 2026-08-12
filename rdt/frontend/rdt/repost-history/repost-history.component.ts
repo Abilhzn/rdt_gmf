@@ -5,6 +5,7 @@ import { triggerBlobDownload, filenameFromResponse } from '../services/confirmat
 import { ModalService } from '../services/modal.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
+import { extractErrorMessage } from '../shared/error-message.util';
 
 // Project owner request (31 Jul sore): split the list into month "sheets" (like separate tabs in
 // one Excel workbook), labeled literally MM-YYYY (e.g. "06-2026") — not a localized month name.
@@ -52,6 +53,10 @@ export class RepostHistoryComponent implements OnInit {
   errorMessage = '';
   from = '';
   to = '';
+  // Checklist section 3 (12 Agu, loading-state audit): !batches.length used to double as both
+  // "still loading" and "genuinely nothing archived yet" — no way to tell them apart, page just
+  // sat blank until the request resolved.
+  loading = true;
 
   // REQ-RDT-SAP-11: subdoc entry is TAB-only and can be repeated on an already-archived batch
   // (splitting a large pair across several subdocs over time) — one input per batch row, keyed
@@ -129,9 +134,10 @@ export class RepostHistoryComponent implements OnInit {
 
   load(): void {
     this.errorMessage = '';
+    this.loading = true;
     this.exportBatches.getHistory(this.from || undefined, this.to || undefined).subscribe({
-      next: (batches) => { this.batches = batches; },
-      error: (err) => { this.errorMessage = err?.message || 'Gagal memuat riwayat repost'; },
+      next: (batches) => { this.batches = batches; this.loading = false; },
+      error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat riwayat repost'); this.loading = false; },
     });
   }
 
@@ -150,7 +156,7 @@ export class RepostHistoryComponent implements OnInit {
         const fallback = `${batch.dinas_inisiasi}-${batch.dinas_target}_${dateStr}.xlsx`;
         triggerBlobDownload(res.body!, filenameFromResponse(res.headers, fallback));
       },
-      error: async (err) => { await this.modal.alert('Gagal mengunduh: ' + (err?.message || err)); },
+      error: async (err) => { await this.modal.alert('Gagal mengunduh: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -182,7 +188,7 @@ export class RepostHistoryComponent implements OnInit {
       },
       error: async (err) => {
         this.addingSubdocBatchId = null;
-        await this.modal.alert('Gagal menambah subdoc: ' + (err?.message || err));
+        await this.modal.alert('Gagal menambah subdoc: ' + extractErrorMessage(err, String(err)));
       },
     });
   }

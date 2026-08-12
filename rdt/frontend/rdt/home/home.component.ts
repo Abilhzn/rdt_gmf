@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DashboardService, DinasProgress, DashboardKpis, PerDinasRollupRow } from '../services/dashboard.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
+import { extractErrorMessage } from '../shared/error-message.util';
 
 // REQ-RDT-NAV-02/02a — rebuilt to match the updated Figma (nodes 1:2 "Need to Confirm" / 69:209
 // "Own Repost"): two switchable sub-views (not a side-by-side two-panel layout), "Need to
@@ -104,7 +105,7 @@ export class HomeComponent implements OnInit {
         this.isGlobalView = summary.is_global_view;
         this.loaded = true;
       },
-      error: (err) => { this.errorMessage = err?.error?.error || err?.message || 'Gagal memuat dashboard'; },
+      error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat dashboard'); },
     });
     this.dashboard.getKpis().subscribe({
       next: (kpis) => { this.kpis = kpis; },

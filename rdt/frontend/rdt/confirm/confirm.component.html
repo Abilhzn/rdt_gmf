@@ -1,7 +1,7 @@
 <div class="page-card">
   <div class="view-header-row">
     <div class="context-badge">{{ badgeText }}</div>
-    <button class="btn btn--primary" type="button" (click)="submitDecisions()" *ngIf="pendingRows.length && !isInvestigation">Submit</button>
+    <button class="btn btn--primary" type="button" [disabled]="submittingDecisions" (click)="submitDecisions()" *ngIf="pendingRows.length && !isInvestigation">{{ submittingDecisions ? 'Menyimpan...' : 'Submit' }}</button>
   </div>
 
   <p class="alert alert--error" *ngIf="statusError">{{ statusError }}</p>
@@ -188,8 +188,8 @@
             <option value="">Ajukan ke...</option>
             <option *ngFor="let d of reassignTargetsFor(r)" [value]="d.code">{{ d.code }}</option>
           </select>
-          <button class="btn btn--ghost" type="button" (click)="resolveBorne(r)">Tanggung sendiri</button>
-          <button class="btn btn--primary" type="button" *ngIf="r.reassign_count < 3" (click)="resolveReassign(r)">Ajukan</button>
+          <button class="btn btn--ghost" type="button" [disabled]="resolvingRowId === r.id" (click)="resolveBorne(r)">{{ resolvingRowId === r.id ? 'Menyimpan...' : 'Tanggung sendiri' }}</button>
+          <button class="btn btn--primary" type="button" *ngIf="r.reassign_count < 3" [disabled]="resolvingRowId === r.id" (click)="resolveReassign(r)">{{ resolvingRowId === r.id ? 'Menyimpan...' : 'Ajukan' }}</button>
         </div>
       </div>
 
@@ -198,8 +198,8 @@
           Keterangan (opsional)
           <rdt-mention-input [(ngModel)]="batchNote" [rows]="2" [autoGrow]="false" extraClass="batch-note" placeholder="Catatan tambahan untuk keputusan ini..."></rdt-mention-input>
         </label>
-        <button class="btn btn--primary" type="button" [disabled]="!canSubmitAll()" (click)="submitAllResolutions()">
-          Confirm All ({{ stagedCount }})
+        <button class="btn btn--primary" type="button" [disabled]="!canSubmitAll() || submittingAllResolutions" (click)="submitAllResolutions()">
+          {{ submittingAllResolutions ? 'Menyimpan...' : 'Confirm All (' + stagedCount + ')' }}
         </button>
       </div>
     </ng-container>
@@ -301,7 +301,7 @@
                   <option *ngFor="let d of investigationDinasOptionsFor(r)" [value]="d.code">{{ d.code }}</option>
                 </select>
               </td>
-              <td><button class="btn btn--primary" type="button" (click)="assignInvestigation(r)">Assign</button></td>
+              <td><button class="btn btn--primary" type="button" [disabled]="assigningRowId === r.id" (click)="assignInvestigation(r)">{{ assigningRowId === r.id ? 'Menyimpan...' : 'Assign' }}</button></td>
             </tr>
           </tbody>
         </table>
@@ -318,20 +318,20 @@
         <button
           class="btn btn--primary"
           type="button"
-          [disabled]="!canBulkAssignSelected()"
+          [disabled]="!canBulkAssignSelected() || bulkAssigning"
           [title]="canBulkAssignSelected() ? '' : 'Pilih minimal satu baris dan satu dinas tujuan'"
           (click)="bulkAssignSelected()"
-        >Assign Terpilih ({{ selectedInvestigationIds.size }}) ke dinas ini</button>
+        >{{ bulkAssigning ? 'Menyimpan...' : 'Assign Terpilih (' + selectedInvestigationIds.size + ') ke dinas ini' }}</button>
       </div>
 
       <div class="batch-resolve-footer">
         <button
           class="btn btn--primary"
           type="button"
-          [disabled]="!canAssignAllInvestigation()"
+          [disabled]="!canAssignAllInvestigation() || assigningAllInvestigation"
           [title]="canAssignAllInvestigation() ? '' : 'Pilih dinas target untuk setiap baris dulu'"
           (click)="assignAllInvestigation()"
-        >Assign All ({{ investigationRows.length }})</button>
+        >{{ assigningAllInvestigation ? 'Menyimpan...' : 'Assign All (' + investigationRows.length + ')' }}</button>
       </div>
     </ng-container>
   </ng-container>

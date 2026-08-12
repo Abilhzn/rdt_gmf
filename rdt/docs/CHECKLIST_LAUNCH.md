@@ -245,20 +245,60 @@ finansial. Ini artinya:
       konvensi konsisten di seluruh app) — sisanya bukan halaman berbasis
       list (login, modal, error page, dst) jadi emang gak butuh. Konsisten,
       gak ada gap nyata ketemu.
-- [ ] Loading states konsisten — **belum di-audit menyeluruh** (waktu sesi
-      ini abis duluan), spot-check sekilas gak nemu yang jelas rusak tapi
-      belum systematic pass. Worth dicek lagi sebelum launch.
-- [ ] Error states jelas & actionable — **gap yang KETEMU tapi BELUM
-      diperbaiki** (di luar scope sesi ini, catatan buat lanjutan): banyak
-      komponen nampilin error lewat `err?.message || err`, yang buat
-      `HttpErrorResponse` Angular balikin pesan generik ("Http failure
-      response for ...") BUKAN pesan asli dari backend
-      (`err.error.error`) — ini app-wide pattern, bukan satu-dua tempat,
-      butuh sesi terpisah buat diaudit+diperbaiki rapih (bukan tempelan
-      cepat yang beresiko kebalik di satu tempat doang).
-- [ ] Success feedback — udah ada di banyak aksi penting (modal
-      confirm/alert/success dipakai luas), belum di-audit systematic buat
-      pastiin SEMUA aksi finansial punya ini.
+- [x] **Loading states konsisten (12 Agu, audit menyeluruh)** — grep
+      subscribe-calls vs loading-mentions per komponen, lalu dicek satu-satu
+      yang mencurigakan. Ketemu 3 gap nyata, semua diperbaiki:
+      `admin/mapping-editor.component.ts` & `admin/exclusions-editor.component.ts`
+      — REGRESI dari fix checklist 1.1 (`requireUser`/`requireRole('TAB')` baru
+      di `/api/mapping`/`/api/exclusions`), kedua komponen ini masih pakai
+      `fetch()` mentah tanpa auth header sama sekali, jadi rusak total begitu
+      guard itu masuk; ditulis ulang pakai `AdminService` baru
+      (`CurrentUserService.authHeaders()`, pola yang sama dipakai fitur lain)
+      + loading/saving flag + `ModalService`. `home.component.html` — flag
+      `loaded` ada tapi cuma gate empty-state, gak ada indikator "lagi
+      dimuat" yang keliatan — ditambah `<p>Memuat dashboard...</p>`.
+      `repost-history.component.ts` — gak ada flag loading sama sekali,
+      `!batches.length` dipakai dobel buat "masih loading" DAN "emang kosong"
+      (gak bisa dibedain) — ditambah flag `loading` + pesan terpisah.
+      `confirm.component.ts` — gap terbesar: 6 aksi async (submitDecisions,
+      resolveBorne, resolveReassign, submitAllResolutions, assignInvestigation,
+      assignAllInvestigation, bulkAssignSelected) sama sekali gak ada
+      busy-state guard, tombolnya bisa diklik ganda saat request masih
+      in-flight — ditambah flag per-aksi (`submittingDecisions`,
+      `resolvingRowId`/`assigningRowId` per-baris mengikuti pola
+      `addingSubdocBatchId` yang sudah ada, `submittingAllResolutions`,
+      `assigningAllInvestigation`, `bulkAssigning`), tombol terkait
+      `[disabled]` + teks "Menyimpan..." selama in-flight.
+      `share-cost.component.ts`, `setting-periode.component.ts`,
+      `need-approval.component.ts` — sudah punya busy-flag yang benar
+      (`submitting`/`bulkDeadlineFormBusy`/`overrideBusyPair`/`confirming`),
+      diverifikasi baris-per-baris, gak ada gap. `shell.component.ts` — 6
+      subscribe tapi semuanya background/suplementer (badge notifikasi,
+      hitungan dashboard, logout yang langsung redirect) — gak butuh
+      busy-state UI. `ng build` bersih setelah semua fix.
+- [x] **Error states jelas & actionable (12 Agu, diperbaiki)** — pattern
+      `err?.message || err` app-wide (30 titik panggilan di 8 komponen)
+      buat `HttpErrorResponse` Angular balikin pesan generik ("Http failure
+      response for ...") BUKAN pesan asli dari backend (`err.error.error`).
+      Dibuat satu helper `shared/error-message.util.ts`
+      (`extractErrorMessage(err, fallback)`, precedence: `err.error.error` →
+      `err.message` → fallback) dan semua 30 titik panggilan diganti untuk
+      pakai itu — `confirm.component.ts` (11), `need-approval.component.ts`
+      (5), `repost-history.component.ts` (3), `setting-periode.component.ts`
+      (3), `share-cost.component.ts` (3), `dashboard-detail.component.ts`
+      (2, sudah benar sebelumnya, dikonsolidasi ke helper bersama),
+      `home.component.ts` (1, sama), `pages/repost-budgeting.component.ts`
+      (2, sama). Diverifikasi: grep pattern lama return kosong di seluruh
+      `.ts`, `ng build` bersih.
+- [x] **Success feedback (12 Agu, audit systematic)** — dicek tiap aksi
+      finansial/mutating: `confirm.component.ts` (submitDecisions,
+      resolveBorne, resolveReassign, submitAllResolutions,
+      assignInvestigation, assignAllInvestigation, bulkAssignSelected),
+      `need-approval.component.ts` (confirmPair), `share-cost.component.ts`
+      (split), `setting-periode.component.ts` (override deadline, bulk
+      deadline), `pages/repost-budgeting.component.ts` (persist) — semuanya
+      punya `modal.success()`/`modal.alert()` di jalur `next:` (bukan cuma
+      di `error:`). Gak ada gap ketemu.
 
 ### 3.1 🟠 Aksesibilitas dasar (biaya rendah, worth dicek)
 - [x] **Keyboard navigation (12 Agu)** — audit `(click)` di elemen non-native

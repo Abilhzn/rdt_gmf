@@ -6,6 +6,7 @@ import { Transaction, TransactionStatus, AggregationMatrix } from '../../service
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { ModalService } from '../../services/modal.service';
 import { matchesAllColumnFilters } from '../../shared/multi-value-filter.component';
+import { extractErrorMessage } from '../../shared/error-message.util';
 
 type UiPhase = 'idle' | 'parsing' | 'parsed' | 'committing' | 'committed' | 'error';
 
@@ -201,7 +202,7 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.phase = 'error';
-          this.errorMessage = err?.error?.error || err?.message || 'Gagal menghubungi server.';
+          this.errorMessage = extractErrorMessage(err, 'Gagal menghubungi server.');
         },
       });
   }
@@ -232,7 +233,7 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.phase = 'error';
-          this.errorMessage = err?.error?.error || err?.message || 'Gagal menyimpan ke staging.';
+          this.errorMessage = extractErrorMessage(err, 'Gagal menyimpan ke staging.');
         },
       });
   }

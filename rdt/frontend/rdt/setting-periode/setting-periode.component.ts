@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { ExportBatchService, OverdueDeadlineEntry, PeriodDeadline } from '../services/export-batch.service';
 import { ModalService } from '../services/modal.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
+import { extractErrorMessage } from '../shared/error-message.util';
 
 // REQ-RDT-SAP-14 — moved out of repost-history.component (11 Agu, user request: "taruh di
 // sidebar-nya TAB") into its own routed page + sidebar nav item, TAB-only (RdtGuard's role check
@@ -76,7 +77,7 @@ export class SettingPeriodeComponent implements OnInit {
       error: async (err) => {
         this.overdueListLoading = false;
         this.overdueList = [];
-        await this.modal.alert('Gagal memuat daftar overdue: ' + (err?.message || err));
+        await this.modal.alert('Gagal memuat daftar overdue: ' + extractErrorMessage(err, String(err)));
       },
     });
   }
@@ -108,7 +109,7 @@ export class SettingPeriodeComponent implements OnInit {
       },
       error: async (err) => {
         this.overrideBusyPair = null;
-        await this.modal.alert('Gagal override deadline: ' + (err?.message || err));
+        await this.modal.alert('Gagal override deadline: ' + extractErrorMessage(err, String(err)));
       },
     });
   }
@@ -138,7 +139,7 @@ export class SettingPeriodeComponent implements OnInit {
       },
       error: async (err) => {
         this.bulkDeadlineFormBusy = false;
-        await this.modal.alert('Gagal menyimpan deadline massal: ' + (err?.message || err));
+        await this.modal.alert('Gagal menyimpan deadline massal: ' + extractErrorMessage(err, String(err)));
       },
     });
   }

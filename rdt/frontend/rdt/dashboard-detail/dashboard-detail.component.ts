@@ -5,6 +5,7 @@ import { DinasProgress } from '../services/dashboard.service';
 import { Comment } from '../services/comment.model';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { MentionInputComponent } from '../shared/mention-input.component';
+import { extractErrorMessage } from '../shared/error-message.util';
 
 interface ThreadRow {
   comment: Comment;
@@ -115,7 +116,7 @@ export class DashboardDetailComponent implements OnInit {
         this.threadRows = this.buildThreadRows(detail.comments);
         this.loaded = true;
       },
-      error: (err) => { this.errorMessage = err?.error?.error || err?.message || 'Gagal memuat detail'; },
+      error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat detail'); },
     });
   }
 
@@ -209,7 +210,7 @@ export class DashboardDetailComponent implements OnInit {
       },
       error: (err) => {
         this.submitting = false;
-        this.errorMessage = err?.error?.error || err?.message || 'Gagal mengirim komentar';
+        this.errorMessage = extractErrorMessage(err, 'Gagal mengirim komentar');
       },
     });
   }

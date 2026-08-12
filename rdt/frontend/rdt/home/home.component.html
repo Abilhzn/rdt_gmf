@@ -211,6 +211,10 @@
 <div class="page-card">
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
   <p class="note" *ngIf="!currentUser.current">Pilih "Login sebagai" dulu untuk memuat dashboard.</p>
+  <!-- Checklist section 3 (12 Agu, loading-state audit): `loaded` sudah ada tapi cuma dipakai
+       buat nge-gate pesan empty-state ("Tidak ada..." dst) — sebelum data datang, halaman ini
+       kosong tanpa feedback apapun. -->
+  <p class="note" *ngIf="currentUser.current && !loaded && !errorMessage">Memuat dashboard...</p>
 
   <ng-container *ngIf="currentUser.current">
     <!-- ============ Need to Confirm / Need Identification (default sub-view, REQ-RDT-NAV-02a)
