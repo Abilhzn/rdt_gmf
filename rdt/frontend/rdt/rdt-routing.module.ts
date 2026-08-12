@@ -2,9 +2,11 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { ShellComponent } from './shell/shell.component';
 import { RepostBudgetingComponent } from './pages/repost-budgeting/repost-budgeting.component';
+import { ErrorPageComponent } from './shared/error-page.component';
 import { LoginComponent } from '@auth/auth/login.component';
 import { SelectPlatformComponent } from '@auth/auth/select-platform.component';
 import { RdtGuard } from './guards/rdt.guard';
+import { RoleGuard } from './guards/role.guard';
 
 // REQ-RDT-NAV-01/05/08 — restructured from the old single-page-at-root layout into
 // Dashboard/Repost/Confirmation/Need Approval siblings under a persistent ShellComponent
@@ -28,15 +30,25 @@ const routes: Routes = [
       { path: 'dashboard', loadChildren: () => import('./home/home.module').then(m => m.HomeModule) },
       { path: 'repost', component: RepostBudgetingComponent },
       { path: 'confirm', loadChildren: () => import('./confirm/confirm.module').then(m => m.ConfirmModule) },
-      { path: 'need-approval', loadChildren: () => import('./need-approval/need-approval.module').then(m => m.NeedApprovalModule) },
-      { path: 'share-cost', loadChildren: () => import('./share-cost/share-cost.module').then(m => m.ShareCostModule) },
+      // Checklist section 3 (12 Agu): RoleGuard added to every TAB-only route — see its own
+      // header comment for why (client-side UX gap, backend enforcement was already solid).
+      { path: 'need-approval', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./need-approval/need-approval.module').then(m => m.NeedApprovalModule) },
+      { path: 'share-cost', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./share-cost/share-cost.module').then(m => m.ShareCostModule) },
       { path: 'repost-history', loadChildren: () => import('./repost-history/repost-history.module').then(m => m.RepostHistoryModule) },
       // REQ-RDT-SAP-14 (11 Agu): moved out of the Riwayat Repost TAB <details> panel into its own
       // sidebar nav item + route, TAB-only (see shell.component.html/ts).
-      { path: 'setting-periode', loadChildren: () => import('./setting-periode/setting-periode.module').then(m => m.SettingPeriodeModule) },
-      { path: 'admin', loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule) },
+      { path: 'setting-periode', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./setting-periode/setting-periode.module').then(m => m.SettingPeriodeModule) },
+      { path: 'admin', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule) },
+      // Checklist section 3 (12 Agu): informative 403, RoleGuard above redirects here instead of
+      // silently letting a role-mismatched user sit in a broken page.
+      { path: 'forbidden', component: ErrorPageComponent, data: { code: 403 } },
     ],
   },
+  // Checklist section 3 (12 Agu): informative 404 for anything under /rdt/... that isn't a real
+  // route — previously just silently failed to navigate, no feedback at all. Outside the shell
+  // (a bad URL might not correspond to any valid in-shell state) but still reachable without
+  // login, same as /login itself.
+  { path: '**', component: ErrorPageComponent, data: { code: 404 } },
 ];
 
 @NgModule({

@@ -11,10 +11,16 @@ $danger-050: #fdecea;
 // segmented progress bar/rollup table (green=confirmed, amber=open, red=declined).
 $ink-900: #1a1f26;
 $ink-500: #666b75;
-$green: #1c9966;
-$green-bg: rgba(28, 153, 102, 0.14);
-$amber: #d98c1a;
-$amber-bg: rgba(217, 140, 26, 0.14);
+// Checklist section 3 (12 Agu): $green/$amber were both under WCAG AA's 4.5:1 text-contrast
+// minimum as literal text color on white (green 3.62:1, amber a badly-failing 2.72:1) — the
+// "kuning/orange di atas putih sering kurang kontras" case the checklist flagged by name.
+// Darkened, same hue family (still reads as green/amber/red at a glance), now 4.81:1/4.58:1 —
+// verified with a straight WCAG relative-luminance contrast calc against #fff. $red was already
+// fine (4.65:1), left as-is.
+$green: #188257;
+$green-bg: rgba(24, 130, 87, 0.14);
+$amber: #a36914;
+$amber-bg: rgba(163, 105, 20, 0.14);
 $red: #d14040;
 $red-bg: rgba(209, 64, 64, 0.14);
 $bar-track: #ebedf0;
@@ -88,7 +94,13 @@ $radius-md: 8px;
     padding: 18px 22px 20px;
     position: relative;
 
-    &--clickable { cursor: pointer; }
+    &--clickable {
+      cursor: pointer;
+      // Checklist section 3 (12 Agu): now focusable (role="button" + tabindex, see .html) — needs
+      // its own visible focus ring, browsers don't draw one on a <div> by default like they would
+      // on a real <button>.
+      &:focus-visible { outline: 2px solid $accent; outline-offset: 2px; }
+    }
   }
   // Hover feedback moves to the outer card so it still fires correctly even though the click
   // handler itself lives on __main.

@@ -2,7 +2,8 @@ $accent: #006298;
 $ink: #000;
 $ink-600: #52616e;
 $line: #cccccc;
-$green: #1c9966;
+// Checklist section 3 (12 Agu): darkened for WCAG AA text contrast (4.81:1 on white).
+$green: #188257;
 
 .chain-hop-detail {
   &__title { font-size: 13px; font-weight: 700; color: $ink; margin-bottom: 14px; }

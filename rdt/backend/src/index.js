@@ -29,11 +29,12 @@ const notificationsRouter = require('./routes/notifications');
 const investigationRouter = require('./routes/investigation');
 const shareCostRouter = require('./routes/shareCost');
 const periodDeadlinesRouter = require('./routes/periodDeadlines');
-const { requireUser } = require('./middleware/auth');
+const { requireUser, requireRole } = require('./middleware/auth');
 const { loadDirectory } = require('./dataUserClient');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('./rules/mentionRules');
 const { validateFreeText } = require('./rules/textValidation');
 const { Client } = require('pg');
+const { errorLoggingMiddleware } = require('./logger');
 
 const app = express();
 // Checklist 1.2 (11 Agu): baseline security headers — same 'none' CSP rationale as
@@ -55,6 +56,30 @@ app.use(helmet({
   frameguard: { action: 'deny' }, // X-Frame-Options: DENY — matches frameAncestors 'none' above
   hsts: { maxAge: 15552000, includeSubDomains: true },
 }));
+// Checklist 2.2 (12 Agu): every 5xx response logged to logs/error.log — see logger.js.
+app.use(errorLoggingMiddleware('rdt-backend'));
+// Checklist 2.2 (12 Agu): a request whose handler hangs (stuck DB query, unreachable upstream
+// service, etc.) used to just leave the client's spinner running forever with no server-side
+// signal at all. 30s is generous (the widest legitimate operation here, a >300-row SAP export,
+// still completes well under that) but bounds every request to SOME response. Paired with the
+// Angular TimeoutInterceptor (frontend, same 30s) so the client-side wait is bounded even if this
+// server-side timer somehow doesn't fire (e.g. process itself wedged).
+app.use((req, res, next) => {
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(503).json({ ok: false, error: 'Request timeout — server tidak merespons dalam 30 detik. Coba lagi.', code: 'REQUEST_TIMEOUT' });
+      // The original handler may still be mid-flight (Node/pg can't force-cancel an in-progress
+      // query) and could try to write its own response after we've already sent this one —
+      // silently swallow that instead of letting it throw ERR_HTTP_HEADERS_SENT and crash the
+      // process. json/end already no-op past headersSent for THIS response going forward.
+      res.json = () => res;
+      res.end = () => res;
+    }
+  }, 30000);
+  res.on('finish', () => clearTimeout(timer));
+  res.on('close', () => clearTimeout(timer));
+  next();
+});
 // Default express.json() body limit is 100kb — a real monthly Excel file easily produces
 // thousands of rows x 53+ columns (+ raw_payload) as JSON, well past that. Without this,
 // POST /api/persist silently 413s and Express's default HTML error page gets returned
@@ -154,11 +179,35 @@ app.post('/api/parse', requireUser, upload.single('file'), async (req, res) => {
 // is now the only frontend, per project owner instruction. This server is API-only from here on.
 app.get('/', (req, res) => res.json({ ok: true, service: 'rdt-backend', frontend: 'http://localhost:4200/rdt' }));
 
+// Checklist 2.2 (12 Agu): the other 2 backend services already had this at the conventional
+// `/health` path (auth/data_user, both trivial "process is alive" checks) — this one was missing
+// AND, being the service every write actually goes through, is worth making more useful than a
+// bare "process alive" ping: it actually round-trips the database, so "service up but DB
+// unreachable" (a real, distinct failure mode — Supabase pooler hiccup, wrong DATABASE_URL after
+// a redeploy, etc.) shows up as db:"error" here instead of masquerading as a healthy service that
+// then 500s on every real request. No auth required, same convention as auth/data_user's /health
+// and this file's own GET / — a liveness probe has to be reachable without a login.
+app.get('/health', async (req, res) => {
+  if (!process.env.DATABASE_URL) {
+    return res.json({ ok: true, service: 'rdt-backend', db: 'not_configured' });
+  }
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    await client.query('SELECT 1');
+    res.json({ ok: true, service: 'rdt-backend', db: 'connected' });
+  } catch (err) {
+    res.status(503).json({ ok: false, service: 'rdt-backend', db: 'error', error: String(err.message || err) });
+  } finally {
+    try { await client.end(); } catch (e) {}
+  }
+});
+
 // GET /api/directory — employee directory, used for the @mention autocomplete + comment/
 // notification author display names. Restructured 24 Jul 2026: proxies to the data_user
 // service instead of reading a local file (see rdt/backend/src/middleware/auth.js's header
 // comment for why identity/directory data moved out of this app).
-app.get('/api/directory', async (req, res) => {
+app.get('/api/directory', requireUser, async (req, res) => {
   try {
     res.json({ ok: true, directory: await loadDirectory() });
   } catch (err) {
@@ -172,12 +221,12 @@ app.get('/api/directory', async (req, res) => {
 // GET /export/:batchId uses to build the real 53-column SAP file; exposing it here means the
 // Angular preview table renders columns by iterating this list instead of a second, hand-picked
 // column set that could drift out of sync if the contract ever changes.
-app.get('/api/contract-fields', (req, res) => {
+app.get('/api/contract-fields', requireUser, (req, res) => {
   res.json({ ok: true, fields: CONTRACT_FIELDS.map((f) => ({ key: f.key, label: f.variants[0] })) });
 });
 
 // GET /api/dinas — list of active dinas codes (for reassignment target pickers etc.)
-app.get('/api/dinas', (req, res) => {
+app.get('/api/dinas', requireUser, (req, res) => {
   if (process.env.DATABASE_URL) {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     client.connect().then(async () => {
@@ -198,8 +247,12 @@ app.get('/api/dinas', (req, res) => {
   }
 });
 
-// GET/PUT mapping
-app.get('/api/mapping', (req, res) => {
+// GET/PUT mapping — checklist 1.1 (12 Agu, audit ketemu ini bisa diakses tanpa login sama
+// sekali, termasuk PUT-nya yang nge-rewrite tabel routing dinas): TAB-only, sama gate yang
+// dipakai tempat lain buat aksi admin/config (Angular's admin/ module gak punya route guard
+// sendiri, jadi backend HARUS jadi lapisan penegakan yang sesungguhnya — jangan percaya
+// frontend doang, checklist 1.3's rule yang sama berlaku di sini).
+app.get('/api/mapping', requireUser, requireRole('TAB'), (req, res) => {
   // If DB available, read from rdt.dinas_mapping; else fallback to JSON file
   if (process.env.DATABASE_URL) {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -223,7 +276,7 @@ app.get('/api/mapping', (req, res) => {
   }
 });
 
-app.put('/api/mapping', express.json(), (req, res) => {
+app.put('/api/mapping', requireUser, requireRole('TAB'), express.json(), (req, res) => {
   const body = req.body;
   if (!body || typeof body !== 'object') return res.status(400).json({ ok: false, error: 'invalid body' });
   if (process.env.DATABASE_URL) {
@@ -247,8 +300,8 @@ app.put('/api/mapping', express.json(), (req, res) => {
   catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
 });
 
-// GET/PUT exclusions
-app.get('/api/exclusions', (req, res) => {
+// GET/PUT exclusions — checklist 1.1 (12 Agu), same gap/fix as /api/mapping above.
+app.get('/api/exclusions', requireUser, requireRole('TAB'), (req, res) => {
   if (process.env.DATABASE_URL) {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     client.connect().then(async () => {
@@ -265,7 +318,7 @@ app.get('/api/exclusions', (req, res) => {
   catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
 });
 
-app.put('/api/exclusions', express.json(), (req, res) => {
+app.put('/api/exclusions', requireUser, requireRole('TAB'), express.json(), (req, res) => {
   const body = req.body;
   if (!body || typeof body !== 'object' || !Array.isArray(body.prefixes)) return res.status(400).json({ ok: false, error: 'invalid body, expected { prefixes: [] }' });
   if (process.env.DATABASE_URL) {
@@ -290,7 +343,10 @@ app.put('/api/exclusions', express.json(), (req, res) => {
 });
 
 // Commit parsed rows to a staging JSON file (no DB). Expects JSON body { rows: [...], aggregation: {...} }
-app.post('/api/commit', express.json(), (req, res) => {
+// Checklist 1.1 (12 Agu): legacy no-DB fallback path, dead code from the frontend's own
+// perspective (no caller left — grep confirmed) but still reachable directly — gated same as
+// everything else rather than left as the one unauthenticated write endpoint standing.
+app.post('/api/commit', requireUser, express.json(), (req, res) => {
   try {
     const body = req.body;
     if (!body || !Array.isArray(body.rows)) return res.status(400).json({ ok: false, error: 'invalid body, expected { rows: [] }' });

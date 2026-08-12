@@ -6,7 +6,19 @@
      Declined) vs the original donut ring — a plain PIC's "Need to Confirm" always stays donut. -->
 <ng-template #pairCard let-d let-title="title" let-clickable="clickable" let-kind="kind" let-useBar="useBar">
   <div class="pair-card">
-    <div class="pair-card__main" [class.pair-card__main--clickable]="clickable" (click)="clickable && onCardClick(kind, d)">
+    <!-- Checklist section 3 (12 Agu): was a click-only div — keyboard users had no way to
+         activate this, the app's own main drill-down interaction. role="button" + tabindex make
+         it focusable/announced correctly, Enter/Space mirror the click handler (native <button>
+         semantics without giving up the existing card layout/styling). -->
+    <div
+      class="pair-card__main"
+      [class.pair-card__main--clickable]="clickable"
+      [attr.role]="clickable ? 'button' : null"
+      [attr.tabindex]="clickable ? 0 : null"
+      (click)="clickable && onCardClick(kind, d)"
+      (keydown.enter)="clickable && onCardClick(kind, d)"
+      (keydown.space)="clickable && onCardClick(kind, d); $event.preventDefault()"
+    >
       <!-- Desain rapih (5 Agu): dihapus bordered count-badge di sini — angka yang sama sudah
            tampil sebagai "Total X" di legend bar di bawah, badge ini cuma duplikasi info dan
            gak ada di desain referensi pemilik proyek sama sekali. -->

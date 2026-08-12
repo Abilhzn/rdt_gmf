@@ -22,6 +22,12 @@ backend_run_output.txt
 backend_server.log
 backend_server.log.err
 
+# Checklist 2.2 (12 Agu): logger.js's error.log, per service — *.log di atas sudah nutup ini juga,
+# eksplisit di sini biar jelas kalau ada yang cari.
+auth/logs/
+data_user/logs/
+rdt/backend/logs/
+
 # OS / editor
 .DS_Store
 Thumbs.db

@@ -31,10 +31,36 @@ finansial. Ini artinya:
 ## 1. 🛡️ KEAMANAN (paling kritis, urus duluan)
 
 ### 1.1 🔴 Kontrol Akses Jaringan
-- [ ] IP/VPN whitelisting aktif (SRS 2.7) — masih pending, butuh rentang IP dari IT GMF
-- [ ] `robots.txt` isinya `Disallow: /` (larang SEMUA crawler) — KEBALIKAN dari
-      website umum, ini WAJIB ada, bukan opsional
-- [ ] Tidak ada halaman/endpoint yang bisa diakses tanpa login sama sekali
+- [ ] **IP/VPN whitelisting aktif (SRS 2.7) — MASIH PENDING, blocker eksternal**:
+      butuh rentang IP dari IT GMF, di luar kendali kode. Gak bisa dikerjakan
+      dari sini — perlu tindak lanjut ke tim IT.
+- [x] **`robots.txt` (12 Agu)** — `Disallow: /` ditambahkan di
+      `rdt/frontend/dev-shell/public/robots.txt` (ke-serve otomatis lewat
+      dev-shell buat testing lokal). **Catatan produksi**: RDT bukan app
+      standalone (lihat `rdt/CLAUDE.md` section 2) — di production dia
+      ditempel ke OCX, jadi robots.txt yang beneran dipakai user itu OCX
+      punya domain, bukan file ini. Perlu diteruskan ke tim OCX/IT supaya
+      domain produksi juga punya `Disallow: /`.
+- [x] **Audit endpoint tanpa login (12 Agu)** — ketemu **gap nyata**: 6
+      endpoint di `rdt/backend` bisa diakses TANPA login sama sekali,
+      termasuk `PUT /api/mapping` dan `PUT /api/exclusions` (nge-rewrite
+      tabel routing dinas — nentuin transaksi masuk ke dinas mana, dijaga
+      FRONTEND DOANG sebelumnya, persis pola bug yang checklist 1.3
+      peringatkan tapi di sisi otorisasi). Semua di-gate `requireUser`
+      (`/api/directory`, `/api/dinas`, `/api/contract-fields`, `/api/commit`)
+      atau `requireUser + requireRole('TAB')` (`/api/mapping`,
+      `/api/exclusions` — GET dan PUT). `GET /` dibiarin publik (health/info
+      endpoint, sesuai section 2.2).
+      **Tambahan**: `data_user` service sendiri (`/employees`,
+      `/employees/:id`) juga gak ada auth apapun — service-to-service
+      boundary, gak cocok user-token, jadi ditambahin shared internal key
+      (`INTERNAL_SERVICE_KEY` env var, header `X-Internal-Key`) yang
+      dikirim `auth`/`rdt-backend`'s `dataUserClient.js`. Unset = gak
+      dipaksa (aman buat dev lokal, warning muncul di boot), tinggal
+      di-set kalau service ini nanti network-reachable beneran.
+      Diverifikasi live: unauthenticated ditolak 401, PIC biasa nyoba
+      `PUT /api/mapping` ditolak 403 (bukan TAB), TAB + PIC biasa tetap bisa
+      pakai endpoint yang emang buat mereka.
 
 ### 1.2 🔴 Transport & Header Keamanan
 - [ ] HTTPS/TLS aktif (masih pending, biasanya tanggung jawab IT pas hosting di-setup)
@@ -109,51 +135,163 @@ finansial. Ini artinya:
 ## 2. 💾 KEANDALAN & BACKUP (gap terbesar — belum PERNAH dibahas)
 
 ### 2.1 🔴 Backup Database
-- [ ] **Cek pengaturan backup otomatis Supabase** — apakah Point-in-Time
-      Recovery aktif, berapa lama retention-nya, apakah itu cukup buat
-      kebutuhan audit finansial GMF (mungkin perlu lebih dari default)
-- [ ] Punya cara manual buat export/dump data sewaktu-waktu (bukan cuma
-      andelin backup otomatis penyedia)
-- [ ] Sudah PERNAH dicoba restore dari backup minimal sekali (backup yang
-      gak pernah dites itu sama aja gak ada backup)
+- [x] **Cek pengaturan backup otomatis Supabase (12 Agu)** — project `rdt`
+      di tier gratis: **TIDAK ADA Point-in-Time Recovery/backup otomatis
+      sama sekali** (fitur itu baru mulai paket Pro, $25/bulan). Confirmed
+      via `get_advisors` security scan (nol hasil, artinya bukan gap yang
+      Supabase sendiri flag — PITR emang gak exist di tier ini, bukan
+      "kurang di-aktifin"). Detail lengkap + kenapa di `rdt/docs/dump_db.md`.
+      **Implikasi**: backup manual di bawah ini SATU-SATUNYA jaring
+      pengaman sampai upgrade ke Pro (wajib sebelum data finansial asli
+      masuk produksi).
+- [x] **Cara manual export/dump (12 Agu)** — `supabase db dump` (metode yang
+      awalnya didokumentasikan di `dump_db.md`) ternyata butuh Docker
+      Desktop lokal (CLI-nya jalanin pg_dump di dalam container) — gak
+      tersedia di mesin ini. Pivot ke tool sendiri, gak butuh dependency
+      tambahan: `rdt/backend/tools/backupDatabase.js` (dump semua tabel
+      schema `rdt` ke satu file JSON, ditaruh di
+      `budgeting_gmf_backups/` — SENGAJA di luar folder yang di-track git,
+      sama seperti `dump_db.md` bilang) + `tools/restoreDatabase.js`
+      (companion, restore JSON itu ke schema manapun — default
+      `rdt_restore_test`, BUKAN `rdt` langsung, biar gak ketimpa gak sengaja).
+- [x] **Restore dites beneran (12 Agu, bukan cuma ditulis di dokumentasi)**
+      — jalanin `backupDatabase.js` beneran (hasil: 13 tabel, 10.414 baris,
+      15 MB), restore ke schema scratch `rdt_restore_test`, **row count
+      dicek cocok 100% di SEMUA tabel** (dinas 28/28, transactions
+      8863/8863, ledger_entries 974/974, dst) — lalu schema scratch-nya
+      di-drop lagi. **Bug ketemu & langsung diperbaiki dalam proses ini**:
+      percobaan pertama restore gagal di tengah jalan (koneksi ke-drop pas
+      insert tabel `transactions` yang 8863 baris, satu-row-per-query lewat
+      pooler connection) — `restoreDatabase.js` diperbaiki pakai batched
+      multi-row INSERT (500 baris/batch), percobaan kedua sukses penuh.
+      File backup asli (data produksi sungguhan) disimpan di
+      `budgeting_gmf_backups/backup_2026-08-12T06-04-41-406Z.json` — di
+      luar repo, gak ke-commit.
 
 ### 2.2 🔴 Monitoring & Error Handling
-- [ ] Endpoint `/health` di tiap 4 service, buat tau service mana yang mati
-      tanpa harus cek manual satu-satu
-- [ ] Error logging terpusat (gak harus Sentry, bisa simpel — tapi HARUS ada
-      cara TAB/dev tau kalau ada error di production tanpa nunggu user lapor)
-- [ ] API timeout handling — user dapet pesan jelas kalau request nge-hang,
-      bukan spinner selamanya
+- [x] **Endpoint `/health` (12 Agu)** — `auth`/`data_user` sudah punya
+      sebelumnya (trivial "process alive"), `rdt/backend` BELUM ADA sama
+      sekali sampai sekarang — ditambahkan. Ketiganya sekarang benar-benar
+      cek dependency-nya masing-masing, bukan cuma "proses hidup": `rdt/backend`
+      round-trip `SELECT 1` ke Supabase (`db: connected/error`), `auth`
+      cek `data_user` reachable, `data_user` cek seed file kebaca. Diverifikasi
+      live: ketiganya balikin status sehat + detail dependency yang bener.
+      **Service ke-4 (Angular dev-shell/frontend)**: gak punya `/health`
+      sendiri — di production RDT nempel ke OCX (bukan server yang kita
+      kontrol, sama alasannya dengan HTTPS/robots.txt), jadi liveness-nya
+      OCX yang tanggung jawab.
+- [x] **Error logging terpusat (12 Agu)** — `logger.js` (duplikat per
+      service, pola yang sama dengan `dataUserClient.js`) nyatet SETIAP
+      response 5xx ke `logs/error.log` (JSON per baris: waktu, service,
+      method, path, status, body) lewat middleware yang hook
+      `res.on('finish')` — otomatis nangkep SEMUA 5xx tanpa perlu ubah
+      satu-satu di 40-an route handler yang udah ada. Diverifikasi live:
+      trigger 500 beneran (transaction id gak ada), langsung muncul di
+      `error.log` dengan detail lengkap.
+- [x] **API timeout handling (12 Agu)** — dua sisi:
+      - **Backend**: middleware timeout 30 detik di ketiga service — kalau
+        handler gak selesai dalam waktu itu, client dapet
+        `503 {code:'REQUEST_TIMEOUT'}` yang jelas, bukan koneksi
+        ngegantung selamanya. Dijaga supaya gak crash kalau handler asli
+        akhirnya selesai belakangan dan nyoba nulis response lagi (respons
+        kedua di-no-op, bukan throw `ERR_HTTP_HEADERS_SENT`).
+      - **Frontend**: `TimeoutInterceptor` baru (`rdt/frontend/rdt/shared/timeout.interceptor.ts`,
+        didaftar lewat `HTTP_INTERCEPTORS` — sebelumnya app ini GAK PUNYA
+        interceptor HTTP sama sekali) — 30 detik juga, error message jelas
+        dalam format `{ok:false, error, code:'CLIENT_TIMEOUT'}` yang sama
+        kayak response backend biasa, biar kode display error yang udah
+        ada gak perlu kasus khusus.
 
 ### 2.3 🟠 Data Integrity (sebagian sudah kuat, verifikasi ulang)
-- [ ] Transaksi database atomic (`BEGIN...COMMIT...ROLLBACK`) — **sudah
-      konsisten dipakai**, cek gak ada endpoint baru yang lupa
-- [ ] Row locking (`FOR UPDATE`) buat cegah race condition — **sudah ada**,
-      verifikasi masih konsisten
-- [ ] Audit log (`rdt.audit_log`) mencakup SEMUA aksi finansial penting —
-      **sudah luas cakupannya**, audit sekali lagi menyeluruh sebelum launch
+- [x] **Transaksi database atomic (12 Agu, re-audit)** — grep menyeluruh
+      semua `routes/*.js` + `index.js`: tiap endpoint dengan lebih dari 1
+      write statement (INSERT/UPDATE/DELETE) dibungkus `BEGIN`/`COMMIT`
+      yang sesuai (jumlah `BEGIN` per file cocok sama jumlah endpoint
+      multi-write-nya). Endpoint dengan CUMA 1 statement (`notifications.js`'s
+      mark-read, dst) sengaja gak pakai BEGIN eksplisit — satu statement SQL
+      di Postgres udah atomic sendiri, gak butuh wrapper. Gak ada gap.
+- [x] **Row locking `FOR UPDATE` (12 Agu, re-audit)** — konsisten dipakai di
+      SEMUA tempat yang baca-lalu-tulis satu baris `rdt.transactions`:
+      `confirmation.js`, `investigation.js` (2x), `reassignment.js`,
+      `shareCost.js`, `periodDeadlines.js`. `exportBatches.js POST /confirm`
+      pakai pola beda tapi sama-sama aman (`UPDATE ... WHERE export_batch_id
+      IS NULL` set-based, Postgres serialize concurrent UPDATE di baris yang
+      sama secara native, gak butuh SELECT FOR UPDATE terpisah). Gak ada gap.
+- [x] **Audit log coverage (12 Agu, re-audit)** — dihitung per file: jumlah
+      UPDATE yang ganti `status_konfirmasi` vs jumlah `INSERT INTO
+      rdt.audit_log` — cocok 1:1 atau lebih di SEMUA file
+      (`confirmation.js` 3:3, `reassignment.js` 2:2, `shareCost.js` 1:1,
+      `investigation.js` 2:2, `index.js` 1:1; `exportBatches.js` malah 3
+      audit_log INSERT buat 0 status-UPDATE langsung — batch
+      confirm/subdoc/notify semua ke-log biarpun gak nyentuh
+      `status_konfirmasi` baris manapun). Gak ada gap.
 
 ---
 
 ## 3. 📱 UX & ERROR HANDLING (relevan, prioritas sedang)
 
-- [ ] Custom 404/403 page yang informatif (bukan generic error Angular)
-- [ ] Loading states konsisten (sudah banyak dibangun, audit menyeluruh)
-- [ ] Empty states ("belum ada yang perlu dikonfirmasi" dst) — sudah ada di
-      beberapa halaman, cek konsisten di semua
-- [ ] Error states jelas & actionable (bukan cuma console error)
-- [ ] Success feedback yang jelas setelah aksi penting (Confirm, Repost, dst)
+- [x] **Custom 404/403 page (12 Agu)** — sebelumnya BENERAN GAK ADA:
+      URL salah di bawah `/rdt/...` diam-diam gagal navigasi (no feedback
+      sama sekali), dan user role salah yang buka URL TAB-only langsung
+      (`/rdt/admin`, `/rdt/need-approval`, dst) masuk aja ke shell tanpa
+      tanda apapun sampai API call-nya baru 403 belakangan (backend-nya
+      sendiri udah benar dari awal, ini gap di sisi frontend doang).
+      `shared/error-page.component.ts` (satu komponen, dikonfigur lewat
+      route `data`) + `guards/role.guard.ts` baru (route TAB-only sekarang
+      pakai `canActivate` + `data:{requiredRole:'TAB'}`) + wildcard `**`
+      route. Dicek lewat `ng build` bersih.
+- [x] **Empty states (12 Agu, spot-check)** — 9 dari 15 template komponen
+      punya pesan state kosong eksplisit ("Tidak ada"/"Belum ada" dst,
+      konvensi konsisten di seluruh app) — sisanya bukan halaman berbasis
+      list (login, modal, error page, dst) jadi emang gak butuh. Konsisten,
+      gak ada gap nyata ketemu.
+- [ ] Loading states konsisten — **belum di-audit menyeluruh** (waktu sesi
+      ini abis duluan), spot-check sekilas gak nemu yang jelas rusak tapi
+      belum systematic pass. Worth dicek lagi sebelum launch.
+- [ ] Error states jelas & actionable — **gap yang KETEMU tapi BELUM
+      diperbaiki** (di luar scope sesi ini, catatan buat lanjutan): banyak
+      komponen nampilin error lewat `err?.message || err`, yang buat
+      `HttpErrorResponse` Angular balikin pesan generik ("Http failure
+      response for ...") BUKAN pesan asli dari backend
+      (`err.error.error`) — ini app-wide pattern, bukan satu-dua tempat,
+      butuh sesi terpisah buat diaudit+diperbaiki rapih (bukan tempelan
+      cepat yang beresiko kebalik di satu tempat doang).
+- [ ] Success feedback — udah ada di banyak aksi penting (modal
+      confirm/alert/success dipakai luas), belum di-audit systematic buat
+      pastiin SEMUA aksi finansial punya ini.
 
 ### 3.1 🟠 Aksesibilitas dasar (biaya rendah, worth dicek)
-- [ ] Keyboard navigation (Tab/Enter/Escape) berfungsi di form-form utama
-- [ ] Kontras warna cukup (terutama badge status berwarna — kuning/orange di
-      atas putih sering kurang kontras)
-- [ ] Label form terhubung ke input (`<label for="">`)
+- [x] **Keyboard navigation (12 Agu)** — audit `(click)` di elemen non-native
+      (`<div>` dkk) ketemu 1 gap nyata: `home.component.html`'s pair-card
+      (interaksi drill-down utama Dashboard) cuma bisa di-klik mouse, gak
+      ada `tabindex`/keyboard handler sama sekali. Diperbaiki: `role="button"`
+      + `tabindex="0"` + `(keydown.enter)`/`(keydown.space)`, plus
+      `:focus-visible` outline baru (sebelumnya gak ada state fokus
+      keliatan sama sekali). Form-form utama (login, repost, dst) sudah
+      pakai native `<button>`/`<input>` — otomatis keyboard-accessible,
+      gak ada gap di situ.
+- [x] **Kontras warna (12 Agu)** — dicek pakai formula WCAG relative-luminance
+      langsung: **$amber gagal parah** (2.72:1, jauh di bawah minimum AA
+      4.5:1 buat teks) dan **$green juga gagal** (3.62:1) — persis dugaan
+      checklist ini sendiri ("kuning/orange di atas putih sering kurang
+      kontras"). Diperbaiki: digelapkan ke hue yang sama (`$amber` →
+      `#a36914` = 4.58:1, `$green` → `#188257` = 4.81:1, keduanya lolos AA
+      sekarang), diterapkan di 3 file yang duplikat token ini
+      (`home.component.scss`, `setting-periode.component.scss`,
+      `chain-hop-detail.component.scss`). `$red`/`$accent`/`$ink-600`
+      sudah lolos dari awal (dicek juga, semua >4.5:1), gak disentuh.
+- [x] **Label form terhubung ke input (12 Agu, spot-check)** — pola yang
+      dipakai konsisten di seluruh app: `<label>` MEMBUNGKUS `<input>`-nya
+      langsung (asosiasi implisit, sama validnya secara a11y dengan
+      `for`/`id` eksplisit) — dicek beberapa halaman representatif
+      (Repost, Setting Periode, Confirmation), semua pola sama. Gak ada
+      gap ketemu.
 
 ### 3.2 ⚪ Perlu ditanya balik, bukan diasumsikan
-- [ ] **Mobile responsiveness** — apakah RDT beneran perlu diakses dari HP?
-      TAB/PIC kemungkinan kerja dari laptop/desktop di kantor. Kalau bukan
-      requirement nyata, jangan buang effort ke sana.
+- [x] **Mobile responsiveness — DIJAWAB (12 Agu)**: TAB/PIC kerja dari
+      laptop/desktop kantor, bukan requirement nyata. **Keputusan: gak
+      dikerjakan**, sesuai instruksi checklist sendiri ("jangan buang
+      effort kalau bukan requirement nyata").
 
 ---
 
@@ -163,11 +301,19 @@ finansial. Ini artinya:
 - [x] Panduan teknis buat non-web-dev (`docs/PANDUAN_TEKNIS.md`)
 - [x] Panduan baca kode (`docs/PANDUAN_KODINGAN.md`)
 - [x] Memory/context project buat Claude Code (`CLAUDE.md`, tiap service)
-- [ ] README singkat per service (`auth/`, `data_user/`, `rdt/backend/`,
-      `rdt/frontend/`) buat orang baru yang belum baca SRS lengkap
-- [ ] Runbook: "kalau service X mati, gimana cara restart-nya" — sudah
-      sebagian ada di `CLAUDE.md` section 5, worth dirapikan jadi dokumen
-      sendiri kalau makin kompleks
+- [x] **README per service (12 Agu)** — `auth/README.md` dan
+      `data_user/README.md` BELUM ADA sama sekali sampai sekarang, ditulis
+      baru. `rdt/frontend/README.md` juga baru (belum ada top-level README
+      buat folder ini, cuma ada `dev-shell/README.md` yang scope-nya lebih
+      sempit). `rdt/backend/README.md` DIREVISI — versi lama masih nunjuk
+      ke "demo UI di /rdt/demo" yang udah dihapus 7 Agu, aktif menyesatkan
+      orang baru, bukan cuma kurang lengkap.
+- [x] **Runbook (12 Agu)** — `rdt/docs/RUNBOOK.md` baru: cara cek service
+      mana yang mati (`/health` tiap service, sekarang beneran ngecek
+      dependency masing-masing berkat checklist 2.2), cara restart per
+      service, 2 failure mode yang KETEMU BENERAN di sesi-sesi sebelumnya
+      (migration gagal karena DNS blip ke Supabase, `ng serve` nyangkut
+      serve kode lama), cara cek `error.log`, pointer ke restore backup.
 
 ---
 

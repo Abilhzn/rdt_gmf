@@ -10,7 +10,9 @@ $ink-600: #52616e;
 $line: #cccccc;
 $page-bg: #f2f2f2;
 $danger-600: #b3261e; $danger-050: #fdecea;
-$green: #1c9966; $green-050: rgba(28, 153, 102, 0.1);
+// Checklist section 3 (12 Agu): darkened for WCAG AA text contrast (4.81:1 on white) — see
+// home.component.scss's own token comment for the full before/after numbers.
+$green: #188257; $green-050: rgba(24, 130, 87, 0.1);
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;

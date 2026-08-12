@@ -18,6 +18,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { router: authRouter } = require('./auth.routes');
+const { errorLoggingMiddleware } = require('./logger');
 
 const app = express();
 // Checklist 1.2 (11 Agu): baseline security headers (CSP, X-Frame-Options, X-Content-Type-Options,
@@ -40,10 +41,37 @@ app.use(helmet({
   frameguard: { action: 'deny' }, // X-Frame-Options: DENY — matches frameAncestors 'none' above
   hsts: { maxAge: 15552000, includeSubDomains: true }, // 180 hari
 }));
+// Checklist 2.2 (12 Agu): every 5xx response logged to logs/error.log — see logger.js.
+app.use(errorLoggingMiddleware('auth'));
+// Checklist 2.2 (12 Agu): bounds every request to SOME response instead of hanging forever —
+// see rdt/backend/src/index.js's own copy of this middleware for the full rationale.
+app.use((req, res, next) => {
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(503).json({ ok: false, error: 'Request timeout — server tidak merespons dalam 30 detik. Coba lagi.', code: 'REQUEST_TIMEOUT' });
+      res.json = () => res;
+      res.end = () => res;
+    }
+  }, 30000);
+  res.on('finish', () => clearTimeout(timer));
+  res.on('close', () => clearTimeout(timer));
+  next();
+});
 app.use(cors());
 app.use(authRouter);
 
-app.get('/health', (req, res) => res.json({ ok: true, service: 'auth' }));
+// Checklist 2.2 (12 Agu): also round-trips data_user (auth's one real dependency) so "auth up but
+// can't actually log anyone in because data_user is down" shows up here distinctly, instead of
+// looking identical to a fully healthy auth service until someone actually tries to log in.
+app.get('/health', async (req, res) => {
+  const DATA_USER_URL = process.env.DATA_USER_URL || 'http://localhost:4002';
+  try {
+    const r = await fetch(`${DATA_USER_URL}/health`, { signal: AbortSignal.timeout(5000) });
+    res.json({ ok: true, service: 'auth', data_user: r.ok ? 'reachable' : 'unhealthy' });
+  } catch (err) {
+    res.status(503).json({ ok: false, service: 'auth', data_user: 'unreachable', error: String(err.message || err) });
+  }
+});
 
 const PORT = process.env.PORT || 4001;
 if (require.main === module) {
