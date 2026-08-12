@@ -41,6 +41,14 @@ export class HomeComponent implements OnInit {
   kpis: DashboardKpis | null = null;
   perDinasRollup: PerDinasRollupRow[] = [];
 
+  /** REQ-RDT-SAP-15 (8 Agu): which rollup row's per-pasangan breakdown is expanded, at most one at
+   * a time — same "one at a time" convention as expandedChainKey below. null dinas + empty rows
+   * means the panel is closed. */
+  breakdownOpenDinas: string | null = null;
+  breakdownRows: DinasProgress[] = [];
+  breakdownLoading = false;
+  breakdownError = '';
+
   /** REQ-RDT-NAV-03 (5 Agu): which card's chain-detail badge is expanded, at most one at a time —
    * keyed the same way pairTitle/onCardClick distinguish cards (kind + the pair's own dinas
    * codes), since 'need' and 'own' lists can both be on screen depending on subview. */
@@ -96,6 +104,8 @@ export class HomeComponent implements OnInit {
       this.needToConfirm = [];
       this.kpis = null;
       this.perDinasRollup = [];
+      this.breakdownOpenDinas = null;
+      this.breakdownRows = [];
       return;
     }
     this.dashboard.getSummary().subscribe({
@@ -263,6 +273,26 @@ export class HomeComponent implements OnInit {
   // Status pill tone for the per-dinas rollup table.
   rollupStatusClass(row: PerDinasRollupRow): string {
     return row.status ? `rollup-status--${row.status.kind}` : '';
+  }
+
+  // REQ-RDT-SAP-15 (8 Agu): "lihat detail" icon per rollup row — opens/closes the per-pasangan
+  // breakdown panel for that ONE dinas_inisiasi. Re-clicking the open row's own icon just closes
+  // it (no re-fetch); clicking a different row's icon switches straight to it.
+  toggleBreakdown(dinas: string): void {
+    if (this.breakdownOpenDinas === dinas) {
+      this.breakdownOpenDinas = null;
+      this.breakdownRows = [];
+      this.breakdownError = '';
+      return;
+    }
+    this.breakdownOpenDinas = dinas;
+    this.breakdownRows = [];
+    this.breakdownError = '';
+    this.breakdownLoading = true;
+    this.dashboard.getBreakdown(dinas).subscribe({
+      next: (rows) => { this.breakdownRows = rows; this.breakdownLoading = false; },
+      error: (err) => { this.breakdownError = extractErrorMessage(err, 'Gagal memuat breakdown'); this.breakdownLoading = false; },
+    });
   }
 
   // state_label pill is color-coded by status (amber "Waiting for confirmation X", blue "Waiting

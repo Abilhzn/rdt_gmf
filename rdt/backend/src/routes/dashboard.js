@@ -819,4 +819,34 @@ router.get('/per-dinas-rollup', requireRole('TAB'), async (req, res) => {
   }
 });
 
+// GET /api/dashboard/summary/:dinasInisiasi/breakdown — TAB-only. REQ-RDT-SAP-15 (8 Agu, senior
+// TAB feedback): the per-dinas rollup table above sums ALL of a dinas_inisiasi's pairs into one
+// row — TAB asked for a way to see the pecahan (breakdown) per pasangan (dinas_target) behind
+// that one row, e.g. TJ=487 total/87 open could be TJ→TA, TJ→TE, TJ→TMM each with their own
+// progress. Full reuse of buildChainAwareProgress's groupBy:'pair' shape (same one /summary uses
+// for TAB's global as_initiator view) — just scoped to ONE dinas_inisiasi via the initiatorDinas
+// filter, and NOT re-aggregated: returns the array of per-pair rows as-is.
+//
+// The one wrinkle: buildChainAwareProgress's groupBy:'pair' branch always fetches investigation
+// rows GLOBALLY (fetchInvestigationCounts(client, null), see its own comment) rather than scoped
+// to initiatorDinas — reusing it unfiltered here would leak every OTHER dinas's Investigation
+// pseudo-card into this one dinas's breakdown. Filtered back down to this dinas below rather than
+// touching buildChainAwareProgress itself, since its global-scope behavior is still correct for
+// /summary's own call site.
+router.get('/summary/:dinasInisiasi/breakdown', requireRole('TAB'), async (req, res) => {
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const { dinasInisiasi } = req.params;
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const pairs = (await buildChainAwareProgress(client, { initiatorDinas: dinasInisiasi, groupBy: 'pair' }))
+      .filter((r) => String(r.dinas).toUpperCase() === String(dinasInisiasi).toUpperCase());
+    res.json({ ok: true, dinas_inisiasi: dinasInisiasi, pairs });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  } finally {
+    try { await client.end(); } catch (e) {}
+  }
+});
+
 module.exports = router;

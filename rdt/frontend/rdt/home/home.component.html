@@ -283,27 +283,58 @@
                 <th>Dinas</th><th class="rollup-table__num">Total</th><th class="rollup-table__num">Confirmed</th>
                 <th class="rollup-table__num">Open</th><th class="rollup-table__num">Declined</th>
                 <th>Progress</th><th class="rollup-table__num">%</th><th>Status</th>
+                <th class="rollup-table__detail-col"><span class="sr-only">Detail</span></th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let row of perDinasRollup">
-                <td class="rollup-table__dinas">{{ row.dinas }}</td>
-                <td class="rollup-table__num">{{ row.total }}</td>
-                <td class="rollup-table__num rollup-table__num--confirmed">{{ row.confirmed }}</td>
-                <td class="rollup-table__num" [class.rollup-table__num--open]="row.open">{{ row.open }}</td>
-                <td class="rollup-table__num" [class.rollup-table__num--declined]="row.declined">{{ row.declined }}</td>
-                <td class="rollup-table__progress-col">
-                  <div class="segment-bar segment-bar--table">
-                    <span class="segment-bar__seg segment-bar__seg--confirmed" [style.width.%]="row.total ? (row.confirmed / row.total * 100) : 0"></span>
-                    <span class="segment-bar__seg segment-bar__seg--open" [style.width.%]="row.total ? (row.open / row.total * 100) : 0"></span>
-                    <span class="segment-bar__seg segment-bar__seg--declined" [style.width.%]="row.total ? (row.declined / row.total * 100) : 0"></span>
-                  </div>
-                </td>
-                <td class="rollup-table__num rollup-table__percent">{{ row.percent | number: '1.1-1' }}%</td>
-                <td>
-                  <span class="rollup-status" *ngIf="row.status" [ngClass]="rollupStatusClass(row)">{{ row.status.label }}</span>
-                </td>
-              </tr>
+              <ng-container *ngFor="let row of perDinasRollup">
+                <tr>
+                  <td class="rollup-table__dinas">{{ row.dinas }}</td>
+                  <td class="rollup-table__num">{{ row.total }}</td>
+                  <td class="rollup-table__num rollup-table__num--confirmed">{{ row.confirmed }}</td>
+                  <td class="rollup-table__num" [class.rollup-table__num--open]="row.open">{{ row.open }}</td>
+                  <td class="rollup-table__num" [class.rollup-table__num--declined]="row.declined">{{ row.declined }}</td>
+                  <td class="rollup-table__progress-col">
+                    <div class="segment-bar segment-bar--table">
+                      <span class="segment-bar__seg segment-bar__seg--confirmed" [style.width.%]="row.total ? (row.confirmed / row.total * 100) : 0"></span>
+                      <span class="segment-bar__seg segment-bar__seg--open" [style.width.%]="row.total ? (row.open / row.total * 100) : 0"></span>
+                      <span class="segment-bar__seg segment-bar__seg--declined" [style.width.%]="row.total ? (row.declined / row.total * 100) : 0"></span>
+                    </div>
+                  </td>
+                  <td class="rollup-table__num rollup-table__percent">{{ row.percent | number: '1.1-1' }}%</td>
+                  <td>
+                    <span class="rollup-status" *ngIf="row.status" [ngClass]="rollupStatusClass(row)">{{ row.status.label }}</span>
+                  </td>
+                  <!-- REQ-RDT-SAP-15 (8 Agu, Figma 143:334): "lihat detail" icon, ujung kanan tiap
+                       baris — opens the per-pasangan breakdown panel below this row for THIS
+                       dinas_inisiasi. Icon style matches the inline lucide SVGs used elsewhere
+                       (REQ-RDT-UI-01, e.g. shell.component.html). -->
+                  <td class="rollup-table__detail-col">
+                    <button
+                      type="button"
+                      class="rollup-table__detail-btn"
+                      [class.rollup-table__detail-btn--active]="breakdownOpenDinas === row.dinas"
+                      [attr.aria-expanded]="breakdownOpenDinas === row.dinas"
+                      [attr.aria-label]="'Lihat breakdown per pasangan untuk ' + row.dinas"
+                      (click)="toggleBreakdown(row.dinas)"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                  </td>
+                </tr>
+                <tr class="rollup-table__breakdown-row" *ngIf="breakdownOpenDinas === row.dinas">
+                  <td colspan="9">
+                    <p class="note" *ngIf="breakdownLoading">Memuat breakdown...</p>
+                    <p class="note note--error" *ngIf="breakdownError">{{ breakdownError }}</p>
+                    <p class="note" *ngIf="!breakdownLoading && !breakdownError && !breakdownRows.length">Belum ada pasangan untuk dinas ini.</p>
+                    <div class="pair-card-list pair-card-list--breakdown" *ngIf="!breakdownLoading && breakdownRows.length">
+                      <ng-container *ngFor="let d of breakdownRows">
+                        <ng-container *ngTemplateOutlet="pairCard; context: { $implicit: d, title: pairTitle('own', d), clickable: true, kind: 'own', useBar: true }"></ng-container>
+                      </ng-container>
+                    </div>
+                  </td>
+                </tr>
+              </ng-container>
             </tbody>
           </table>
         </div>

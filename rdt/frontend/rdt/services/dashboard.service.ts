@@ -129,4 +129,17 @@ export class DashboardService {
         return res.rows;
       }));
   }
+
+  // REQ-RDT-SAP-15 (8 Agu, per-dinas rollup breakdown): the pecahan behind one rollup row's summed
+  // total, one entry per (dinasInisiasi, target) pasangan — same shape as the pair cards
+  // buildChainAwareProgress already returns for the global as_initiator view, so DinasProgress is
+  // reused as-is rather than adding a near-duplicate type.
+  getBreakdown(dinasInisiasi: string): Observable<DinasProgress[]> {
+    return this.http
+      .get<{ ok: boolean; pairs: DinasProgress[]; error?: string }>(`${this.base}/dashboard/summary/${encodeURIComponent(dinasInisiasi)}/breakdown`, { headers: this.currentUser.authHeaders() })
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'Gagal memuat breakdown per pasangan');
+        return res.pairs;
+      }));
+  }
 }

@@ -1343,6 +1343,20 @@ kolom data yang scroll di antaranya.
   > 53 kolom kontrak PENUH, karena itu harus cocok skema import SAP. Yang
   > dipersempit di sini CUMA tampilan tabel di layar (preview), bukan isi file
   > yang dihasilkan — dua artifact berbeda, jangan disamakan.
+- `REQ-RDT-SAP-15` **(baru 8 Agu, breakdown per pasangan di Summary Progress All
+  Dinas)**: masukan dari senior TAB — tabel "Summary Progress All Dinas" (TAB)
+  sekarang cuma nunjukin TOTAL teragregasi per dinas_inisiasi (mis. TJ = 487
+  total, 87 open), tanpa cara TAB liat pecahannya ke tujuan mana aja. Tambahkan
+  **ikon "lihat detail" di ujung kanan tiap baris** (sejajar kolom Status, lihat
+  referensi visual `node-id=143-334` — itu screenshot aplikasi dengan 2 ikon
+  kecil ditempel, bukan mockup Figma murni) yang membuka **breakdown per
+  pasangan** untuk dinas_inisiasi itu: satu kartu/baris per target dinas (mis.
+  TJ→TA, TJ→TE, TJ→TMM), masing-masing dengan progress % sendiri. Dari situ,
+  klik satu pasangan → buka halaman **Dashboard-Detailing yang SUDAH ADA**
+  (chain arrow + thread komentar) — REUSE, jangan bikin ulang. Otorisasi TAB
+  buat lihat pasangan MANAPUN sudah ada sejak REQ-RDT-AUTH-05 (24 Jul), jadi ini
+  murni kerjaan UI + satu endpoint agregasi baru (breakdown per pasangan untuk
+  SATU dinas_inisiasi), bukan perubahan otorisasi.
 - **Deskripsi opsional saat Confirm/Reject (ditegaskan ulang 8 Agu)**: field
   "Deskripsi (opsional)" di alur Confirm/Reject (`confirmation.js`'s
   `trimmedDescription`) sudah BERLABEL opsional di UI — pastikan backend juga
