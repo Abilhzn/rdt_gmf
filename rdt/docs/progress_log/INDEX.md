@@ -30,6 +30,7 @@ ada di `rdt/CLAUDE.md`.
 | 7 | 7–11 Agu 2026 | [07_2026-08-11.md](07_2026-08-11.md) | ui-demo.html dihapus total, **Setting Periode** restructure (Override Deadline jadi list-driven + re-evaluate) + 5 item Bagian 2 (termasuk bug SAP-09 auto-archive yang ketemu & diperbaiki), audit repo lokal vs GitHub, rename `develop`→`pc-lab` + branch `lenovo` baru, **migrasi database ke Supabase**, `main` di-fast-forward ke kerjaan terbaru |
 | 8 | 12 Agu 2026 | [08_2026-08-12.md](08_2026-08-12.md) | **`CHECKLIST_LAUNCH.md` diselesaikan end-to-end**: security headers/rate-limit/session TTL, validasi teks bebas, audit secrets, backup/restore tooling, monitoring/health/timeout, re-audit integritas data, 404/403 + a11y + WCAG contrast, dokumentasi per-service, loading-state + error-message audit (2 regresi self-caught & diperbaiki: admin editors, lalu DinasService/TransactionService), `/graphify` dijalankan atas seluruh repo + 2 trace eksploratif (nemu 1 gap modal-error belum diperbaiki, ditunda) |
 | 9 | 12 Agu 2026 | [09_2026-08-12.md](09_2026-08-12.md) | **SESI DITUTUP.** Plugin `ponytail` diinstall, **REQ-RDT-SAP-15** (breakdown per pasangan di Summary Progress All Dinas, full reuse `buildChainAwareProgress`+`#pairCard`), debug "icon unclickable" (root cause: proses backend lama belum di-restart, bukan bug kode), fix gap modal-error `DashboardDetailComponent.submitComment()` yang ditunda sesi 8, cleanup backlog (`_tmp_check.md` dihapus, `graphify-out/` di-gitignore) — commit `2c19d31`/`4ca58be`/`ca7416c`/`a163f2f`, semua sudah di-push ke `origin/lenovo` |
+| 10 | 12 Agu 2026 | [10_2026-08-12.md](10_2026-08-12.md) | `ponytail-audit` (tidak ada yang perlu dipangkas) + review efisiensi N+1/`trackBy` (sudah dibatch dengan benar, tidak ada perubahan), data-engineering pass: index baru `idx_txn_inisiasi_status` (`019_txn_inisiasi_status_index.sql`, belum di-commit), restart backend+dev-shell (sukses, health OK) tapi verifikasi UI lewat Chrome MCP terblokir (ekstensi belum konek) |
 
 ## Garis besar evolusi arsitektur
 
@@ -46,10 +47,19 @@ ada di `rdt/CLAUDE.md`.
   snapshot periode_efektif) — fitur bisnis besar terakhir sebelum sesi ini
   ditutup.
 
-## Status akhir per 12 Agu 2026 (akhir sesi 9, sesi ditutup)
+## Status akhir per 12 Agu 2026 (akhir sesi 10)
 
-- Branch aktif: `lenovo`, commit terakhir `a163f2f` — sudah di-push ke
-  `origin/lenovo` (`2c19d31`/`4ca58be`/`ca7416c`/`a163f2f`).
+- Branch aktif: `lenovo`, commit terakhir di-push `a163f2f`
+  (`2c19d31`/`4ca58be`/`ca7416c`/`a163f2f`, semua dari sesi ≤9). Sesi 10
+  menambahkan `sql/migrations/019_txn_inisiasi_status_index.sql`
+  (index `idx_txn_inisiasi_status` untuk sisi inisiasi pasangan
+  dinas — lihat sesi 10) yang **masih untracked, belum di-commit**.
+- Backend + dev-shell butuh restart manual di awal sesi berikutnya —
+  keduanya sempat mati di tengah sesi 10 (proses Claude Code restart),
+  belum dinyalakan ulang saat sesi ditutup.
+- Ekstensi Chrome (`claude-in-chrome`) belum konek/login — verifikasi UI-
+  driven (klik langsung, bukan cuma curl smoke test) masih terblokir
+  sampai user connect/login di claude.ai/chrome.
 - **`rdt/docs/CHECKLIST_LAUNCH.md` selesai end-to-end** kecuali 2 item
   tanggung jawab tim IT eksternal (IP/VPN whitelisting, HTTPS/TLS saat
   hosting di-setup) — lihat sesi 8 untuk rincian tiap section.
