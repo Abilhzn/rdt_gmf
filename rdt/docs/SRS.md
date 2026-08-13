@@ -1277,6 +1277,58 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   > kayaknya kelewat/kesenggol kesibukan revert-revert sidebar-width, bukan
   > sengaja diputuskan begini. Kerjakan requirement ini SEKARANG, terpisah dari
   > urusan lebar sidebar yang sudah beres.
+
+### 3.12 Restrukturisasi "Setting Periode" (baru 8 Agu, revisi besar)
+
+Halaman "Setting Periode" sekarang (1 halaman, 4 kotak) dinilai kepenuhan/
+membingungkan begitu dicoba langsung. Pecah jadi **2 sub-halaman terpisah**:
+
+**Sub-halaman 1 — "Setting Deadline"**: cuma kotak "Setting Deadline" yang lama
+(input periode + deadline, tombol "Set Deadline Default Periode"). Ini alur
+UTAMA yang paling sering dipakai TAB.
+- `REQ-RDT-SAP-19` **(baru 8 Agu)**: deadline yang sudah di-set bisa **DIHAPUS**,
+  TAPI HANYA kalau waktu deadline-nya BELUM lewat (belum jadi masa lalu). Kalau
+  sudah lewat, tidak bisa dihapus (biar histori tetap konsisten dengan apa yang
+  benar-benar terjadi).
+- `REQ-RDT-SAP-20` **(baru 8 Agu, auto-backfill DIPERJELAS)**: aksi "Setting
+  Deadline" SEKARANG HARUS otomatis berlaku ke DUA hal sekaligus dalam SATU
+  aksi — (a) jadi default buat pasangan yang BELUM ada/upload nanti (perilaku
+  REQ-RDT-SAP-16 yang sudah ada), DAN (b) otomatis "menyapu" pasangan yang
+  SUDAH ADA tapi belum resolved di periode itu (perilaku yang tadinya manual
+  lewat panel "Terapkan ke Pasangan Aktif" — panel itu SEKARANG DIHAPUS sebagai
+  aksi terpisah, fungsinya diserap ke "Setting Deadline" ini). Repost yang
+  di-upload SEBELUM ada deadline periode itu — "ngambang" tanpa deadline sampai
+  TAB set-kan, baru otomatis ke-assign begitu itu terjadi.
+
+**Sub-halaman 2 — "'Repost' Active"**: MENGGABUNGKAN 3 hal lama ("Terapkan ke
+Pasangan Aktif" [dihapus sebagai aksi terpisah per SAP-20, tapi LISTING-nya
+pindah ke sini], "Override Deadline", "Semua deadline yang pernah di-set") jadi
+**SATU tabel gaya "sheet Excel"** (sama gaya visual seperti Riwayat Repost —
+REQ-RDT-SAP-10, tab per bulan/tahun). Satu baris = satu pasangan yang masih
+relevan buat periode itu (aktif ATAU overdue-butuh-keputusan), dengan tombol aksi
+**"Override Deadline"** di ujung kanan tiap baris.
+> **Catatan buat coding agent**: definisi persis "baris mana yang tampil" (semua
+> pasangan aktif, atau cuma yang overdue+butuh override, atau gabungan keduanya)
+> serahkan ke penilaian teknis kamu berdasarkan data yang paling masuk akal
+> ditampilkan bareng — yang penting SATU tabel terpadu, bukan 3 panel terpisah
+> seperti sekarang. Kalau ambigu di tengah implementasi, tunjukkan mockup/opsi
+> ke pemilik proyek sebelum final, jangan asumsikan sendiri kalau ada 2+
+> interpretasi yang sama masuk akal.
+
+- `REQ-RDT-SAP-21` **(baru 8 Agu, overdue dikecualikan dari Wait to Repost)**:
+  pasangan yang `periode_efektif`-nya sudah kegeser (overdue, belum di-override)
+  TIDAK BOLEH muncul di antrian "Wait to Repost" TAB — itu otomatis dianggap
+  bagian periode BERIKUTNYA, bukan periode sekarang.
+- `REQ-RDT-SAP-22` **(baru 8 Agu, tag Overdue di Dashboard)**: di halaman
+  "Need to Confirm" (TAB) dan "Report Submission/Submission Status" (dinas),
+  pasangan yang overdue dapat tulisan kecil merah **"Overdue"** di POJOK KANAN
+  ATAS kartu pasangan itu.
+- `REQ-RDT-SAP-23` **(baru 8 Agu, sederhanakan Confirm Reposted)**: di "Wait to
+  Repost", saat TAB klik "Confirm Reposted", JANGAN tampilkan preview tabel data
+  (~12 kolom) lagi — cukup form deskripsi (opsional, per keputusan 12 Agu) +
+  input subdoc + tombol Confirm. Data detail tetap bisa diakses lewat tombol
+  Download (REQ-RDT-SAP-06) atau breakdown drill-down (REQ-RDT-SAP-15) kalau
+  TAB perlu lihat, gak perlu dipaksa muncul di layar Confirm Reposted.
   > **DIKONFIRMASI SUDAH ADA — 13 Agu**: ternyata sudah diimplementasikan sebelum
   > laporan 8 Agu di atas ditulis (`shell.component.ts`'s `isNavGroupExpanded`/
   > `toggleNavGroup`/`activeNavGroup`, tombol panah di `shell.component.html`) —
@@ -1479,11 +1531,25 @@ kolom data yang scroll di antaranya.
   circle — sekarang belum kelihatan di situ, padahal halaman Dashboard-Detailing
   (`/rdt/dashboard/detail/:from/:target`) sudah benar menampilkannya. Samakan
   logic-nya, reuse dari situ.
-- `REQ-RDT-UI-11` **(baru 8 Agu, DIPERJELAS dari instruksi "Catatan Reviewer"
-  sebelumnya)**: SEMUA kolom deskripsi/catatan/notes (bukan cuma Catatan
-  Reviewer) — ukurannya HARUS **fixed dan BESAR** (bukan cuma "fixed ngikutin
-  ruang sekitar" yang keliatan pelit sekarang), dengan scroll internal kalau
-  isinya lebih panjang dari box-nya.
+- `REQ-RDT-UI-11` **(baru 8 Agu, DIBALIK 8 Agu sore — baca urutan)**:
+  - *Versi pagi*: SEMUA kolom deskripsi/catatan/notes ukurannya HARUS fixed dan
+    BESAR (bukan pelit kayak sebelumnya).
+  - *Revisi sore, KHUSUS "Catatan Reviewer" di Upload Detail Transaction*: begitu
+    dicoba, ukurannya kerasa KETERLALUAN gede — **kecilkan lagi tingginya**
+    (tetap fixed, TIDAK shrink-to-content, tapi lebih pendek dari yang sekarang).
+    Field deskripsi/catatan LAIN (di luar Catatan Reviewer Upload Detail
+    Transaction) tetap ngikutin versi pagi (fixed & besar) kecuali ada laporan
+    serupa nanti.
+- **Bug ditemukan 8 Agu, PRIORITAS TERTINGGI**: upload file contoh TB gagal
+  dengan error `insert or update on table "transactions" violates foreign key
+  constraint "transactions_dinas_target_fkey"` — artinya ada nilai `dinas_target`
+  yang mau di-insert TAPI TIDAK ADA di `rdt.dinas`. Kemungkinan: seed dinas di
+  database Supabase (yang sekarang dipakai) tidak selengkap yang pernah ada di
+  Postgres lokal, atau ada kode dinas baru (TAB sebagai target buat share-cost,
+  dst) yang belum ke-seed. JANGAN langsung tembak solusi — investigasi dulu:
+  (1) nilai `dinas_target` PERSIS apa yang gagal di-insert, (2) bandingkan isi
+  `rdt.dinas` di Supabase vs seed yang seharusnya (`schema.sql`/migrations),
+  (3) laporkan temuan sebelum memperbaiki.
   Migration `018` buka constraint `NOT NULL` di kolom
   `rdt.export_batches.closing_description`.
   **REVISI sama hari**: notifikasi ke dinas target TETAP JALAN walau field ini

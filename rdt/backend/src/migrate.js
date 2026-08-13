@@ -6,6 +6,15 @@ const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 
+// 21 = the real GH count (REQ-RDT-EXT/3.1.2's roster) — a safe floor that only a genuinely
+// broken/incomplete migration state would fail (fully-migrated is ~28 with Corp + inactive
+// placeholders TG/TK/TO/TT). Pure predicate, split out so the threshold logic is unit-testable
+// without a real DB connection — see runMigrations()'s sanity check below for where it's used.
+const MIN_EXPECTED_DINAS = 21;
+function isDinasRosterComplete(count) {
+  return count >= MIN_EXPECTED_DINAS;
+}
+
 async function runMigrations() {
   const conn = process.env.DATABASE_URL;
   if (!conn) {
@@ -67,12 +76,49 @@ async function runMigrations() {
     for (const [code,name] of dinasList) {
       await client.query('INSERT INTO rdt.dinas(code,name) VALUES($1,$2) ON CONFLICT (code) DO NOTHING', [code,name]);
     }
-    // seed mapping examples
-    await client.query("INSERT INTO rdt.dinas_mapping(prefix,dinas_code) VALUES('TCR','TC') ON CONFLICT (prefix) DO NOTHING");
-    await client.query("INSERT INTO rdt.dinas_mapping(prefix,dinas_code) VALUES('TJ Plant','TJ') ON CONFLICT (prefix) DO NOTHING");
+    // seed mapping examples — kept in sync with config/mapping.seed.json (audit finding, 13 Agu:
+    // this list used to only have 2 of the JSON file's 9 entries, and the parser's DB-sourced
+    // mapping path (EXT-04 fix) reads FROM THIS TABLE now instead of the JSON file whenever
+    // DATABASE_URL is set. The missing 'Corp'->'Corp' entry specifically caused a live FK
+    // violation — see rdt/docs/SRS.md "Bug ditemukan 8 Agu, PRIORITAS TERTINGGI" — a self-mapped
+    // code with no explicit DB row fell through to excelParser.js's uppercase-fallback branch,
+    // producing 'CORP' (no match in rdt.dinas, which stores 'Corp' mixed-case) instead of 'Corp'.
+    // That fallback branch is now fixed to preserve canonical casing regardless (see
+    // buildAllowedCodes's header comment), but keeping this seed complete avoids relying on that
+    // fallback for codes that already have a known, deliberate self-mapping.
+    const mappingSeed = [
+      ['TCR', 'TC'], ['TJ Plant', 'TJ'], ['TC', 'TC'], ['TF', 'TF'], ['TL', 'TL'], ['TN', 'TN'],
+      ['Corp', 'Corp'], ['GMFTE', 'TE'], ['GMFCORP', 'Corp'],
+    ];
+    for (const [prefix, dinasCode] of mappingSeed) {
+      await client.query('INSERT INTO rdt.dinas_mapping(prefix,dinas_code) VALUES($1,$2) ON CONFLICT (prefix) DO NOTHING', [prefix, dinasCode]);
+    }
     // seed exclusion rules
     await client.query("INSERT INTO rdt.exclusion_rules(prefix,reason) VALUES('AUAK','Kategori internal') ON CONFLICT (prefix) DO NOTHING");
     await client.query("INSERT INTO rdt.exclusion_rules(prefix,reason) VALUES('PO','Purchase Order internal') ON CONFLICT (prefix) DO NOTHING");
+
+    // Sanity check (audit finding, 13 Agu — root-cause candidate for the "transactions_
+    // dinas_target_fkey" bug, SRS.md "Bug ditemukan 8 Agu, PRIORITAS TERTINGGI"): a database
+    // whose migration tracking got out of sync with reality (see tools/backfillMigrationsApplied.js's
+    // header comment for exactly how) ends up with an incomplete rdt.dinas roster — the real 21-GH
+    // roster (migration 005) never landed, or a later addition (TMM/TAB/TZ/etc, migrations 010/014)
+    // got skipped. That stays silent until a real upload hits a dinas_target FK violation, at which
+    // point it looks like a parser bug, not a migration one. Catch it HERE, loudly, at boot time
+    // instead — 21 is the real GH count (REQ-RDT-EXT/3.1.2's roster), Corp/inactive placeholders
+    // (TG/TK/TO/TT) push the real fully-migrated count to ~28, so 21 is a safe floor that only a
+    // genuinely broken/incomplete roster would fail.
+    const dinasCountRes = await client.query('SELECT COUNT(*)::int AS c FROM rdt.dinas');
+    const dinasCount = dinasCountRes.rows[0].c;
+    if (!isDinasRosterComplete(dinasCount)) {
+      throw new Error(
+        `Sanity check failed: rdt.dinas has only ${dinasCount} row(s), expected at least ${MIN_EXPECTED_DINAS} ` +
+        `(the real 21-GH roster from migration 005_real_dinas_roster.sql). This database's migration ` +
+        `tracking (rdt._migrations_applied) is likely out of sync with what actually ran — see ` +
+        `tools/backfillMigrationsApplied.js's header comment. Refusing to continue: an incomplete ` +
+        `roster causes confusing "transactions_dinas_target_fkey" errors on real uploads, not a ` +
+        `clean startup failure like this one. Investigate rdt._migrations_applied before retrying.`
+      );
+    }
   } catch (err) {
     console.error('Migration error', err);
     throw err;
@@ -81,7 +127,7 @@ async function runMigrations() {
   }
 }
 
-module.exports = { runMigrations };
+module.exports = { runMigrations, isDinasRosterComplete, MIN_EXPECTED_DINAS };
 
 if (require.main === module) {
   runMigrations().catch((e) => { console.error(e); process.exit(1); });

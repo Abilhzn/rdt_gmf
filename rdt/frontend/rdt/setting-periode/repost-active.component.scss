@@ -1,0 +1,52 @@
+// Tab strip styling, copied verbatim from repost-history.component.scss (SAP-20, 13 Agu) — same
+// "sheet per periode" visual as Riwayat Repost. Variables re-declared here since Angular component
+// stylesheets don't share SCSS scope across styleUrls entries.
+$ink: #000;
+$ink-600: #52616e;
+$line: #cccccc;
+$page-bg: #f2f2f2;
+$radius-md: 8px;
+
+.month-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+  border-bottom: 1px solid $line;
+}
+
+.month-tab {
+  border: 1px solid $line;
+  border-bottom: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: $page-bg;
+  color: $ink-600;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  margin-bottom: -1px;
+  cursor: pointer;
+
+  &:hover { color: $ink; }
+
+  &--active {
+    background: #fff;
+    color: $ink;
+    border-color: $line;
+    border-bottom-color: #fff;
+  }
+
+  &__count { color: $ink-600; font-weight: 400; }
+}
+
+.month-tab-panel { padding-top: 16px; }
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: $radius-md;
+  font-size: 11.5px;
+  font-weight: 600;
+
+  &--active { background: $page-bg; color: $ink-600; }
+}

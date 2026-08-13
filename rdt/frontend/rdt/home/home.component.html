@@ -24,6 +24,10 @@
            gak ada di desain referensi pemilik proyek sama sekali. -->
       <div class="pair-card__header">
         <span class="pair-card__title">{{ title }}</span>
+        <!-- REQ-RDT-SAP-22 (8 Agu): pasangan yang periode_efektif-nya sudah kegeser (deadline
+             kelewat) — pojok kanan atas kartu, __header sudah justify-content:space-between jadi
+             otomatis nempel kanan begitu ada isinya. -->
+        <span class="pair-card__overdue-tag" *ngIf="d.overdue">Overdue</span>
       </div>
 
       <!-- 2-COLUMN bar body — LEFT column stacks state-label pill/comment-count, RIGHT column

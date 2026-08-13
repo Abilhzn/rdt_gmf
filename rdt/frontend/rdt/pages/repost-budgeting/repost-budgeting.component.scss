@@ -331,6 +331,9 @@ thead .reviewer-note-col {
 // instead" read as fixed-but-stingy once notes got long (content just clipped past `overflow:
 // hidden`, invisible past the fixed 2-row height) — wider, taller, and internal scroll now,
 // consistent with every other note field's REQ-RDT-UI-11 treatment.
+// REQ-RDT-UI-11 REVISI (13 Agu): 80px read too tall sitting inline in a table row — shorter now,
+// but STILL a fixed height + internal scroll (not shrink-to-content/autoGrow) — only this field;
+// .repost-desc above (the main Keterangan field) is untouched.
 // ::ng-deep: passed as [extraClass] into <rdt-mention-input> now — see .repost-desc's note above.
 ::ng-deep .reviewer-note-input {
   width: 280px;
@@ -342,7 +345,7 @@ thead .reviewer-note-col {
   color: $ink;
   box-sizing: border-box;
   resize: vertical;
-  height: 80px;
+  height: 48px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;

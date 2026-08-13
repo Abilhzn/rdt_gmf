@@ -35,6 +35,11 @@ export interface DinasProgress {
    * "Need Identification" Dashboard sub-view). "Confirmed" segment = `resolved`, "Declined"
    * segment = `declined_pending_action`. */
   open?: number;
+  /** REQ-RDT-SAP-22 (8 Agu): true when this pair's periode_efektif has shifted away from its
+   * declared period (deadline passed) — populated on both need_to_confirm
+   * (buildNeedToConfirmProgress) and as_initiator/global-pair (buildChainAwareProgress) rows,
+   * same "declared vs MAX(periode_efektif)" comparison exportBatches.js's GET /history uses. */
+  overdue?: boolean;
 }
 
 export interface DashboardSummary {

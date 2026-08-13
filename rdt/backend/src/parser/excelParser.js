@@ -82,13 +82,22 @@ function isSubGroupHeaderName(name) {
 // mapping's own keys+values (aliases already confirmed) plus the full canonical dinas roster
 // (dinas.codes.json), so e.g. a bare "TM" resolves even though no dinas needs an alias entry for
 // its own code.
+//
+// Bug found 13 Agu (live upload of contoh_input/06. DT TB - Jun 2026.xlsx via /api/parse, real
+// DB-sourced mapping — see rdt/docs/SRS.md "Bug ditemukan 8 Agu, PRIORITAS TERTINGGI"): this used
+// to be a Set of UPPERCASED codes, and every caller that matched against it assigned the
+// uppercased match itself as dinasTarget — fine for codes that are naturally all-caps (TB, TC,
+// TJ, ...), but WRONG for 'Corp', whose canonical casing in rdt.dinas is mixed-case. A row whose
+// Remarks/Review resolved via this fallback (not an explicit mapping.seed.json/rdt.dinas_mapping
+// entry) got dinasTarget='CORP', which doesn't match rdt.dinas's 'Corp' row -> FK violation on
+// insert. Now a Map from UPPERCASE key -> the ORIGINAL casing seen in mapping/dinasCodes, so every
+// caller can .get() the canonical form instead of re-deriving (wrongly) from the uppercased input.
 function buildAllowedCodes(mapping, dinasCodes) {
-  const set = new Set(
-    Object.keys(mapping).map((k) => String(mapping[k]).toUpperCase())
-      .concat(Object.values(mapping).map((v) => String(v).toUpperCase()))
-  );
-  (dinasCodes || []).forEach((c) => set.add(String(c).toUpperCase()));
-  return set;
+  const map = new Map();
+  Object.keys(mapping).forEach((k) => map.set(String(mapping[k]).toUpperCase(), String(mapping[k])));
+  Object.values(mapping).forEach((v) => map.set(String(v).toUpperCase(), String(v)));
+  (dinasCodes || []).forEach((c) => map.set(String(c).toUpperCase(), String(c)));
+  return map;
 }
 
 // GMF-wide sub-dinas naming convention (confirmed by project owner, 28 Jul 2026): a value that
@@ -102,16 +111,19 @@ function buildAllowedCodes(mapping, dinasCodes) {
 // now in the canonical roster, so it resolves via the plain allowedCodes exact-match branch
 // (its caller checks allowedCodes BEFORE falling back to this function) and never reaches this
 // fallback at all. This function stays in place for any OTHER genuine sub-dinas case.
+// Returns the base code in its ORIGINAL/canonical casing (same case-preservation fix as
+// buildAllowedCodes above) — not the uppercased comparison value.
 function resolveSubDinasCode(rawUpper, dinasCodes) {
   if (!rawUpper || !/^[A-Z]+$/.test(rawUpper)) return null;
   let best = null;
   (dinasCodes || []).forEach((c) => {
-    const cu = String(c).toUpperCase();
+    const original = String(c);
+    const cu = original.toUpperCase();
     if (rawUpper.length > cu.length && rawUpper.startsWith(cu)) {
-      if (!best || cu.length > best.length) best = cu;
+      if (!best || cu.length > best.upper.length) best = { upper: cu, original };
     }
   });
-  return best;
+  return best ? best.original : null;
 }
 
 // Helper: read cell value preferring cached formula result when present
@@ -225,7 +237,7 @@ function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas,
       const rp = rawPrefix.toUpperCase();
       const subDinasBase = resolveSubDinasCode(rp, dinasCodes);
       if (allowedCodes.has(rp)) {
-        dinasTarget = rp;
+        dinasTarget = allowedCodes.get(rp);
       } else if (subDinasBase) {
         dinasTarget = subDinasBase;
       } else if (!preResolvedExcluded) {
@@ -313,7 +325,7 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
     const rp = rawPrefix.toUpperCase();
     const subDinasBase = resolveSubDinasCode(rp, dinasCodes);
     if (allowedCodes.has(rp)) {
-      dinasTarget = rp;
+      dinasTarget = allowedCodes.get(rp);
     } else if (subDinasBase) {
       // GMF-wide sub-dinas suffix convention — see resolveSubDinasCode's header comment (31 Jul:
       // "TMM" no longer reaches this branch, it's an exact roster match now). Still never
@@ -335,7 +347,7 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
           const reviewMapped = mapping[reviewFallbackRaw] || mapping[reviewFallbackRaw.toLowerCase()] || mapping[reviewFallbackRaw.toUpperCase()];
           const reviewUpper = reviewFallbackRaw.toUpperCase();
           resolvedFromReview = reviewMapped
-            || (allowedCodes.has(reviewUpper) ? reviewUpper : null)
+            || allowedCodes.get(reviewUpper)
             || resolveSubDinasCode(reviewUpper, dinasCodes);
         }
         if (resolvedFromReview) {

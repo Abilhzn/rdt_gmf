@@ -130,6 +130,16 @@ $radius-md: 8px;
     margin-bottom: 10px;
   }
 
+  // REQ-RDT-SAP-22 (8 Agu): small red "Overdue" tag, pojok kanan atas kartu pasangan.
+  &__overdue-tag {
+    color: $danger-600;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex: 0 0 auto;
+  }
+
   // Digedein (5 Agu, revisi): sama alasan seperti .kpi-card di atas.
   // &__count dihapus (5 Agu, desain rapih): duplikasi "Total X" yang sudah tampil di legend
   // bar, dan gak ada di desain referensi pemilik proyek.

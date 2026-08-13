@@ -82,6 +82,15 @@ export interface OverdueDeadlineEntry {
   periode_efektif: string;
 }
 
+// REQ-RDT-SAP-20 (13 Agu, "'Repost' Active" table): one currently-active (not yet 100%
+// resolved) pasangan for a given periode — see routes/periodDeadlines.js's GET /active-pairs.
+export interface ActivePairEntry {
+  dinas_inisiasi: string;
+  dinas_target: string;
+  total: number;
+  open_count: number;
+}
+
 // Result of re-evaluating one pasangan's periode_efektif per row (routes/periodDeadlines.js's
 // POST /override-reevaluate) — one entry per transaction actually touched.
 export interface OverrideReevaluateResult {
@@ -273,7 +282,7 @@ export class ExportBatchService {
   // Upsert — setting again for the same (dinas_inisiasi, dinas_target, periode) UPDATES the
   // existing deadline (see routes/periodDeadlines.js's ON CONFLICT), not a duplicate. This is the
   // per-pasangan OVERRIDE — for the normal "one deadline for everyone" workflow, see
-  // setBulkPeriodDeadline below.
+  // setDefaultPeriodDeadline below (SAP-20).
   setPeriodDeadline(dinasInisiasi: string, dinasTarget: string, periode: string, deadlineAt: string): Observable<PeriodDeadline> {
     return this.http
       .post<{ ok: boolean; deadline: PeriodDeadline; error?: string }>(
@@ -287,37 +296,23 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-14 (confirmed 5 Agu malam): the REAL workflow — TAB sets ONE deadline that applies
-  // to every pasangan currently active in that periode at once (routes/periodDeadlines.js's
-  // POST /bulk decides "active" server-side). Returns every deadline row that got written/updated,
-  // so the caller can show exactly which pasangan were touched.
-  setBulkPeriodDeadline(periode: string, deadlineAt: string): Observable<PeriodDeadline[]> {
-    return this.http
-      .post<{ ok: boolean; deadlines: PeriodDeadline[]; error?: string }>(
-        `${this.deadlinesBase}/bulk`,
-        { periode, deadline_at: deadlineAt },
-        { headers: this.currentUser.authHeaders() }
-      )
-      .pipe(map((res) => {
-        if (!res.ok) throw new Error(res.error || 'gagal menyimpan deadline massal');
-        return res.deadlines;
-      }));
-  }
-
-  // REQ-RDT-SAP-16 (8 Agu) — periode-wide default, settable ANYTIME (no active pasangan required,
-  // unlike setBulkPeriodDeadline above). A pasangan that later shows up for this periode without
-  // its own per-pasangan override inherits this automatically (see confirmation.js's
+  // REQ-RDT-SAP-20 (13 Agu, "sekali aksi"): the ONLY Setting Deadline action now — upserts the
+  // periode-wide default AND sweeps/backfills it onto every currently-active pasangan in that
+  // periode, atomically, in one call (routes/periodDeadlines.js POST /default). Replaces the old
+  // separate setBulkPeriodDeadline()/"Terapkan ke Pasangan Aktif" panel entirely — `swept` is what
+  // that panel used to return on its own. A pasangan that shows up LATER for this periode without
+  // its own per-pasangan override inherits `deadline` automatically (confirmation.js's
   // snapshotPeriodeEfektif / rules/periodEffective.js's pickDeadline).
-  setDefaultPeriodDeadline(periode: string, deadlineAt: string): Observable<PeriodDefaultDeadline> {
+  setDefaultPeriodDeadline(periode: string, deadlineAt: string): Observable<{ deadline: PeriodDefaultDeadline; swept: PeriodDeadline[] }> {
     return this.http
-      .post<{ ok: boolean; deadline: PeriodDefaultDeadline; error?: string }>(
+      .post<{ ok: boolean; deadline: PeriodDefaultDeadline; swept: PeriodDeadline[]; error?: string }>(
         `${this.deadlinesBase}/default`,
         { periode, deadline_at: deadlineAt },
         { headers: this.currentUser.authHeaders() }
       )
       .pipe(map((res) => {
         if (!res.ok) throw new Error(res.error || 'gagal menyimpan deadline default periode');
-        return res.deadline;
+        return { deadline: res.deadline, swept: res.swept };
       }));
   }
 
@@ -330,6 +325,34 @@ export class ExportBatchService {
       .pipe(map((res) => {
         if (!res.ok) throw new Error(res.error || 'gagal memuat deadline default periode');
         return res.deadlines;
+      }));
+  }
+
+  // REQ-RDT-SAP-19 (13 Agu) — deletable only while its deadline hasn't passed yet (backend's own
+  // guard, routes/periodDeadlines.js DELETE /default/:periode, 400 if already passed).
+  deleteDefaultPeriodDeadline(periode: string): Observable<void> {
+    return this.http
+      .delete<{ ok: boolean; error?: string }>(
+        `${this.deadlinesBase}/default/${encodeURIComponent(periode)}`,
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal menghapus deadline default periode');
+      }));
+  }
+
+  // REQ-RDT-SAP-20 (13 Agu, "'Repost' Active" table) — pasangan yang masih punya transaksi belum
+  // selesai (blocking status) di periode ini, un-batched. See routes/periodDeadlines.js's
+  // GET /active-pairs.
+  getActivePairs(periode: string): Observable<ActivePairEntry[]> {
+    return this.http
+      .get<{ ok: boolean; active: ActivePairEntry[]; error?: string }>(
+        `${this.deadlinesBase}/active-pairs?periode=${encodeURIComponent(periode)}`,
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal memuat pasangan aktif');
+        return res.active;
       }));
   }
 

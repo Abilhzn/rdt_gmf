@@ -6,20 +6,7 @@ import {
 } from '../services/export-batch.service';
 import { triggerBlobDownload, filenameFromResponse } from '../services/confirmation.service';
 import { ModalService } from '../services/modal.service';
-import { matchesAllColumnFilters } from '../shared/multi-value-filter.component';
-import { TransactionService, ContractField } from '../services/transaction.service';
 import { extractErrorMessage } from '../shared/error-message.util';
-
-interface PreviewColumn {
-  key: string;
-  label: string;
-  numeric?: boolean;
-}
-
-// REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu): same curated 7-contract-field set every previewColumns
-// builder in this app filters down to now — duplicated per component, matching this app's own
-// "duplicate styles/logic per component" convention (see rdt/README.md).
-const CURATED_CONTRACT_KEYS = ['account', 'profit_ctr', 'ref_doc', 'period', 'text_desc', 'material', 'in_pclc'];
 
 // REQ-RDT-SAP-03..06 (SRS.md 3.3) — approval unit is one PASANGAN (dinas_inisiasi, dinas_target):
 // a WAITING entry appears (computed, not stored) once that specific pair is resolved — other
@@ -59,80 +46,15 @@ export class NeedApprovalComponent implements OnInit {
   // exactly the old single-input experience (array of length 1, same label).
   subdocNumbers: string[] = [''];
   confirming = false;
-  // REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account.
-  transparencyColumnFilters: Record<string, string[]> = {};
-
-  // B4 (3 Agu): transparency table had no pagination at all — a dinas with hundreds/thousands of
-  // rows dumped the entire table unpaginated. Same 50/page convention as confirm.component's
-  // pendingRows (REQ-RDT-NAV-07 shared pager, direvisi 5 Agu 100->50).
-  readonly pageSize = 50;
-  transparencyPage = 1;
-
-  // REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): transparansi HARUS tampilkan SEMUA
-  // kolom yang benar-benar ikut ter-repost — satu sumber (CONTRACT_FIELDS via GET
-  // /api/contract-fields) sama persis yang dipakai repost-budgeting.component's previewColumns,
-  // bukan subset Account/Ref.Doc/Nominal/Remark/Status yang di-hardcode terpisah seperti
-  // sebelumnya.
-  previewColumns: PreviewColumn[] = [];
 
   // Per-entry download-in-progress flag (waiting list, keyed by pairKey) — separate from
   // `confirming` above, which only applies to the expanded transparency panel's form.
   downloadingPairKey: string | null = null;
 
-  get filteredTransparencyRows(): TransparencyRow[] {
-    return this.transparencyRows.filter((r) => matchesAllColumnFilters(r, this.transparencyColumnFilters, (row, key) => (row as any)[key]));
-  }
-
-  get pagedTransparencyRows(): TransparencyRow[] {
-    const start = (this.transparencyPage - 1) * this.pageSize;
-    return this.filteredTransparencyRows.slice(start, start + this.pageSize);
-  }
-
-  onTransparencyPageChange(p: number): void {
-    this.transparencyPage = p;
-  }
-
-  onTransparencyColumnFilterChange(key: string, values: string[]): void {
-    if (values.length) this.transparencyColumnFilters[key] = values;
-    else delete this.transparencyColumnFilters[key];
-    this.transparencyPage = 1;
-  }
-
   constructor(
     private exportBatches: ExportBatchService,
     private modal: ModalService,
-    private txService: TransactionService,
-  ) {
-    this.txService.getContractFields().subscribe((fields) => {
-      this.previewColumns = this.buildPreviewColumns(fields);
-    });
-  }
-
-  // REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "tampilkan SEMUA kolom"): sama 11-kolom+Notes
-  // tetap dipakai di repost-budgeting/confirm (lihat komentar lengkap di
-  // repost-budgeting.component.ts's buildPreviewColumns). "Dinas Pengaju" masuk di sini (BEDA dari
-  // confirm.component) karena transparansi ini tidak punya kolom Dinas Pengaju tersendiri di luar
-  // previewColumns. `reviewer_note`/Notes ditambahkan (SEBELUMNYA HILANG di tabel ini — gap yang
-  // baru ketemu 8 Agu). `status_konfirmasi` DIKELUARKAN dari sini (bukan bagian dari 11 kolom) —
-  // tapi TAB masih perlu lihatnya sebelum Confirm Reposted, jadi tetap kolom tetap sendiri di
-  // luar previewColumns (lihat template), bukan dihapus datanya.
-  private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
-    const contractCols: PreviewColumn[] = fields
-      .filter((f) => CURATED_CONTRACT_KEYS.includes(f.key))
-      .map((f) => f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Value (In PCLC)', numeric: true } : { key: f.key, label: f.label });
-    return [
-      { key: 'sub_group', label: 'Sub Group' },
-      { key: 'dinas_inisiasi', label: 'Dinas Pengaju' },
-      ...contractCols,
-      { key: 'category', label: 'Group' },
-      { key: 'remark', label: 'Remark' },
-      { key: 'reviewer_note', label: 'Notes' },
-    ];
-  }
-
-  getCellValue(row: TransparencyRow, key: string): string | number | null | undefined {
-    return row[key] as string | number | null | undefined;
-  }
+  ) {}
 
   ngOnInit(): void {
     this.load();
@@ -156,8 +78,6 @@ export class NeedApprovalComponent implements OnInit {
     this.closingDescription = '';
     this.subdocNumbers = [''];
     this.transparencyRows = [];
-    this.transparencyColumnFilters = {};
-    this.transparencyPage = 1;
     this.exportBatches.getTransparency(dinasInisiasi, dinasTarget).subscribe({
       next: (rows) => {
         this.transparencyRows = rows;

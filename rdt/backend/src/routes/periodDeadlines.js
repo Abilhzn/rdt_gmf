@@ -104,48 +104,8 @@ router.post('/', express.json(), async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// POST /api/period-deadlines/bulk — body { periode, deadline_at }. NO dinas_inisiasi/dinas_target
-// — this is the actual real-world workflow (confirmed 5 Agu malam, superseding the earlier
-// per-pasangan-only assumption): TAB sets ONE deadline that applies to EVERY pasangan currently
-// "aktif" (has a non-terminal transaction — same BLOCKING_STATUSES exportBatches.js already uses
-// for its own readiness gate) in that periode at once. Per-pasangan override (POST / above) stays
-// available afterward for exceptions — same table, same UNIQUE constraint, a later single-
-// pasangan POST / just overwrites whatever the bulk call set for that one pasangan.
-//
-// Deliberately scoped to ACTIVE pasangan only: periode_efektif is a snapshot written only at a
-// FUTURE Confirm/Reject (see POST / comment above) — a pasangan with no non-terminal transactions
-// left has no future action to consume a deadline, so including it would just create a dead-
-// letter row that's never read.
-router.post('/bulk', express.json(), async (req, res) => {
-  const validation = validatePeriodAndDeadline(req.body || {});
-  if (!validation.ok) return res.status(400).json({ ok: false, error: validation.error });
-  const { deadlineAt } = validation;
-  const periode = req.body.periode;
-
-  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  try {
-    await client.connect();
-    // $2::timestamptz explicit cast — without it, Postgres can't infer the bind parameter's type
-    // from this SELECT-list position (unlike a plain INSERT...VALUES) and rejects it as text vs
-    // the deadline_at column's timestamptz type.
-    const r = await client.query(
-      `INSERT INTO rdt.period_deadlines (dinas_inisiasi, dinas_target, periode, deadline_at, set_by_user_id)
-       SELECT DISTINCT t.dinas_inisiasi, t.dinas_target, $1, $2::timestamptz, $3
-       FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
-       WHERE u.period = $1 AND t.dinas_target IS NOT NULL AND t.status_konfirmasi = ANY($4)
-       ON CONFLICT (dinas_inisiasi, dinas_target, periode)
-       DO UPDATE SET deadline_at = EXCLUDED.deadline_at, set_by_user_id = EXCLUDED.set_by_user_id, updated_at = now()
-       RETURNING *`,
-      [periode, deadlineAt.toISOString(), req.rdtUser.id, BLOCKING_STATUSES]
-    );
-    res.json({ ok: true, periode, deadline_at: deadlineAt.toISOString(), deadlines: r.rows });
-  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
-  finally { try { await client.end(); } catch (e) {} }
-});
-
 // GET /api/period-deadlines/default — every periode-wide default TAB has ever set (REQ-RDT-SAP-16),
-// for the "Setting Deadline" panel's own overview list — separate shape from GET / above (no
+// for the "Setting Deadline" page's own overview list — separate shape from GET / above (no
 // dinas_inisiasi/dinas_target, just periode).
 router.get('/default', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
@@ -159,31 +119,86 @@ router.get('/default', async (req, res) => {
 });
 
 // POST /api/period-deadlines/default — body { periode, deadline_at }. REQ-RDT-SAP-16 (8 Agu,
-// "pembalikan alur deadline"): unlike POST /bulk above (which only ever touches pasangan that
-// ALREADY have a non-terminal transaction in that periode — i.e. reactive, after the fact), this
-// sets a default for the periode ITSELF, before any dinas has even uploaded for it. Consumed by
-// routes/confirmation.js's snapshotPeriodeEfektif as the fallback when no per-pasangan override
-// exists yet (see rules/periodEffective.js's pickDeadline) — a pair that shows up for this periode
-// later automatically "inherits" this deadline without TAB having to re-set anything.
+// "pembalikan alur deadline"): sets a default for the periode ITSELF, before any dinas has even
+// uploaded for it. Consumed by routes/confirmation.js's snapshotPeriodeEfektif as the fallback
+// when no per-pasangan override exists yet (see rules/periodEffective.js's pickDeadline) — a pair
+// that shows up for this periode later automatically "inherits" this deadline.
+//
+// REQ-RDT-SAP-20 (8 Agu, "auto-backfill DIPERJELAS" — merged 13 Agu): this used to ONLY set the
+// default (forward-looking) — sweeping it onto pasangan that ALREADY have a non-terminal
+// transaction in this periode was a SEPARATE action (POST /bulk, "Terapkan ke Pasangan Aktif").
+// SRS 3.12 now requires ONE action to do both, so the sweep (identical SQL /bulk used to run) is
+// folded in here, same transaction as the default upsert — no partial-success state where the
+// default lands but the sweep doesn't (or vice versa). POST /bulk itself is removed; this is its
+// only remaining caller.
 router.post('/default', express.json(), async (req, res) => {
   const validation = validatePeriodAndDeadline(req.body || {});
   if (!validation.ok) return res.status(400).json({ ok: false, error: validation.error });
   const { deadlineAt } = validation;
   const periode = req.body.periode;
+  const userId = req.rdtUser.id;
 
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    const r = await client.query(
-      `INSERT INTO rdt.period_default_deadlines (periode, deadline_at, set_by_user_id)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (periode)
-       DO UPDATE SET deadline_at = EXCLUDED.deadline_at, set_by_user_id = EXCLUDED.set_by_user_id, updated_at = now()
-       RETURNING *`,
-      [periode, deadlineAt.toISOString(), req.rdtUser.id]
-    );
-    res.json({ ok: true, deadline: r.rows[0] });
+    await client.query('BEGIN');
+    try {
+      const defaultRes = await client.query(
+        `INSERT INTO rdt.period_default_deadlines (periode, deadline_at, set_by_user_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (periode)
+         DO UPDATE SET deadline_at = EXCLUDED.deadline_at, set_by_user_id = EXCLUDED.set_by_user_id, updated_at = now()
+         RETURNING *`,
+        [periode, deadlineAt.toISOString(), userId]
+      );
+
+      // Sweep onto pasangan that ALREADY have a non-terminal transaction in this periode — same
+      // query POST /bulk used to run on its own. $2::timestamptz explicit cast — without it,
+      // Postgres can't infer the bind parameter's type from this SELECT-list position (unlike a
+      // plain INSERT...VALUES) and rejects it as text vs the deadline_at column's timestamptz type.
+      const sweptRes = await client.query(
+        `INSERT INTO rdt.period_deadlines (dinas_inisiasi, dinas_target, periode, deadline_at, set_by_user_id)
+         SELECT DISTINCT t.dinas_inisiasi, t.dinas_target, $1, $2::timestamptz, $3
+         FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
+         WHERE u.period = $1 AND t.dinas_target IS NOT NULL AND t.status_konfirmasi = ANY($4)
+         ON CONFLICT (dinas_inisiasi, dinas_target, periode)
+         DO UPDATE SET deadline_at = EXCLUDED.deadline_at, set_by_user_id = EXCLUDED.set_by_user_id, updated_at = now()
+         RETURNING *`,
+        [periode, deadlineAt.toISOString(), userId, BLOCKING_STATUSES]
+      );
+
+      await client.query('COMMIT');
+      res.json({ ok: true, deadline: defaultRes.rows[0], swept: sweptRes.rows });
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch (e) {}
+      const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl });
+      res.status(500).json({ ok: false, error: String(err.message || err), error_category: category });
+    }
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+  finally { try { await client.end(); } catch (e) {} }
+});
+
+// DELETE /api/period-deadlines/default/:periode — REQ-RDT-SAP-19 (8 Agu): a default deadline can
+// be removed, but ONLY while its deadline_at is still in the future — once it's passed, deleting
+// it would rewrite history (pasangan that already snapshotted their periode_efektif against it
+// stay snapshotted regardless — see routes/confirmation.js's snapshotPeriodeEfektif — but leaving
+// the row in place keeps the audit trail honest about what deadline was actually in effect when
+// that happened).
+router.delete('/default/:periode', async (req, res) => {
+  const { periode } = req.params;
+  if (!PERIODE_RE.test(periode)) return res.status(400).json({ ok: false, error: "periode must be 'YYYY-MM'" });
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const existing = await client.query('SELECT deadline_at FROM rdt.period_default_deadlines WHERE periode = $1', [periode]);
+    if (!existing.rows.length) return res.status(404).json({ ok: false, error: `no default deadline set for periode ${periode}` });
+    if (new Date(existing.rows[0].deadline_at).getTime() <= Date.now()) {
+      return res.status(400).json({ ok: false, error: `deadline periode ${periode} sudah lewat — tidak bisa dihapus, cuma bisa dihapus sebelum waktunya` });
+    }
+    await client.query('DELETE FROM rdt.period_default_deadlines WHERE periode = $1', [periode]);
+    res.json({ ok: true, periode });
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
   finally { try { await client.end(); } catch (e) {} }
 });
@@ -245,6 +260,37 @@ router.get('/overdue', async (req, res) => {
       periode,
       overdue: rows.map((r) => ({ dinas_inisiasi: r.dinas_inisiasi, dinas_target: r.dinas_target, total: r.total, periode_efektif: r.periode_efektif })),
     });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+  finally { try { await client.end(); } catch (e) {} }
+});
+
+// GET /api/period-deadlines/active-pairs?periode=YYYY-MM — SRS 3.12 sub-halaman 2 ("'Repost'
+// Active"), Opsi A (union, project owner's pick 13 Agu): pasangan yang MASIH punya baris belum
+// resolved (PENDING/DECLINED/NEEDS_REVIEW) di periode ini, un-batched. Deliberately a SEPARATE
+// query/endpoint from GET /overdue above rather than one merged query — each stays single-purpose
+// (this file's existing convention), the frontend combines both arrays into one table with a
+// status column ("Masih Aktif" here, "Overdue — Butuh Override" from GET /overdue). No Override
+// Deadline action applies to rows from THIS endpoint — that action only makes sense once a
+// pasangan is 100% resolved (see POST /override-reevaluate's own "belum 100% confirmed" check).
+router.get('/active-pairs', async (req, res) => {
+  const periode = req.query.periode;
+  if (!periode || !PERIODE_RE.test(periode)) return res.status(400).json({ ok: false, error: "periode must be 'YYYY-MM'" });
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const r = await client.query(
+      `SELECT t.dinas_inisiasi, t.dinas_target, COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE t.status_konfirmasi = ANY($2))::int AS open_count
+       FROM rdt.transactions t
+       JOIN rdt.uploads u ON u.id = t.upload_id
+       WHERE u.period = $1 AND t.dinas_target IS NOT NULL AND t.export_batch_id IS NULL
+       GROUP BY t.dinas_inisiasi, t.dinas_target
+       HAVING COUNT(*) FILTER (WHERE t.status_konfirmasi = ANY($2)) > 0
+       ORDER BY t.dinas_inisiasi, t.dinas_target`,
+      [periode, BLOCKING_STATUSES]
+    );
+    res.json({ ok: true, periode, active: r.rows });
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
   finally { try { await client.end(); } catch (e) {} }
 });

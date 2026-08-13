@@ -145,9 +145,14 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     whereParts.push(`dinas_inisiasi = $${params.length + 1}`);
     params.push(initiatorDinas);
   }
+  // REQ-RDT-SAP-22 (8 Agu): u.period (declared) + t.periode_efektif (snapshot) joined in here so
+  // bump() below can track overdue-ness per pair alongside everything else it already aggregates —
+  // same "declared vs effective" comparison exportBatches.js's GET /history already uses.
   const txRes = await client.query(
-    `SELECT id, dinas_inisiasi, dinas_target, status_konfirmasi, reassign_count, export_batch_id
-     FROM rdt.transactions WHERE ${whereParts.join(' AND ')}`,
+    `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, t.reassign_count, t.export_batch_id,
+            u.period AS declared_period, t.periode_efektif
+     FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
+     WHERE ${whereParts.join(' AND ')}`,
     params
   );
   const transactions = txRes.rows;
@@ -162,9 +167,9 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   // different redirect paths. Tracked per card below (batchIds, pending count, whether any
   // resolved transaction is still unbatched) so the label reflects the true combined state
   // instead of guessing off a single mismatched key.
-  const agg = {}; // key -> { dinasInisiasi, target, total, resolved, pending, declined_pending_action, reply_count, batchIds, hasUnbatchedResolved, chain, chainConsistent }
-  const bump = (key, dinasInisiasi, target, status, replyCount, exportBatchId, fullChain) => {
-    if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, pending: 0, declined_pending_action: 0, reply_count: 0, batchIds: new Set(), hasUnbatchedResolved: false, chain: fullChain, chainConsistent: true };
+  const agg = {}; // key -> { dinasInisiasi, target, total, resolved, pending, declined_pending_action, reply_count, batchIds, hasUnbatchedResolved, chain, chainConsistent, periodCounts, maxPeriodeEfektif }
+  const bump = (key, dinasInisiasi, target, status, replyCount, exportBatchId, fullChain, declaredPeriod, periodeEfektif) => {
+    if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, pending: 0, declined_pending_action: 0, reply_count: 0, batchIds: new Set(), hasUnbatchedResolved: false, chain: fullChain, chainConsistent: true, periodCounts: {}, maxPeriodeEfektif: null };
     const a = agg[key];
     const resolved = RESOLVED_STATUSES.includes(status);
     a.total += 1;
@@ -176,6 +181,12 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
       if (exportBatchId) a.batchIds.add(exportBatchId);
       else a.hasUnbatchedResolved = true;
     }
+    // REQ-RDT-SAP-22: same "most common declared period wins, MAX(periode_efektif) is the worst-
+    // case effective period" pattern exportBatches.js's GET /history already uses per batch —
+    // here per pair instead. declaredPeriod is null for legacy rows with no upload period; NULL
+    // periode_efektif (row not yet Confirmed/Declined) simply doesn't move the MAX.
+    if (declaredPeriod) a.periodCounts[declaredPeriod] = (a.periodCounts[declaredPeriod] || 0) + 1;
+    if (periodeEfektif && (!a.maxPeriodeEfektif || periodeEfektif > a.maxPeriodeEfektif)) a.maxPeriodeEfektif = periodeEfektif;
     // REQ-RDT-NAV-03 (31 Jul, breadcrumb fix): a card can group transactions that took DIFFERENT
     // redirect paths after sharing the same original target (e.g. one went TJ->TC->TL, another
     // TJ->TC->TE) — only expose a single `chain` breadcrumb when every member transaction agrees
@@ -191,7 +202,7 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     // Full breadcrumb this ONE transaction actually took: initiator -> every intermediate dinas it
     // was reassigned FROM (chronological, see fetchReassignChainMap) -> its current dinas_target.
     const fullChain = [t.dinas_inisiasi, ...chain, t.dinas_target];
-    bump(key, t.dinas_inisiasi, originalTarget, t.status_konfirmasi, replyCount, t.export_batch_id, fullChain);
+    bump(key, t.dinas_inisiasi, originalTarget, t.status_konfirmasi, replyCount, t.export_batch_id, fullChain, t.declared_period, t.periode_efektif);
   }
 
   // One batched lookup for every card's contributing batches' subdoc numbers, same shape as
@@ -230,6 +241,15 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     .map((key) => {
       const a = agg[key];
       const subdocNumbers = a.hasUnbatchedResolved ? [] : Array.from(a.batchIds).flatMap((id) => subdocsByBatch[id] || []);
+      // REQ-RDT-SAP-22: most-common declared period among this pair's transactions wins (mirrors
+      // exportBatches.js's GET /history periodByBatch) — overdue = that period actually got
+      // shifted by the worst-case (MAX) periode_efektif snapshot among them.
+      let declaredPeriod = null;
+      let bestCount = 0;
+      for (const [p, c] of Object.entries(a.periodCounts)) {
+        if (c > bestCount) { declaredPeriod = p; bestCount = c; }
+      }
+      const overdue = !!(declaredPeriod && a.maxPeriodeEfektif && a.maxPeriodeEfektif !== declaredPeriod);
       const base = {
         total: a.total,
         resolved: a.resolved,
@@ -244,6 +264,8 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
         // REQ-RDT-NAV-03 (31 Jul): full redirect breadcrumb (e.g. ['TJ','TC','TL']), only present
         // when every transaction under this card agrees on the same path — see bump()'s comment.
         chain: a.chainConsistent ? a.chain : undefined,
+        // REQ-RDT-SAP-22 (8 Agu): small red "Overdue" tag on this pair's card.
+        overdue,
       };
       return groupBy === 'pair'
         ? { dinas: a.dinasInisiasi, target_dinas: a.target, ...base }
@@ -286,9 +308,13 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
 // this page. Only ever true for the TAB call site (see /summary below) — a plain PIC's
 // Need-to-Confirm view has nothing to do with investigation, that's TAB's queue alone.
 async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInvestigation) {
+  // REQ-RDT-SAP-22 (8 Agu): u.period + t.periode_efektif joined in — same overdue tracking as
+  // buildChainAwareProgress above.
   const txRes = await client.query(
-    `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, t.reassign_count
+    `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, t.reassign_count,
+            u.period AS declared_period, t.periode_efektif
      FROM rdt.transactions t
+     JOIN rdt.uploads u ON u.id = t.upload_id
      WHERE UPPER(t.dinas_target) = ANY($1)
        AND t.status_konfirmasi = ANY($2)
        AND t.export_batch_id IS NULL`,
@@ -308,13 +334,16 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
   const agg = {};
   for (const t of transactions) {
     const key = `${t.dinas_inisiasi} ${t.dinas_target}`;
-    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, pending: 0, declined: 0, reply_count: 0, chain: undefined, chainConsistent: true, chainSeeded: false };
+    if (!agg[key]) agg[key] = { dinas: t.dinas_inisiasi, target_dinas: t.dinas_target, total: 0, resolved: 0, pending: 0, declined: 0, reply_count: 0, chain: undefined, chainConsistent: true, chainSeeded: false, periodCounts: {}, maxPeriodeEfektif: null };
     const a = agg[key];
     a.total += 1;
     if (RESOLVED_STATUSES.includes(t.status_konfirmasi)) a.resolved += 1;
     if (t.status_konfirmasi === 'PENDING') a.pending += 1;
     if (t.status_konfirmasi === 'DECLINED') a.declined += 1;
     a.reply_count += replyCounts[t.id] || 0;
+    // REQ-RDT-SAP-22: same tracking as buildChainAwareProgress's bump() — see its comment.
+    if (t.declared_period) a.periodCounts[t.declared_period] = (a.periodCounts[t.declared_period] || 0) + 1;
+    if (t.periode_efektif && (!a.maxPeriodeEfektif || t.periode_efektif > a.maxPeriodeEfektif)) a.maxPeriodeEfektif = t.periode_efektif;
     const fullChain = [t.dinas_inisiasi, ...(chainMap[t.id] || []), t.dinas_target];
     if (!a.chainSeeded) { a.chain = fullChain; a.chainSeeded = true; }
     else if (JSON.stringify(fullChain) !== JSON.stringify(a.chain)) a.chainConsistent = false;
@@ -326,6 +355,14 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
   // needs to appear on this endpoint.
   const rows = Object.keys(agg).sort().map((key) => {
     const a = agg[key];
+    // REQ-RDT-SAP-22: same "most common declared period wins, MAX(periode_efektif) is worst-case
+    // effective" pattern as buildChainAwareProgress above.
+    let declaredPeriod = null;
+    let bestCount = 0;
+    for (const [p, c] of Object.entries(a.periodCounts)) {
+      if (c > bestCount) { declaredPeriod = p; bestCount = c; }
+    }
+    const overdue = !!(declaredPeriod && a.maxPeriodeEfektif && a.maxPeriodeEfektif !== declaredPeriod);
     return {
       dinas: a.dinas,
       target_dinas: a.target_dinas,
@@ -343,6 +380,8 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
       // A5 (3 Agu): full redirect breadcrumb, only present when every transaction under this
       // card agrees on the exact same path — same rule buildChainAwareProgress uses.
       chain: a.chainConsistent && a.chain && a.chain.length > 2 ? a.chain : undefined,
+      // REQ-RDT-SAP-22 (8 Agu): small red "Overdue" tag on this pair's card.
+      overdue,
     };
   });
   if (includeInvestigation) rows.push(...(await fetchInvestigationCounts(client, null)));

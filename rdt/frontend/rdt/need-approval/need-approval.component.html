@@ -47,44 +47,17 @@
 
     <div class="transparency-panel" *ngIf="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)">
       <p class="alert alert--error" *ngIf="transparencyError">{{ transparencyError }}</p>
-      <!-- REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "SEMUA kolom kontrak" 1/3 Agu): 11 kolom
-           tetap + Notes, satu sumber (previewColumns) — lihat need-approval.component.ts's
-           buildPreviewColumns. Status TIDAK termasuk 11 kolom itu tapi TAB masih perlu lihatnya
-           di sini sebelum Confirm Reposted, jadi tetap kolom tetap sendiri (bukan dihapus). -->
-      <div class="table-scroll" *ngIf="transparencyRows.length">
-        <table class="rows">
-          <thead>
-            <tr>
-              <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric">
-                {{ col.label }}
-                <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
-                <rdt-multi-value-filter [placeholder]="'Tempel banyak ' + col.label + ' sekaligus...'" (valuesChange)="onTransparencyColumnFilterChange(col.key, $event)"></rdt-multi-value-filter>
-              </th>
-              <th>Status</th>
-              <th>Reassign</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let t of pagedTransparencyRows">
-              <ng-container *ngFor="let col of previewColumns">
-                <td *ngIf="col.numeric" class="rows__num">{{ getCellValue(t, col.key) | number: '1.2-2' }}</td>
-                <td *ngIf="col.key === 'remark'" class="rows__remark" [title]="t.remark || ''">{{ t.remark }}</td>
-                <td *ngIf="col.key !== 'remark' && !col.numeric">{{ getCellValue(t, col.key) ?? '—' }}</td>
-              </ng-container>
-              <td>{{ t.status_konfirmasi }}</td>
-              <td>{{ t.reassign_count > 0 ? (t.reassigned_from + ' → ' + w.dinas_target) : '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <!-- B4 (3 Agu): 100 baris/halaman, sama seperti Detail Confirmation (REQ-RDT-NAV-07). -->
-      <rdt-pagination
-        *ngIf="transparencyRows.length"
-        [page]="transparencyPage"
-        [totalItems]="filteredTransparencyRows.length"
-        [pageSize]="pageSize"
-        (pageChange)="onTransparencyPageChange($event)"
-      ></rdt-pagination>
+      <!-- REQ-RDT-SAP-23 (8 Agu, "sederhanakan Confirm Reposted"): the ~12-column preview table
+           that used to render here is GONE — TAB already saw the data via Download (REQ-RDT-SAP-06)
+           or the breakdown drill-down (REQ-RDT-SAP-15) before ever getting to this step; forcing it
+           onto the screen again just to fill in a subdoc number was the thing being simplified away.
+           transparencyRows itself is still fetched (openTransparency below) — chunkCount/
+           chunkTransactionIds still need it to size the subdoc inputs and split transaction_ids per
+           chunk — it's just not rendered as a table anymore. -->
+      <p class="note" *ngIf="transparencyRows.length">
+        {{ transparencyRows.length }} transaksi CONFIRMED siap di-repost. Lihat detail lengkap lewat
+        tombol Download di atas, atau breakdown per pasangan di Summary Progress All Dinas.
+      </p>
 
       <!-- REQ-RDT-SAP-05 (revised 31 Jul): ONE form — deskripsi penutup + nomor subdoc pertama
            sekaligus. Submit ini SEKALIGUS bikin batch dan attach subdoc pertamanya. -->

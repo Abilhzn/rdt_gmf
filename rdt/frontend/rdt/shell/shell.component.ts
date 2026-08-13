@@ -18,8 +18,8 @@ const PAGE_TITLES: Record<string, string> = {
   // SRS 3.10 (Share-Cost, 3 Agu): TAB-only page, lives under the "Need Identification" sub-nav
   // (see shell.component.html) — fixed title, no PIC-facing variant exists.
   'share-cost': 'Share-Cost',
-  // REQ-RDT-SAP-14 (11 Agu): split out of Riwayat Repost TAB into its own TAB-only sidebar item.
-  'setting-periode': 'Setting Periode',
+  // 'setting-periode' is role-aware by sub-page now (see the NavigationEnd handler below) — no
+  // longer a static lookup (REQ-RDT-SAP-20, 13 Agu split).
 };
 
 // REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
@@ -137,10 +137,10 @@ export class ShellComponent implements OnInit {
   private syncFromRoute(): void {
     const segment = this.route.firstChild?.snapshot.routeConfig?.path;
     // REQ-RDT-UI-12: which nav-group (if any) the CURRENTLY OPEN page belongs to — read by
-    // isNavGroupExpanded() to force that group open regardless of any manual collapse. Only
-    // 'dashboard'/'confirm' are actual tree-view groups (the only ones with a nav-subnav) —
-    // every other route (repost, need-approval, ...) has no group to force-open.
-    this.activeNavGroup = segment === 'dashboard' || segment === 'confirm' ? segment : null;
+    // isNavGroupExpanded() to force that group open regardless of any manual collapse.
+    // 'dashboard'/'confirm'/'setting-periode' (SAP-20, 13 Agu) are the tree-view groups (the ones
+    // with a nav-subnav) — every other route (repost, need-approval, ...) has no group to force-open.
+    this.activeNavGroup = segment === 'dashboard' || segment === 'confirm' || segment === 'setting-periode' ? segment : null;
     // REQ-RDT-SAP-12 (31 Jul, expanded): this page is TAB's own archive OR a dinas's own
     // archive of the same underlying data, so its title follows who's looking — same dynamic
     // pattern as Dashboard's "Repost Every PIC" vs "Own Repost" sub-link just below.
@@ -161,6 +161,12 @@ export class ShellComponent implements OnInit {
     } else if (segment === 'need-approval') {
       // "Need Approval" -> "Wait to Repost" (TAB-only table; this route is TAB-only already).
       this.pageTitle = 'Wait to Repost';
+    } else if (segment === 'setting-periode') {
+      // REQ-RDT-SAP-20 (13 Agu split): title follows which sub-page is actually open, same one
+      // level deeper as Dashboard's ?sub= read below — 'deadline'/'active' are SettingPeriodeModule's
+      // own child route paths (setting-periode.module.ts).
+      const sub = this.route.firstChild?.firstChild?.snapshot.routeConfig?.path;
+      this.pageTitle = sub === 'active' ? "'Repost' Active" : 'Setting Deadline';
     } else {
       this.pageTitle = (segment && PAGE_TITLES[segment]) || 'Dashboard';
     }

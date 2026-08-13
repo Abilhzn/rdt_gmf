@@ -87,24 +87,40 @@ router.get('/waiting', requireRole('TAB'), async (req, res) => {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
+    // REQ-RDT-SAP-21 (8 Agu): u.period + t.periode_efektif joined in — an overdue pair (its
+    // periode_efektif already shifted to next month) must NOT show here, it's automatically next
+    // period's business, not this one's. Same declared-vs-effective tracking dashboard.js's
+    // buildChainAwareProgress/buildNeedToConfirmProgress already use.
     const r = await client.query(
-      `SELECT dinas_inisiasi, dinas_target, status_konfirmasi
-       FROM rdt.transactions
-       WHERE export_batch_id IS NULL AND dinas_target IS NOT NULL
-         AND status_konfirmasi = ANY($1)`,
+      `SELECT t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, u.period AS declared_period, t.periode_efektif
+       FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
+       WHERE t.export_batch_id IS NULL AND t.dinas_target IS NOT NULL
+         AND t.status_konfirmasi = ANY($1)`,
       [[...BLOCKING_STATUSES, ...ATTACHABLE_STATUSES]]
     );
     const byPair = {};
     for (const t of r.rows) {
       const key = `${t.dinas_inisiasi} ${t.dinas_target}`;
-      if (!byPair[key]) byPair[key] = { dinas_inisiasi: t.dinas_inisiasi, dinas_target: t.dinas_target, blocked: false, total: 0 };
+      if (!byPair[key]) byPair[key] = { dinas_inisiasi: t.dinas_inisiasi, dinas_target: t.dinas_target, blocked: false, total: 0, periodCounts: {}, maxPeriodeEfektif: null };
       if (BLOCKING_STATUSES.includes(t.status_konfirmasi)) byPair[key].blocked = true;
       else byPair[key].total += 1;
+      if (t.declared_period) byPair[key].periodCounts[t.declared_period] = (byPair[key].periodCounts[t.declared_period] || 0) + 1;
+      if (t.periode_efektif && (!byPair[key].maxPeriodeEfektif || t.periode_efektif > byPair[key].maxPeriodeEfektif)) byPair[key].maxPeriodeEfektif = t.periode_efektif;
     }
+    // REQ-RDT-SAP-21: most-common declared period wins (same pattern as dashboard.js/
+    // exportBatches.js's own GET /history), overdue = MAX(periode_efektif) shifted away from it.
+    const isOverdue = (p) => {
+      let declaredPeriod = null;
+      let bestCount = 0;
+      for (const [period, c] of Object.entries(p.periodCounts)) {
+        if (c > bestCount) { declaredPeriod = period; bestCount = c; }
+      }
+      return !!(declaredPeriod && p.maxPeriodeEfektif && p.maxPeriodeEfektif !== declaredPeriod);
+    };
     // Every entry here is, by construction, fully resolved with no export_batches row yet -- the
     // exact "Waiting to repost" state (REQ-RDT-SAP-07), constant across all rows in this list.
     const waiting = Object.values(byPair)
-      .filter((p) => !p.blocked && p.total > 0)
+      .filter((p) => !p.blocked && p.total > 0 && !isOverdue(p))
       .sort((a, b) => (a.dinas_inisiasi + a.dinas_target).localeCompare(b.dinas_inisiasi + b.dinas_target))
       .map((p) => ({ dinas_inisiasi: p.dinas_inisiasi, dinas_target: p.dinas_target, total: p.total, state_label: deriveStateLabel({ pendingCount: 0, targetDinas: p.dinas_target }) }));
     res.json({ ok: true, waiting });
