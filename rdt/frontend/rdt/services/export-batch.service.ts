@@ -62,6 +62,16 @@ export interface PeriodDeadline {
   updated_at: string;
 }
 
+// REQ-RDT-SAP-16 (8 Agu) — one TAB-set default deadline for a periode ALONE, set in advance before
+// any pasangan for that periode even exists yet. See routes/periodDeadlines.js's POST/GET /default.
+export interface PeriodDefaultDeadline {
+  periode: string;
+  deadline_at: string;
+  set_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // DIPERJELAS 7 Agu — one row in "Override Deadline"'s list: a pasangan that's 100% confirmed for
 // this periode but un-batched, whose periode_efektif already shifted away from the declared
 // periode (overdue). See routes/periodDeadlines.js's GET /overdue.
@@ -290,6 +300,35 @@ export class ExportBatchService {
       )
       .pipe(map((res) => {
         if (!res.ok) throw new Error(res.error || 'gagal menyimpan deadline massal');
+        return res.deadlines;
+      }));
+  }
+
+  // REQ-RDT-SAP-16 (8 Agu) — periode-wide default, settable ANYTIME (no active pasangan required,
+  // unlike setBulkPeriodDeadline above). A pasangan that later shows up for this periode without
+  // its own per-pasangan override inherits this automatically (see confirmation.js's
+  // snapshotPeriodeEfektif / rules/periodEffective.js's pickDeadline).
+  setDefaultPeriodDeadline(periode: string, deadlineAt: string): Observable<PeriodDefaultDeadline> {
+    return this.http
+      .post<{ ok: boolean; deadline: PeriodDefaultDeadline; error?: string }>(
+        `${this.deadlinesBase}/default`,
+        { periode, deadline_at: deadlineAt },
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal menyimpan deadline default periode');
+        return res.deadline;
+      }));
+  }
+
+  getDefaultPeriodDeadlines(): Observable<PeriodDefaultDeadline[]> {
+    return this.http
+      .get<{ ok: boolean; deadlines: PeriodDefaultDeadline[]; error?: string }>(
+        `${this.deadlinesBase}/default`,
+        { headers: this.currentUser.authHeaders() }
+      )
+      .pipe(map((res) => {
+        if (!res.ok) throw new Error(res.error || 'gagal memuat deadline default periode');
         return res.deadlines;
       }));
   }

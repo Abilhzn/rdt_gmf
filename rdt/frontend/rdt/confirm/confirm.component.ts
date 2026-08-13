@@ -505,6 +505,20 @@ export class ConfirmComponent implements OnInit {
     this.pendingRows.forEach((r) => (r.checked = checked));
   }
 
+  // REQ-RDT-SAP-18 (8 Agu, "filter-aware select all"): Select All above intentionally selects
+  // EVERY pending row across every pagination page, ignoring any active column filter (REQ-RDT-
+  // NAV-05's own established behavior — kept, not touched). This is the ADDITIONAL option: only
+  // the rows the current filter is actually showing, for when TAB/PIC filtered down to a specific
+  // subset (e.g. one Account) and wants to act on exactly that subset without also sweeping in
+  // everything else still checked from before.
+  get hasActivePendingFilter(): boolean {
+    return Object.keys(this.pendingColumnFilters).length > 0;
+  }
+
+  toggleSelectAllFiltered(checked: boolean): void {
+    this.filteredPendingRows.forEach((r) => (r.checked = checked));
+  }
+
   // REQ-RDT-NAV-09: filter first, THEN paginate what's left.
   get filteredPendingRows(): PendingRowVm[] {
     return this.pendingRows.filter((r) => matchesAllColumnFilters(r, this.pendingColumnFilters, (row, key) => (row as any)[key]));

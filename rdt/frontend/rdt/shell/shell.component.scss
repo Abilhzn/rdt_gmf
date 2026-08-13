@@ -31,6 +31,11 @@ $danger-600: #b3261e;
   overflow: hidden;
 }
 
+// REQ-RDT-UI-06 (DIBATALKAN 8 Agu, "setelah dicoba beneran jalan" — REVERT total 13 Agu dari
+// hover-collapse/pin, lihat shell.component.ts's header comment for kenapa): fixed lebar penuh
+// SELAMANYA, tidak ada collapsed/expanded state apapun — width sedikit lebih ramping dari versi
+// paling awal (permintaan "dikecilkan" 4 Agu masih valid), tapi STATIS, sama sekali gak berubah
+// berdasarkan hover/klik/interaksi apapun.
 .sidebar {
   // Item: Figma node 27:96 draws the nav rail at 450/1920px = 23.4% of viewport width
   // (confirmed with project owner over the annotation text, which said 41.7% but didn't match
@@ -41,6 +46,7 @@ $danger-600: #b3261e;
   // as too wide relative to the content area at typical desktop widths. min/max bounds scaled
   // down proportionally so the same "usable at both extremes" guarantee still holds.
   flex: 0 0 18%;
+  width: 18%;
   min-width: 200px;
   max-width: 360px;
   background: $page-bg;
@@ -126,6 +132,30 @@ $danger-600: #b3261e;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+// REQ-RDT-UI-12 (8 Agu, DIKLARIFIKASI): tree-view collapse/expand toggle, one per nav-group that
+// actually has a nav-subnav (Dashboard, Confirmation) — separate control from REQ-RDT-UI-06's
+// sidebar-width collapse, a different feature entirely. Sits at the far right of the nav-link row
+// (margin-left: auto, after .nav-badge when both are present — Dashboard's badge stays leftmost
+// of the two, matching its own already-established position).
+.nav-group-toggle {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: $radius-md;
+  color: $ink-600;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+
+  &:hover { background: rgba(0, 0, 0, 0.08); color: $ink; }
 }
 
 // REQ-RDT-NAV-02a: "Need to Confirm" / "Own Repost" sub-links nested under the Dashboard item
@@ -275,6 +305,7 @@ $danger-600: #b3261e;
   .app-shell { flex-direction: column; height: auto; overflow: visible; }
   .sidebar {
     width: 100%;
+    max-width: none;
     flex: none;
     height: auto;
     overflow-y: visible;

@@ -148,13 +148,14 @@ $radius-md: 8px;
 // ::ng-deep to be reached from here.
 // Feedback tambahan 7 Agu: fixed height + internal scroll instead of growing on every keystroke —
 // see confirm.component.scss's matching note.
+// REQ-RDT-UI-11 (8 Agu): 90px read as stingy — bigger, still fixed + internal scroll.
 ::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
   padding: 8px 10px;
   font-size: 13.5px;
   font-family: inherit;
-  height: 90px;
+  height: 160px;
   overflow-y: auto;
   resize: vertical;
 }

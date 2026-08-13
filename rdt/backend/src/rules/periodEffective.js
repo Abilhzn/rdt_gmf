@@ -42,4 +42,16 @@ function computeEffectivePeriod({ declaredPeriod, deadlineAt, latestTargetAction
   return { periodeEfektif: addMonths(declaredPeriod, 1), overdue: true };
 }
 
-module.exports = { computeEffectivePeriod, addMonths };
+// REQ-RDT-SAP-16 (8 Agu): snapshotPeriodeEfektif's deadline lookup order — a per-pasangan
+// override in rdt.period_deadlines (REQ-RDT-SAP-14) always wins when it exists (TAB explicitly
+// set it for THIS pair, more specific than a periode-wide default); rdt.period_default_deadlines
+// (set in advance, before any pair for that periode even exists) is only a fallback; neither
+// existing means no deadline check at all (opt-in, same as before this requirement). Pure
+// function — caller does both queries, this just picks between the two rows.
+function pickDeadline(pairDeadlineRow, defaultDeadlineRow) {
+  if (pairDeadlineRow && pairDeadlineRow.deadline_at) return pairDeadlineRow.deadline_at;
+  if (defaultDeadlineRow && defaultDeadlineRow.deadline_at) return defaultDeadlineRow.deadline_at;
+  return null;
+}
+
+module.exports = { computeEffectivePeriod, addMonths, pickDeadline };

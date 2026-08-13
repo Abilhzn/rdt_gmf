@@ -44,6 +44,7 @@ const { loadDirectory } = require('../dataUserClient');
 const { deriveStateLabel } = require('../rules/stateLabel');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { validateFreeText } = require('../rules/textValidation');
+const { logRollbackAudit } = require('../logger');
 // REQ-RDT-SAP-14 (revisi open question, 5 Agu malam): computeEffectivePeriod is now called at
 // SNAPSHOT time in routes/confirmation.js, not here — GET /history below just reads the already-
 // locked rdt.transactions.periode_efektif column.
@@ -58,7 +59,9 @@ router.use(requireUser);
 const BLOCKING_STATUSES = ['PENDING', 'DECLINED', 'NEEDS_REVIEW'];
 const ATTACHABLE_STATUSES = ['CONFIRMED', 'BORNE_BY_INITIATOR'];
 
-async function withTransaction(fn) {
+// req/userId are only used for the REQ-RDT-LEDGER-05/AUDIT-02 rollback-logging call below —
+// callers that don't have a userId yet (none currently) can pass null, logRollbackAudit handles it.
+async function withTransaction(req, userId, fn) {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
@@ -68,7 +71,8 @@ async function withTransaction(fn) {
     return { ok: true, result };
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
-    return { ok: false, error: err.message || String(err), httpStatus: err.httpStatus || 500 };
+    const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl });
+    return { ok: false, error: err.message || String(err), httpStatus: err.httpStatus || 500, errorCategory: category };
   } finally {
     try { await client.end(); } catch (e) {}
   }
@@ -188,14 +192,15 @@ router.post('/:batchId/subdocs', requireRole('TAB'), express.json(), async (req,
     const subdocId = insertRes.rows[0].id;
     await client.query('UPDATE rdt.transactions SET subdoc_id=$1 WHERE id = ANY($2)', [subdocId, targetIds]);
     await client.query(
-      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,NULL,$2,$3,$4,$5)`,
-      [userId, 'SUBDOC_ADDED', 'CONFIRMED', 'CONFIRMED', JSON.stringify({ batch_id: Number(batchId), dinas_inisiasi: batchRes.rows[0].dinas_inisiasi, dinas_target: batchRes.rows[0].dinas_target, subdoc_number: subdocNumber, transaction_ids: targetIds })]
+      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,NULL,$2,$3,$4,$5,$6)`,
+      [userId, 'SUBDOC_ADDED', 'CONFIRMED', 'CONFIRMED', JSON.stringify({ batch_id: Number(batchId), dinas_inisiasi: batchRes.rows[0].dinas_inisiasi, dinas_target: batchRes.rows[0].dinas_target, subdoc_number: subdocNumber, transaction_ids: targetIds }), req.ip]
     );
     await client.query('COMMIT');
     res.json({ ok: true, subdoc: { ...insertRes.rows[0], transaction_ids: targetIds } });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
-    res.status(400).json({ ok: false, error: String(err.message || err) });
+    const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl });
+    res.status(400).json({ ok: false, error: String(err.message || err), error_category: category });
   } finally { try { await client.end(); } catch (e) {} }
 });
 
@@ -382,7 +387,7 @@ router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => 
   if (!subdocNumber) return res.status(400).json({ ok: false, error: 'subdoc_number is required' });
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
 
-  const outcome = await withTransaction(async (client) => {
+  const outcome = await withTransaction(req, userId, async (client) => {
     const gate = await client.query(
       `SELECT COUNT(*)::int AS cnt FROM rdt.transactions
        WHERE dinas_inisiasi=$1 AND dinas_target=$2 AND export_batch_id IS NULL AND status_konfirmasi = ANY($3)`,
@@ -469,16 +474,16 @@ router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => 
     }
 
     await client.query(
-      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,NULL,$2,$3,$4,$5)`,
-      [userId, 'EXPORT_BATCH_CONFIRM', 'WAITING', 'CONFIRMED', JSON.stringify({ batch_id: batchId, dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, closing_description: closingDescription, attached_count: attachRes.rowCount, notified_user_ids: notifiedUserIds })]
+      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,NULL,$2,$3,$4,$5,$6)`,
+      [userId, 'EXPORT_BATCH_CONFIRM', 'WAITING', 'CONFIRMED', JSON.stringify({ batch_id: batchId, dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, closing_description: closingDescription, attached_count: attachRes.rowCount, notified_user_ids: notifiedUserIds }), req.ip]
     );
     await client.query(
-      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,NULL,$2,$3,$4,$5)`,
-      [userId, 'SUBDOC_ADDED', 'CONFIRMED', 'CONFIRMED', JSON.stringify({ batch_id: batchId, dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, subdoc_number: subdocNumber, transaction_ids: subdocTargetIds })]
+      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,NULL,$2,$3,$4,$5,$6)`,
+      [userId, 'SUBDOC_ADDED', 'CONFIRMED', 'CONFIRMED', JSON.stringify({ batch_id: batchId, dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, subdoc_number: subdocNumber, transaction_ids: subdocTargetIds }), req.ip]
     );
     return { batch_id: batchId, attached_count: attachRes.rowCount, notified_user_ids: notifiedUserIds, subdoc_number: subdocNumber };
   });
-  if (!outcome.ok) return res.status(outcome.httpStatus).json({ ok: false, error: outcome.error });
+  if (!outcome.ok) return res.status(outcome.httpStatus).json({ ok: false, error: outcome.error, error_category: outcome.errorCategory });
   res.json({ ok: true, batch_id: outcome.result.batch_id, attached_count: outcome.result.attached_count, notified_user_ids: outcome.result.notified_user_ids, subdoc_number: outcome.result.subdoc_number });
 });
 

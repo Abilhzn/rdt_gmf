@@ -5,6 +5,7 @@ const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/ment
 const { buildValidCodeMap } = require('../rules/reassignmentRules');
 const { validateFreeText } = require('../rules/textValidation');
 const { loadDirectory } = require('../dataUserClient');
+const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
@@ -144,8 +145,8 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
     }
 
     await client.query(
-      'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)',
-      [userId, original.id, 'SPLIT_BY_TAB', 'PENDING', 'SPLIT_VOID', JSON.stringify({ split_into: newIds, note: trimmedNote, splits })]
+      'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [userId, original.id, 'SPLIT_BY_TAB', 'PENDING', 'SPLIT_VOID', JSON.stringify({ split_into: newIds, note: trimmedNote, splits }), req.ip]
     );
 
     // Notifikasi ke dinas asal (SRS 3.10): komentar otomatis di thread pasangan ASLI
@@ -186,7 +187,8 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
     res.json({ ok: true, split_from: original.id, split_into: newIds });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
-    res.status(500).json({ ok: false, error: String(err) });
+    const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl, transactionId });
+    res.status(500).json({ ok: false, error: String(err), error_category: category });
   } finally { try { await client.end(); } catch (e) {} }
 });
 

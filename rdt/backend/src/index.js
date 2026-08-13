@@ -34,7 +34,7 @@ const { loadDirectory } = require('./dataUserClient');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('./rules/mentionRules');
 const { validateFreeText } = require('./rules/textValidation');
 const { Client } = require('pg');
-const { errorLoggingMiddleware } = require('./logger');
+const { errorLoggingMiddleware, logRollbackAudit } = require('./logger');
 
 const app = express();
 // Checklist 1.2 (11 Agu): baseline security headers — same 'none' CSP rationale as
@@ -104,6 +104,33 @@ function writeConfig(name, obj) {
   fs.writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8');
 }
 
+// REQ-RDT-EXT-04 fix (13 Agu, audit finding): mapping/exclusions/dinasCodes used to always come
+// from the JSON seed files even when DATABASE_URL is set — PUT /api/mapping and PUT /api/exclusions
+// below write to rdt.dinas_mapping/rdt.exclusion_rules in that case, so the parser never reflected
+// what TAB actually edited. Mirrors the exact SELECTs those GET routes already use, just bundled
+// for excelParser.js's parseExcelFile options. Returns null (caller falls back to JSON) when no DB.
+async function loadDbRoutingConfig() {
+  if (!process.env.DATABASE_URL) return null;
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const [mappingRes, exclusionsRes, dinasRes] = await Promise.all([
+      client.query('SELECT prefix, dinas_code FROM rdt.dinas_mapping'),
+      client.query('SELECT prefix FROM rdt.exclusion_rules'),
+      client.query('SELECT code FROM rdt.dinas'),
+    ]);
+    const mapping = {};
+    mappingRes.rows.forEach((row) => { mapping[row.prefix] = row.dinas_code; });
+    return {
+      mapping,
+      exclusions: { prefixes: exclusionsRes.rows.map((r) => r.prefix) },
+      dinasCodes: dinasRes.rows.map((r) => r.code),
+    };
+  } finally {
+    try { await client.end(); } catch (e) {}
+  }
+}
+
 // Ensure staging area exists for commits
 const stagingDir = path.join(__dirname, '..', 'staging');
 if (!fs.existsSync(stagingDir)) fs.mkdirSync(stagingDir, { recursive: true });
@@ -147,7 +174,11 @@ app.post('/api/parse', requireUser, upload.single('file'), async (req, res) => {
   // client body — same rule as confirmation.js/reassignment.js.
   const uploaderDinas = req.rdtUser.dinas;
   try {
-    const rows = await parseExcelFile(fp, { uploaderDinas });
+    // REQ-RDT-EXT-04 fix — pass DB-sourced mapping/exclusions/dinasCodes when a DB is configured,
+    // so TAB's Admin UI edits (PUT /api/mapping, PUT /api/exclusions) actually take effect. `null`
+    // when DATABASE_URL isn't set — parseExcelFile falls back to the JSON seed files as before.
+    const dbConfig = await loadDbRoutingConfig();
+    const rows = await parseExcelFile(fp, { uploaderDinas, ...(dbConfig || {}) });
     // Bug found 25 Jul (project owner report against contoh_input/06. DT TJ - Jun 2026.xlsx):
     // a workbook whose ONLY sheet is a pivot/summary export (no 53-column detail sheet at all)
     // used to silently return `rows: []` with ok:true — the Repost page just showed all-zero
@@ -510,14 +541,14 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
           );
         }
         await client.query(
-          `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,NULL,$2,$3,$4,$5)`,
+          `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,NULL,$2,$3,$4,$5,$6)`,
           [uploadedBy, 'UPLOAD_SUPERSEDED', 'ACTIVE', 'SUPERSEDED', JSON.stringify({
             dinas_inisiasi: uploader,
             period,
             prior_upload_ids: priorUploadIds,
             new_upload_id: uploadId,
             superseded_transaction_count: supersedeOutcome.supersedeIds.length,
-          })]
+          }), req.ip]
         );
       }
 
@@ -679,7 +710,8 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
       // If the failure happened before saveOriginalFile() ran, the temp file is still sitting
       // at its original multer path — clean it up. If it already got renamed, this is a no-op.
       if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
-      return res.status(500).json({ ok: false, error: String(err) });
+      const category = await logRollbackAudit(client, { userId: uploadedBy, req, err, route: req.originalUrl });
+      return res.status(500).json({ ok: false, error: String(err), error_category: category });
     }
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });

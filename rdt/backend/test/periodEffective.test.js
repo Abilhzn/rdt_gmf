@@ -1,4 +1,4 @@
-const { computeEffectivePeriod, addMonths } = require('../src/rules/periodEffective');
+const { computeEffectivePeriod, addMonths, pickDeadline } = require('../src/rules/periodEffective');
 
 describe('addMonths', () => {
   test('adds within the same year', () => {
@@ -63,5 +63,26 @@ describe('computeEffectivePeriod (REQ-RDT-SAP-14, revisi total 5 Agu)', () => {
       latestTargetActionAt: '2026-12-21T00:00:00Z',
     });
     expect(result).toEqual({ periodeEfektif: '2027-01', overdue: true });
+  });
+});
+
+describe('pickDeadline (REQ-RDT-SAP-16, 8 Agu — lookup order per-pasangan lalu default periode)', () => {
+  test('per-pasangan ada -> menang, default diabaikan', () => {
+    expect(pickDeadline({ deadline_at: '2026-06-25T23:59:59Z' }, { deadline_at: '2026-06-20T00:00:00Z' }))
+      .toBe('2026-06-25T23:59:59Z');
+  });
+
+  test('per-pasangan gak ada, default ada -> fallback ke default', () => {
+    expect(pickDeadline(undefined, { deadline_at: '2026-06-20T00:00:00Z' }))
+      .toBe('2026-06-20T00:00:00Z');
+  });
+
+  test('dua-duanya gak ada -> null (no-op, opt-in)', () => {
+    expect(pickDeadline(undefined, undefined)).toBeNull();
+  });
+
+  test('row ada tapi deadline_at falsy -> tetap diperlakukan sebagai gak ada', () => {
+    expect(pickDeadline({ deadline_at: null }, { deadline_at: '2026-06-20T00:00:00Z' }))
+      .toBe('2026-06-20T00:00:00Z');
   });
 });

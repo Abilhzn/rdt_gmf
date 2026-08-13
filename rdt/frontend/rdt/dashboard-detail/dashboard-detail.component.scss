@@ -167,6 +167,8 @@ $radius-md: 8px;
 // ::ng-deep: this class is passed as [extraClass] into <rdt-mention-input>, which lives inside a
 // CHILD component's own template — Angular's default emulated encapsulation otherwise can't have
 // this component's stylesheet reach it (see mention-input.component.scss's note on the same).
+// REQ-RDT-UI-11 (8 Agu): fixed + BIG (not grow-to-fit-content, which read as "stingy" once
+// content got long) — internal scroll instead, same treatment as .batch-note/.reviewer-note-input.
 ::ng-deep .repost-desc {
   width: 100%;
   box-sizing: border-box;
@@ -175,6 +177,8 @@ $radius-md: 8px;
   padding: 8px 10px;
   font-size: 13.5px;
   font-family: inherit;
+  height: 160px;
+  overflow-y: auto;
   resize: vertical;
   margin-top: 4px;
 }

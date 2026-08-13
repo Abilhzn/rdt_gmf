@@ -529,9 +529,15 @@ async function deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, upl
 }
 
 async function parseExcelFile(filePath, options = {}) {
-  const mapping = loadJSON('mapping.seed.json');
-  const exclusions = loadJSON('exclusions.config.json');
-  const dinasCodes = (loadJSON('dinas.codes.json').codes) || [];
+  // Checklist audit (13 Agu, REQ-RDT-EXT-04): mapping/exclusions/dinasCodes were ALWAYS read from
+  // the local JSON seed files, even though index.js's admin PUT /api/mapping and PUT /api/exclusions
+  // write to rdt.dinas_mapping/rdt.exclusion_rules instead of these files whenever DATABASE_URL is
+  // set (the normal case) — TAB editing mapping via the Admin UI silently had zero effect on
+  // parsing. Callers with a live DB (index.js's POST /api/parse) now pass the DB-sourced values in
+  // via these options; no-DB callers (tests, no DATABASE_URL) keep the exact old JSON-file behavior.
+  const mapping = options.mapping || loadJSON('mapping.seed.json');
+  const exclusions = options.exclusions || loadJSON('exclusions.config.json');
+  const dinasCodes = options.dinasCodes || (loadJSON('dinas.codes.json').codes) || [];
   const uploaderDinas = options.uploaderDinas || null;
 
   const workbook = new ExcelJS.Workbook();

@@ -22,6 +22,7 @@ const { Client } = require('pg');
 const { requireUser, requireDinasAccess } = require('../middleware/auth');
 const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
 const { validateFreeText } = require('../rules/textValidation');
+const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.use(requireUser);
 // duplicating the BORNE/REASSIGN branching). Caller owns the client/transaction lifecycle —
 // this only runs the SELECT...FOR UPDATE + validation + write for a single id, and throws
 // (with .httpStatus) on any failure so the caller's existing ROLLBACK-on-catch handles it.
-async function resolveOneDeclined(client, user, { id, action, newTarget, note }) {
+async function resolveOneDeclined(client, user, { id, action, newTarget, note, ip }) {
   if (action !== 'BORNE' && action !== 'REASSIGN') {
     throw Object.assign(new Error("action must be 'BORNE' or 'REASSIGN'"), { httpStatus: 400 });
   }
@@ -55,8 +56,8 @@ async function resolveOneDeclined(client, user, { id, action, newTarget, note })
       [user.id, id]
     );
     await client.query(
-      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)`,
-      [user.id, id, 'BORNE_BY_INITIATOR', 'DECLINED', 'BORNE_BY_INITIATOR', JSON.stringify({ dinas_inisiasi: row.dinas_inisiasi, note })]
+      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+      [user.id, id, 'BORNE_BY_INITIATOR', 'DECLINED', 'BORNE_BY_INITIATOR', JSON.stringify({ dinas_inisiasi: row.dinas_inisiasi, note }), ip]
     );
   } else {
     const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
@@ -86,8 +87,8 @@ async function resolveOneDeclined(client, user, { id, action, newTarget, note })
       [newTargetUpper, row.dinas_target, id]
     );
     await client.query(
-      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)`,
-      [user.id, id, 'REASSIGN', 'DECLINED', 'PENDING', JSON.stringify({ from_dinas: row.dinas_target, to_dinas: newTargetUpper, reassign_count: row.reassign_count + 1, note })]
+      `INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+      [user.id, id, 'REASSIGN', 'DECLINED', 'PENDING', JSON.stringify({ from_dinas: row.dinas_target, to_dinas: newTargetUpper, reassign_count: row.reassign_count + 1, note }), ip]
     );
   }
 }
@@ -126,13 +127,14 @@ router.post('/:id/resolve', express.json(), async (req, res) => {
   try {
     await client.connect();
     await client.query('BEGIN');
-    await resolveOneDeclined(client, user, { id, action, newTarget, note });
+    await resolveOneDeclined(client, user, { id, action, newTarget, note, ip: req.ip });
     await client.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
     const status = err.httpStatus || 500;
-    res.status(status).json({ ok: false, error: String(err.message || err) });
+    const category = await logRollbackAudit(client, { userId: user.id, req, err, route: req.originalUrl, transactionId: id });
+    res.status(status).json({ ok: false, error: String(err.message || err), error_category: category });
   } finally { try { await client.end(); } catch (e) {} }
 });
 
@@ -164,6 +166,7 @@ router.post('/batch-resolve', express.json(), async (req, res) => {
         action: item.action,
         newTarget: item.new_dinas_target,
         note,
+        ip: req.ip,
       });
     }
     await client.query('COMMIT');
@@ -171,7 +174,8 @@ router.post('/batch-resolve', express.json(), async (req, res) => {
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
     const status = err.httpStatus || 500;
-    res.status(status).json({ ok: false, error: String(err.message || err) });
+    const category = await logRollbackAudit(client, { userId: user.id, req, err, route: req.originalUrl });
+    res.status(status).json({ ok: false, error: String(err.message || err), error_category: category });
   } finally { try { await client.end(); } catch (e) {} }
 });
 

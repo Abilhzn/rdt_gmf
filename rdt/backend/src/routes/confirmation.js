@@ -4,8 +4,9 @@ const { requireUser, requireDinasAccess } = require('../middleware/auth');
 const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassignmentRules');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
-const { computeEffectivePeriod } = require('../rules/periodEffective');
+const { computeEffectivePeriod, pickDeadline } = require('../rules/periodEffective');
 const { validateFreeText } = require('../rules/textValidation');
+const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
@@ -88,9 +89,17 @@ async function snapshotPeriodeEfektif(client, { transactionId, dinasInisiasi, di
     'SELECT deadline_at FROM rdt.period_deadlines WHERE dinas_inisiasi=$1 AND dinas_target=$2 AND periode=$3',
     [dinasInisiasi, dinasTarget, declaredPeriod]
   );
+  // REQ-RDT-SAP-16 (8 Agu): per-pasangan override (query above) wins if it exists; otherwise fall
+  // back to a periode-wide default TAB may have set in advance, before this pair even existed —
+  // see rules/periodEffective.js's pickDeadline for the precedence rule itself.
+  const defaultRes = await client.query(
+    'SELECT deadline_at FROM rdt.period_default_deadlines WHERE periode=$1',
+    [declaredPeriod]
+  );
+  const deadlineAt = pickDeadline(deadlineRes.rows[0], defaultRes.rows[0]);
   const { periodeEfektif } = computeEffectivePeriod({
     declaredPeriod,
-    deadlineAt: deadlineRes.rows[0] ? deadlineRes.rows[0].deadline_at : null,
+    deadlineAt,
     latestTargetActionAt: new Date(),
   });
   await client.query('UPDATE rdt.transactions SET periode_efektif=$1 WHERE id=$2', [periodeEfektif, transactionId]);
@@ -140,7 +149,7 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
         const amount = row.nominal;
         await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [id, dinas, 'DEBIT', amount]);
         await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [id, row.dinas_inisiasi, 'CREDIT', amount]);
-        await client.query('INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)', [userId, id, 'CONFIRM', 'PENDING', 'CONFIRMED', JSON.stringify({ dinas: dinas, amount: amount })]);
+        await client.query('INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)', [userId, id, 'CONFIRM', 'PENDING', 'CONFIRMED', JSON.stringify({ dinas: dinas, amount: amount }), req.ip]);
         await snapshotPeriodeEfektif(client, { transactionId: id, dinasInisiasi: row.dinas_inisiasi, dinasTarget: dinas, declaredPeriod: row.period });
       } else if (claim === 'TIDAK') {
         if (d.redirect_to) {
@@ -169,13 +178,13 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
             [newTargetUpper, row.dinas_target, id]
           );
           await client.query(
-            'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)',
-            [userId, id, 'REJECT_REDIRECT', 'PENDING', 'PENDING', JSON.stringify({ rejected_by: dinas, from_dinas: row.dinas_target, to_dinas: newTargetUpper, reassign_count: row.reassign_count + 1 })]
+            'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)',
+            [userId, id, 'REJECT_REDIRECT', 'PENDING', 'PENDING', JSON.stringify({ rejected_by: dinas, from_dinas: row.dinas_target, to_dinas: newTargetUpper, reassign_count: row.reassign_count + 1 }), req.ip]
           );
           redirected.push({ id: row.id, account: row.account, nominal: row.nominal, remark: row.remark, ref_doc: row.ref_doc, dinas_inisiasi: row.dinas_inisiasi, redirected_to: newTargetUpper });
         } else {
           await client.query('UPDATE rdt.transactions SET status_konfirmasi=$1, decided_by_user_id=$2, decided_at=now() WHERE id=$3', ['DECLINED', userId, id]);
-          await client.query('INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)', [userId, id, 'DECLINE', 'PENDING', 'DECLINED', JSON.stringify({ dinas: dinas })]);
+          await client.query('INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)', [userId, id, 'DECLINE', 'PENDING', 'DECLINED', JSON.stringify({ dinas: dinas }), req.ip]);
           declined.push({ id: row.id, account: row.account, nominal: row.nominal, remark: row.remark, ref_doc: row.ref_doc, dinas_inisiasi: row.dinas_inisiasi });
           // REQ-RDT-SAP-14: DECLINE (no redirect) IS a target Confirm/Reject action per the SRS —
           // snapshot now. If this row later becomes BORNE_BY_INITIATOR (routes/reassignment.js),
@@ -236,7 +245,11 @@ router.post('/:dinas/submit', requireDinasAccess('dinas'), express.json(), async
     res.json({ ok: true, declined, redirected });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
-    res.status(500).json({ ok: false, error: String(err) });
+    // REQ-RDT-LEDGER-05 / REQ-RDT-AUDIT-02: categorize the failure for the user AND log the
+    // rollback to rdt.audit_log — previously this just returned the raw error string with no
+    // trace left anywhere once the response went out.
+    const category = await logRollbackAudit(client, { userId, req, err, route: '/api/confirmation/:dinas/submit' });
+    res.status(500).json({ ok: false, error: String(err), error_category: category });
   } finally { try { await client.end(); } catch (e) {} }
 });
 

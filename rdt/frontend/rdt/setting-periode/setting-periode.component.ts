@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ExportBatchService, OverdueDeadlineEntry, PeriodDeadline } from '../services/export-batch.service';
+import { ExportBatchService, OverdueDeadlineEntry, PeriodDeadline, PeriodDefaultDeadline } from '../services/export-batch.service';
 import { ModalService } from '../services/modal.service';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { extractErrorMessage } from '../shared/error-message.util';
@@ -16,6 +16,18 @@ import { extractErrorMessage } from '../shared/error-message.util';
   styleUrls: ['./setting-periode.component.scss'],
 })
 export class SettingPeriodeComponent implements OnInit {
+  // REQ-RDT-SAP-16 (8 Agu, "pembalikan alur deadline"): the bulk form below only ever touches a
+  // pasangan that ALREADY has a non-terminal transaction — reactive, after the fact. TAB needs to
+  // be able to set a deadline for a periode IN ADVANCE, before anyone's uploaded for it yet; a
+  // pasangan that shows up later for this periode inherits it automatically (see
+  // routes/confirmation.js's snapshotPeriodeEfektif). Separate table/endpoint
+  // (rdt.period_default_deadlines) — NOT a replacement for the per-pasangan override or the bulk
+  // form below, both of which stay for the "deadline for a periode that's already underway" case.
+  defaultDeadlineForm = { periode: '', deadline_at: '' };
+  defaultDeadlineFormBusy = false;
+  defaultDeadlineFormMessage = '';
+  existingDefaultDeadlines: PeriodDefaultDeadline[] = [];
+
   // REQ-RDT-SAP-14 (dikonfirmasi 5 Agu malam): alur nyatanya BULK, bukan satu-satu — TAB set SATU
   // deadline yang langsung berlaku ke SEMUA pasangan aktif di periode itu. Sub-section terpisah
   // dari form override di bawah, JANGAN digabung/gantikan.
@@ -44,6 +56,41 @@ export class SettingPeriodeComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadExistingDeadlines();
+    this.loadExistingDefaultDeadlines();
+  }
+
+  loadExistingDefaultDeadlines(): void {
+    this.exportBatches.getDefaultPeriodDeadlines().subscribe({
+      next: (rows) => { this.existingDefaultDeadlines = rows; },
+      error: () => { /* supplementary panel — don't block the rest of the page on it */ },
+    });
+  }
+
+  // REQ-RDT-SAP-16 — no active-pasangan gate here at all (that's the whole point vs. the bulk
+  // form below), so no "0 pasangan touched" outcome to report — the upsert either succeeds or
+  // fails outright.
+  async submitDefaultDeadline(): Promise<void> {
+    const { periode, deadline_at } = this.defaultDeadlineForm;
+    if (!periode || !deadline_at) return;
+    const ok = await this.modal.confirm(
+      `Set deadline DEFAULT periode ${periode} = ${new Date(deadline_at).toLocaleString('id-ID')}? ` +
+      `Ini berlaku buat pasangan MANAPUN yang nanti muncul di periode ini (belum ada transaksinya sekarang), ` +
+      `kecuali pasangan itu punya override sendiri.`
+    );
+    if (!ok) return;
+    this.defaultDeadlineFormBusy = true;
+    this.defaultDeadlineFormMessage = '';
+    this.exportBatches.setDefaultPeriodDeadline(periode, new Date(deadline_at).toISOString()).subscribe({
+      next: (row) => {
+        this.defaultDeadlineFormBusy = false;
+        this.defaultDeadlineFormMessage = `Deadline default periode ${row.periode} tersimpan: ${new Date(row.deadline_at).toLocaleString('id-ID')}.`;
+        this.loadExistingDefaultDeadlines();
+      },
+      error: async (err) => {
+        this.defaultDeadlineFormBusy = false;
+        await this.modal.alert('Gagal menyimpan deadline default: ' + extractErrorMessage(err, String(err)));
+      },
+    });
   }
 
   // Read-only overview table, independent of the Setting Deadline / Override Deadline forms above

@@ -7,6 +7,7 @@ import { CurrentUserService } from '@auth/services/current-user.service';
 import { MentionInputComponent } from '../shared/mention-input.component';
 import { extractErrorMessage } from '../shared/error-message.util';
 import { ModalService } from '../services/modal.service';
+import { matchesAllColumnFilters } from '../shared/multi-value-filter.component';
 
 interface ThreadRow {
   comment: Comment;
@@ -44,6 +45,26 @@ export class DashboardDetailComponent implements OnInit {
    * header breadcrumb is open — resets whenever a different pair is loaded (see ngOnInit). */
   chainExpanded = false;
 
+  // REQ-RDT-NAV-09 (audit finding, 13 Agu): this page's "Transaksi yang pernah di-redirect"
+  // table was the one DT table in the app with no per-column multi-value filter — every other
+  // table showing DT data (Repost Review, Confirmation, transparansi Need Approval, Riwayat
+  // Repost) already has one via rdt-multi-value-filter + matchesAllColumnFilters, this brings
+  // Dashboard-Detailing in line rather than leaving it the odd one out.
+  columnFilters: Record<string, string[]> = {};
+
+  onColumnFilterChange(key: string, values: string[]): void {
+    if (values.length) this.columnFilters[key] = values;
+    else delete this.columnFilters[key];
+  }
+
+  // 'chain' isn't a plain scalar field on PairTransaction — filter against the same joined
+  // string the template renders ("TJ → TC → TL"), so pasting that text (or a dinas code within
+  // it) matches the way a user would actually expect after reading the rendered column.
+  getRedirectCellValue(row: PairTransaction, key: string): string | number | null | undefined {
+    if (key === 'chain') return (row.chain || []).join(' → ');
+    return (row as unknown as Record<string, string | number | null | undefined>)[key];
+  }
+
   @ViewChild(MentionInputComponent) commentInput?: MentionInputComponent;
 
   constructor(
@@ -63,6 +84,7 @@ export class DashboardDetailComponent implements OnInit {
       this.targetDinas = target;
       this.clearReplyTarget();
       this.chainExpanded = false;
+      this.columnFilters = {};
       this.load();
     });
   }
@@ -106,6 +128,11 @@ export class DashboardDetailComponent implements OnInit {
   // for the whole pair.
   get redirectedTransactions(): PairTransaction[] {
     return this.transactions.filter((t) => (t.chain?.length || 0) > 2);
+  }
+
+  get filteredRedirectedTransactions(): PairTransaction[] {
+    return this.redirectedTransactions.filter((t) =>
+      matchesAllColumnFilters(t, this.columnFilters, (row, key) => this.getRedirectCellValue(row, key)));
   }
 
   load(): void {

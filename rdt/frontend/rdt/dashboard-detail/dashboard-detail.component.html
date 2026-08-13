@@ -47,10 +47,14 @@
     <h3 class="thread-title">Transaksi yang pernah di-redirect ({{ redirectedTransactions.length }})</h3>
     <table class="redirect-table">
       <thead>
-        <tr><th>Account</th><th class="redirect-table__num">Nominal</th><th>Rangkaian dinas</th></tr>
+        <tr>
+          <th>Account <rdt-multi-value-filter placeholder="Tempel banyak Account sekaligus..." (valuesChange)="onColumnFilterChange('account', $event)"></rdt-multi-value-filter></th>
+          <th class="redirect-table__num">Nominal <rdt-multi-value-filter placeholder="Tempel banyak Nominal sekaligus..." (valuesChange)="onColumnFilterChange('nominal', $event)"></rdt-multi-value-filter></th>
+          <th>Rangkaian dinas <rdt-multi-value-filter placeholder="Tempel banyak kode dinas sekaligus..." (valuesChange)="onColumnFilterChange('chain', $event)"></rdt-multi-value-filter></th>
+        </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let t of redirectedTransactions">
+        <tr *ngFor="let t of filteredRedirectedTransactions">
           <td>{{ t.account }}</td>
           <td class="redirect-table__num">{{ t.nominal | number: '1.2-2' }}</td>
           <td>
@@ -59,6 +63,7 @@
         </tr>
       </tbody>
     </table>
+    <p class="note" *ngIf="!filteredRedirectedTransactions.length">Tidak ada baris yang cocok dengan filter.</p>
   </ng-container>
 
   <h3 class="thread-title">Diskusi</h3>
@@ -82,9 +87,13 @@
   <p class="note" *ngIf="loaded && !threadRows.length">Belum ada komentar pada pasangan dinas ini.</p>
 
   <!-- REQ-RDT-COMMENT-03 (diperluas 3 Agu): satu implementasi @mention dipakai ulang. -->
+  <!-- REQ-RDT-UI-11 (8 Agu, generalized from Catatan Reviewer's earlier fix): fixed size + BIG,
+       internal scroll for long text — not grow-to-fit-content (autoGrow's default), which read as
+       "stingy" once content got long. -->
   <rdt-mention-input
     [(ngModel)]="commentBody"
     [rows]="3"
+    [autoGrow]="false"
     extraClass="repost-desc"
     placeholder="Tulis komentar... ketik @ untuk mention dinas/user"
   ></rdt-mention-input>

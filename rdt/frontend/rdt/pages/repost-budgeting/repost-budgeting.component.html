@@ -192,9 +192,14 @@
                          full at a glance instead.
                          REQ-RDT-COMMENT-03 (diperluas 3 Agu): Catatan Reviewer now gets @mention
                          too, same shared component as every other note field. -->
+                    <!-- REQ-RDT-UI-11 (8 Agu, generalizes the earlier Catatan Reviewer fix): fixed
+                         + BIG with internal scroll, not grow-to-fit (autoGrow's default) — that
+                         earlier fix was "fixed but stingy", this widens/heightens it and adds
+                         scroll instead of relying on the box just never scrolling. -->
                     <rdt-mention-input
                       [(ngModel)]="r.reviewer_note"
                       [rows]="2"
+                      [autoGrow]="false"
                       extraClass="reviewer-note-input"
                       placeholder="Catatan opsional..."
                     ></rdt-mention-input>
@@ -230,9 +235,11 @@
         Keterangan (opsional)
         <!-- REQ-RDT-COMMENT-03 (diperluas 3 Agu): satu implementasi @mention dipakai ulang, lihat
              shared/mention-input.component.ts — tidak lagi duplikat sendiri di sini. -->
+        <!-- REQ-RDT-UI-11 (8 Agu): fixed + BIG, internal scroll — not grow-to-fit-content. -->
         <rdt-mention-input
           [(ngModel)]="description"
           [rows]="3"
+          [autoGrow]="false"
           extraClass="repost-desc"
           placeholder="Catatan tambahan untuk pengajuan ini... ketik @ untuk mention dinas atau orang"
         ></rdt-mention-input>

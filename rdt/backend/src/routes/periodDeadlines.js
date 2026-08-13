@@ -12,6 +12,7 @@ const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
 const { buildValidCodeMap } = require('../rules/reassignmentRules');
 const { computeEffectivePeriod, addMonths } = require('../rules/periodEffective');
+const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
@@ -139,6 +140,50 @@ router.post('/bulk', express.json(), async (req, res) => {
       [periode, deadlineAt.toISOString(), req.rdtUser.id, BLOCKING_STATUSES]
     );
     res.json({ ok: true, periode, deadline_at: deadlineAt.toISOString(), deadlines: r.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+  finally { try { await client.end(); } catch (e) {} }
+});
+
+// GET /api/period-deadlines/default — every periode-wide default TAB has ever set (REQ-RDT-SAP-16),
+// for the "Setting Deadline" panel's own overview list — separate shape from GET / above (no
+// dinas_inisiasi/dinas_target, just periode).
+router.get('/default', async (req, res) => {
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const r = await client.query('SELECT * FROM rdt.period_default_deadlines ORDER BY periode DESC');
+    res.json({ ok: true, deadlines: r.rows });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+  finally { try { await client.end(); } catch (e) {} }
+});
+
+// POST /api/period-deadlines/default — body { periode, deadline_at }. REQ-RDT-SAP-16 (8 Agu,
+// "pembalikan alur deadline"): unlike POST /bulk above (which only ever touches pasangan that
+// ALREADY have a non-terminal transaction in that periode — i.e. reactive, after the fact), this
+// sets a default for the periode ITSELF, before any dinas has even uploaded for it. Consumed by
+// routes/confirmation.js's snapshotPeriodeEfektif as the fallback when no per-pasangan override
+// exists yet (see rules/periodEffective.js's pickDeadline) — a pair that shows up for this periode
+// later automatically "inherits" this deadline without TAB having to re-set anything.
+router.post('/default', express.json(), async (req, res) => {
+  const validation = validatePeriodAndDeadline(req.body || {});
+  if (!validation.ok) return res.status(400).json({ ok: false, error: validation.error });
+  const { deadlineAt } = validation;
+  const periode = req.body.periode;
+
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const r = await client.query(
+      `INSERT INTO rdt.period_default_deadlines (periode, deadline_at, set_by_user_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (periode)
+       DO UPDATE SET deadline_at = EXCLUDED.deadline_at, set_by_user_id = EXCLUDED.set_by_user_id, updated_at = now()
+       RETURNING *`,
+      [periode, deadlineAt.toISOString(), req.rdtUser.id]
+    );
+    res.json({ ok: true, deadline: r.rows[0] });
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
   finally { try { await client.end(); } catch (e) {} }
 });
@@ -288,8 +333,8 @@ router.post('/override-reevaluate', express.json(), async (req, res) => {
         const oldPeriodeEfektif = row.periode_efektif;
         await client.query('UPDATE rdt.transactions SET periode_efektif = $1 WHERE id = $2', [newPeriodeEfektif, row.id]);
         await client.query(
-          `INSERT INTO rdt.audit_log(user_id, transaction_id, action, status_before, status_after, detail)
-           VALUES ($1, $2, 'PERIODE_EFEKTIF_OVERRIDE', $3, $3, $4)`,
+          `INSERT INTO rdt.audit_log(user_id, transaction_id, action, status_before, status_after, detail, ip_address)
+           VALUES ($1, $2, 'PERIODE_EFEKTIF_OVERRIDE', $3, $3, $4, $5)`,
           [
             userId,
             row.id,
@@ -302,6 +347,7 @@ router.post('/override-reevaluate', express.json(), async (req, res) => {
               new_periode_efektif: newPeriodeEfektif,
               new_deadline_at: deadlineAt.toISOString(),
             }),
+            req.ip,
           ]
         );
         reevaluated.push({ id: row.id, old_periode_efektif: oldPeriodeEfektif, new_periode_efektif: newPeriodeEfektif });
@@ -311,7 +357,8 @@ router.post('/override-reevaluate', express.json(), async (req, res) => {
       res.json({ ok: true, dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, periode, deadline_at: deadlineAt.toISOString(), reevaluated });
     } catch (err) {
       try { await client.query('ROLLBACK'); } catch (e) {}
-      res.status(err.httpStatus || 500).json({ ok: false, error: err.message || String(err) });
+      const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl });
+      res.status(err.httpStatus || 500).json({ ok: false, error: err.message || String(err), error_category: category });
     }
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });

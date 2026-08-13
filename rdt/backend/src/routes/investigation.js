@@ -5,6 +5,7 @@ const { validateReassignTarget, buildValidCodeMap } = require('../rules/reassign
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { loadDirectory } = require('../dataUserClient');
 const { validateFreeText } = require('../rules/textValidation');
+const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
@@ -132,8 +133,8 @@ router.post('/:transactionId/assign', express.json(), async (req, res) => {
     await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [transactionId, newTargetUpper, 'DEBIT', row.nominal]);
     await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [transactionId, row.dinas_inisiasi, 'CREDIT', row.nominal]);
     await client.query(
-      'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)',
-      [userId, transactionId, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'CONFIRMED', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId, auto_confirmed: true })]
+      'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [userId, transactionId, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'CONFIRMED', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId, auto_confirmed: true }), req.ip]
     );
 
     const trimmedDescription = description && String(description).trim();
@@ -145,7 +146,8 @@ router.post('/:transactionId/assign', express.json(), async (req, res) => {
     res.json({ ok: true, dinas_target: newTargetUpper });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
-    res.status(500).json({ ok: false, error: String(err) });
+    const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl, transactionId });
+    res.status(500).json({ ok: false, error: String(err), error_category: category });
   } finally { try { await client.end(); } catch (e) {} }
 });
 
@@ -214,8 +216,8 @@ router.post('/assign-all', express.json(), async (req, res) => {
       await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [row.id, newTargetUpper, 'DEBIT', row.nominal]);
       await client.query('INSERT INTO rdt.ledger_entries(transaction_id,dinas_code,direction,amount) VALUES($1,$2,$3,$4)', [row.id, row.dinas_inisiasi, 'CREDIT', row.nominal]);
       await client.query(
-        'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail) VALUES($1,$2,$3,$4,$5,$6)',
-        [userId, row.id, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'CONFIRMED', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId, batch: true, auto_confirmed: true })]
+        'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [userId, row.id, 'INVESTIGATION_RESOLVED', 'NEEDS_INVESTIGATION', 'CONFIRMED', JSON.stringify({ assigned_to: newTargetUpper, resolved_by: userId, batch: true, auto_confirmed: true }), req.ip]
       );
       assigned.push({ id: row.id, dinas_inisiasi: row.dinas_inisiasi, dinas_target: newTargetUpper });
       const pairKey = `${row.dinas_inisiasi} ${newTargetUpper}`;
@@ -234,7 +236,8 @@ router.post('/assign-all', express.json(), async (req, res) => {
     res.json({ ok: true, assigned });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
-    res.status(500).json({ ok: false, error: String(err) });
+    const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl });
+    res.status(500).json({ ok: false, error: String(err), error_category: category });
   } finally { try { await client.end(); } catch (e) {} }
 });
 

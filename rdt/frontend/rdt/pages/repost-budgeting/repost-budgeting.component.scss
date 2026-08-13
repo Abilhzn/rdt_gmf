@@ -83,6 +83,7 @@ $radius-md: 8px;
 // emulated encapsulation otherwise wouldn't let this rule reach (see mention-input.component
 // .scss's note on the same thing). Still applies normally to the plain <input type="month"> in
 // THIS component's own template too.
+// REQ-RDT-UI-11 (8 Agu): fixed + BIG (not grow-to-fit-content) — internal scroll instead.
 ::ng-deep .repost-desc {
   width: 100%;
   box-sizing: border-box;
@@ -91,6 +92,8 @@ $radius-md: 8px;
   padding: 8px 10px;
   font-size: 13.5px;
   font-family: inherit;
+  height: 160px;
+  overflow-y: auto;
   resize: vertical;
   margin-top: 4px;
 }
@@ -324,11 +327,13 @@ thead .reviewer-note-col {
 
 // REQ-RDT-NAV-04: editable "Catatan Reviewer" cell, sized to sit inline in a table row.
 // (3 Agu fix) Was a single-line <input> — text past its width just scrolled sideways instead of
-// being readable. Now a wrapping <textarea>: fixed height (rows="2"), no resize handle, no
-// scrollbar — long notes wrap instead of hiding behind a scroll box.
+// being readable. REQ-RDT-UI-11 (8 Agu, generalizes/corrects the 3 Agu fix): "no scrollbar, wrap
+// instead" read as fixed-but-stingy once notes got long (content just clipped past `overflow:
+// hidden`, invisible past the fixed 2-row height) — wider, taller, and internal scroll now,
+// consistent with every other note field's REQ-RDT-UI-11 treatment.
 // ::ng-deep: passed as [extraClass] into <rdt-mention-input> now — see .repost-desc's note above.
 ::ng-deep .reviewer-note-input {
-  width: 200px;
+  width: 280px;
   border: 1px solid $line;
   border-radius: $radius-md;
   padding: 5px 8px;
@@ -336,8 +341,9 @@ thead .reviewer-note-col {
   font-family: inherit;
   color: $ink;
   box-sizing: border-box;
-  resize: none;
-  overflow: hidden;
+  resize: vertical;
+  height: 80px;
+  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
 

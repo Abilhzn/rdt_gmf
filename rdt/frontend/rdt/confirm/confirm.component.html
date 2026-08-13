@@ -117,6 +117,11 @@
                 <label class="select-all-label">
                   <input type="checkbox" (change)="toggleSelectAll($any($event.target).checked)" />Select All
                 </label>
+                <!-- REQ-RDT-SAP-18 (8 Agu): only when a column filter is active — pointless (same
+                     as Select All above) otherwise, so hidden rather than always shown. -->
+                <label class="select-all-label" *ngIf="hasActivePendingFilter">
+                  <input type="checkbox" (change)="toggleSelectAllFiltered($any($event.target).checked)" />Select yang ke-filter
+                </label>
               </th>
             </tr>
           </thead>

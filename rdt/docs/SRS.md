@@ -211,7 +211,7 @@ Membaca unggahan file Excel dari pengguna (sheet rekapitulasi + sheet detail), m
   > EXCLUDED (7.856) tidak tersentuh, dan query bergaya dashboard cuma menghitung upload
   > aktif terbaru (tidak dobel lagi).
 - `REQ-RDT-EXT-06`: Parser harus membaca **nilai hasil kalkulasi (computed values)**, bukan string formula — sebagian besar kolom setelah `Value Date` di file nyata berisi formula `XLOOKUP`/referensi sel, bukan nilai statis. Pastikan library pembaca Excel yang dipakai (mis. exceljs/SheetJS di Node.js) dikonfigurasi membaca cached values.
-- `REQ-RDT-EXT-07` **(baru 22 Jul, menggantikan asumsi nama sheet pivot sebelumnya)**: Sheet pivot/summary diidentifikasi dengan salah satu dari dua aturan (OR, bukan AND): (a) nama sheet mengandung kata "summary" secara case-insensitive (mis. "Summary", "summary", nama gabungan yang memuat kata itu), ATAU (b) sel `A3` pada sheet tersebut berisi teks "Sum of In PCLC". Sheet yang cocok salah satu aturan ini di-skip dari ekstraksi transaksi (bukan sumber data, cuma agregasi tampilan) — sesuai definisi di 3.1.1 poin 1. Jangan bergantung pada pola nama sheet spesifik dinas (mis. "DT TB - June 2026") karena terbukti tidak konsisten antar dinas.
+- `REQ-RDT-EXT-07` **(baru 22 Jul, DIKOREKSI 26 Jul — SRS disamakan ke kode 13 Agu)**: Sheet pivot/summary diidentifikasi dengan salah satu dari dua aturan (OR, bukan AND): (a) sel `A3` pada sheet tersebut berisi teks "Sum of In PCLC", ATAU (b) sel `A4` berisi teks "Row Labels" (boilerplate baku PivotTable Excel, bukan spesifik dinas). Sheet yang cocok salah satu aturan ini di-skip dari ekstraksi transaksi (bukan sumber data, cuma agregasi tampilan) — sesuai definisi di 3.1.1 poin 1. **Cek nama sheet ("summary" case-insensitive) dari draf 22 Jul SUDAH DIHAPUS 26 Jul** (project owner request, setelah diverifikasi kode: cek nama itu terbukti selalu redundan di ketiga file contoh nyata — TB's pivot sheet malah nama-nya `DT TB - June 2026`, tidak mengandung "summary" sama sekali, cuma pernah ke-tangkep lewat cek A3; R1's sheet `Summary` juga independen ketangkep A3 — jadi cek nama gak pernah benar-benar berkontribusi, sekaligus berisiko salah-tangkap sheet lain yang namanya kebetulan mengandung "summary"). A4="Row Labels" ditambahkan sebagai anchor kedua yang tetap valid walau field value pivot masa depan bukan literal "Sum of In PCLC". Jangan bergantung pada pola nama sheet spesifik dinas (mis. "DT TB - June 2026") karena terbukti tidak konsisten antar dinas.
 - `REQ-RDT-EXT-08` **(baru 22 Jul)**: Sistem harus menyimpan file Excel ASLI yang diunggah (byte utuh, bukan cuma hasil ekstraksi) ke penyimpanan file server (mis. `src/uploads/`), dengan path/nama file direferensikan dari kolom baru `original_file_path` di `rdt.uploads`. Ini diperlukan untuk REQ-RDT-LEDGER-09 (download file asli dengan formula hidup) — tanpa ini, formula pada file asli hilang permanen setelah parsing karena parser cuma membaca computed values (REQ-RDT-EXT-06).
 - `REQ-RDT-EXT-09` **(baru 25 Jul, strategi fallback berbasis pivot)**: Struktur sheet detail transaksi TERBUKTI bervariasi liar antar dinas (lihat 3.1.2) — bukan cuma nama kolom beda, tapi jumlah kolom, urutan, bahkan keberadaan sheet detail itu sendiri bisa gak konsisten. Daripada membangun heuristik deteksi yang makin kompleks untuk tiap variasi skema yang mungkin muncul dari 20 dinas, parser HARUS punya fallback yang selalu bisa diandalkan:
   1. **Coba dulu deteksi sheet detail ala-TB** (REQ-RDT-EXT-01: cari sheet dengan header berisi `Account`/`Cost Ctr`/`Profit Ctr` di kolom-kolom awal). Kalau ketemu dan valid → ekstrak row-level penuh (granularitas transaksi individual, seperti sekarang).
@@ -262,7 +262,17 @@ Dua file contoh tambahan dari dinas TJ ternyata mengungkap variasi yang jauh leb
 - `TA` — **KEPUTUSAN FINAL 31 Jul**: `TA` adalah dinas operasional sendiri dengan PIC sendiri, BUKAN sinonim TAB. Lihat REQ-RDT-AUTH-05 untuk detail koreksi ini.
 - `Ask TA` — **SUDAH TERJAWAB 27 Jul**: ini BUKAN dinas, ini penanda "perlu investigasi TAB" — lihat REQ-RDT-LEDGER-10 untuk alur lengkapnya. Jangan dimasukkan ke `dinas_mapping` sebagai dinas biasa. **Beda dari dinas `TA` di atas** — jangan disamakan meski namanya mirip.
 - `TMM` — kode 3 huruf, di luar pola 2-huruf (`TB`–`TU`) yang selama ini diasumsikan sebagai roster 20 dinas. **Ditegaskan ulang 31 Jul oleh TAB**: `TMM` itu **dinas/sub-dinas terpisah dari `TM`**, punya urusan repost yang beda — sistem TIDAK BOLEH punya logic apapun yang menyamakan keduanya (mis. ambil 2 huruf pertama dari kode 3 huruf lalu anggap sama dengan versi 2 hurufnya). Ini larangan eksplisit, bukan sekadar catatan — audit kode yang ada sekarang untuk mastiin gak ada heuristik semacam itu di manapun (parser, mapping, normalisasi).
-- `TZ` **(baru 27 Jul)** — muncul sebagai hasil investigasi kasus "Ask TA" (lihat contoh di REQ-RDT-LEDGER-10), kode 2 huruf tapi di luar rentang alfabet `TB`–`TU` yang diasumsikan sebelumnya. Sama seperti `TMM`, ini kode dinas asli yang masih perlu ditambahkan ke roster resmi.
+- `TZ` **(baru 27 Jul)** — muncul sebagai hasil investigasi kasus "Ask TA" (lihat contoh di REQ-RDT-LEDGER-10), kode 2 huruf tapi di luar rentang alfabet `TB`–`TU` yang diasumsikan sebelumnya. Sama seperti `TMM`, ini kode dinas asli.
+
+> **SELESAI 29 Jul — roster resmi ditambahkan, SRS disamakan ke kode 13 Agu**: `TA`, `TMM`, dan
+> `TZ` di atas SUDAH masuk `config/dinas.codes.json`/`rdt.dinas` sebagai bagian dari koreksi roster
+> menyeluruh 29 Jul — daftar 20-dinas lama ("T"+A-U sekuensial) ternyata SYNTHETIC PLACEHOLDER,
+> diganti struktur 21-GH asli dari `struktur-dinas-gmf.png` (sumber project owner): `TG`/`TK`/`TO`/
+> `TT` DIHAPUS (gak pernah eksis sebagai dinas nyata), `TV`/`TX`/`TZ`/`DFR` DITAMBAH (GH unit nyata
+> yang sebelumnya kelewat) — `DFR` (Management Risk GH) sengaja gak ikut pola "T+huruf". `TAB`
+> ditambahkan belakangan (4 Agu, section 3.10) sebagai `dinas_target` yang sah tapi `is_active=false`
+> (gak muncul di picker dinas aktif manapun). Roster lengkap final: `TA, TAB, TB, TC, TD, TE, TF,
+> TH, TI, TJ, TL, TM, TMM, TN, TP, TQ, TR, TS, TU, TV, TX, TZ, DFR, Corp`.
 
 > **Untuk coding agent**: JANGAN menebak sendiri arti `TA`/`Ask TA`/`TMM` dan langsung menambahkannya ke `dinas_mapping`/`rdt.dinas` — ini pertanyaan bisnis yang masih menunggu jawaban pemilik proyek, bukan keputusan teknis. Untuk sementara, biarkan kode-kode ini masuk status `NEEDS_REVIEW` (REQ-RDT-EXT-01 sudah mendefinisikan status ini untuk prefix tak dikenal) alih-alih ditolak total atau ditebak mapping-nya.
 
@@ -280,7 +290,7 @@ Mesin status (state machine) double-entry: dinas target memvalidasi tagihan.
 - `REQ-RDT-LEDGER-03` **(non-negotiable, jangan disederhanakan tanpa konfirmasi)**: Sistem harus membungkus operasi debit dinas asal dan kredit dinas tujuan dalam satu transaksi database tunggal (`BEGIN...COMMIT`). Jika salah satu operasi gagal (constraint violation, koneksi terputus, dll), sistem harus `ROLLBACK` penuh — tidak boleh ada kondisi di mana saldo satu dinas ter-update sementara dinas lainnya tidak.
 - `REQ-RDT-LEDGER-04`: Sistem harus menerapkan row-level locking (`SELECT ... FOR UPDATE`) pada baris transaksi yang sedang diproses Approve/Reject, untuk mencegah dua proses memvalidasi baris yang sama secara bersamaan.
 - `REQ-RDT-LEDGER-05`: Sistem harus menampilkan notifikasi kegagalan transaksi ke pengguna beserta kategori penyebab (konflik konkurensi/data tidak valid/koneksi terputus), dan mencatat setiap kejadian rollback ke tabel log (lihat 3.6).
-- `REQ-RDT-LEDGER-06`: Halaman konfirmasi per dinas hanya boleh diakses oleh: PIC dinas yang diminta mengonfirmasi, PIC dinas pengaju, dan pengguna TAB. Pengguna lain ditolak.
+- `REQ-RDT-LEDGER-06` **(diperjelas 13 Agu, audit SRS-vs-kode)**: Endpoint `/api/confirmation/:dinas` (aksi Ya/Tidak — `routes/confirmation.js`, `middleware/auth.js`'s `requireDinasAccess`) hanya boleh diakses PIC dinas **TARGET** yang diminta mengonfirmasi, atau pengguna TAB. Pengguna lain ditolak. PIC dinas **pengaju** melihat progress & detail pasangan yang sama secara **read-only** lewat Dashboard-Detailing (REQ-RDT-NAV-03 — donut chart, chain redirect, thread komentar lengkap), BUKAN lewat endpoint aksi ini — kalimat versi sebelumnya ("halaman konfirmasi... diakses oleh... PIC dinas pengaju") ambigu, seolah dinas pengaju juga butuh akses ke endpoint aksi yang sama; itu tidak pernah jadi desainnya, dan tidak perlu diubah.
 - `REQ-RDT-LEDGER-07`: Untuk transaksi DECLINED, ada dua jalur penyelesaian yang berlaku (dikonfirmasi ulang 23 Jul oleh pemilik proyek & pihak TAB):
   - **(a) Redirect langsung oleh dinas yang menolak**: saat submit "Tidak", dinas penolak boleh sekalian memilih `redirect_to` (dinas tujuan baru) — reassignment ini **langsung tereksekusi saat itu juga**, TANPA menunggu persetujuan dinas pengaju. Ini otoritas yang lebih luas dari draf awal requirement ini (yang cuma mengizinkan dinas pengaju yang memutuskan) — sudah dikonfirmasi eksplisit ke pemilik proyek dan disetujui pihak TAB, jangan dianggap bug/di-rollback.
   - **(b) Kalau dinas penolak TIDAK sekalian redirect**: transaksi masuk status DECLINED dan MENUNGGU dinas pengaju memutuskan salah satu dari: (b1) menanggung beban sendiri (status BORNE_BY_INITIATOR), atau (b2) mengajukan ulang ke dinas target berbeda sendiri (lewat alur reassignment terpisah).
@@ -571,10 +581,15 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 >   tampilan detail yang sudah ada di Dashboard-Detailing (thread komentar +
 >   chain arrow) buat item yang statusnya udah archived, jangan bikin tampilan
 >   detail baru dari nol.
-> - **Bug ditemukan**: kolom "Status" di tabel Dashboard "Summary Progress All
->   Dinas" (TAB) KOSONG TOTAL untuk semua baris di screenshot terbaru — harusnya
->   ada state label (REQ-RDT-SAP-07, mis. "Waiting for confirmation TB").
->   Investigasi kenapa kosong.
+> - **Bug ditemukan, DIPERBAIKI 7 Agu (dikonfirmasi ulang via audit 13 Agu)**: kolom "Status" di
+>   tabel Dashboard "Summary Progress All Dinas" (TAB) KOSONG TOTAL untuk semua baris di screenshot
+>   terbaru — harusnya ada state label (REQ-RDT-SAP-07, mis. "Waiting for confirmation TB").
+>   Akar masalah: `dashboard.js`'s `GET /per-dinas-rollup` cuma nge-set `status` untuk 2 dari 4
+>   kondisi (investigation, "Semua reposted") — dinas dengan baris masih PENDING/DECLINED (kasus
+>   paling umum) jatuh ke `status = null`, dan template cuma render pill `*ngIf="row.status"`, jadi
+>   kosong buat hampir semua baris di praktiknya. Diperbaiki dengan 2 cabang tambahan ("Waiting for
+>   confirmation" saat ada `open`, "Waiting to repost" fallback) — cocok ke `home.component.html`
+>   line yang render `row.status.label`.
 > - **Simetri dashboard TAB masih dilaporkan kurang rapi** (feedback berulang) —
 >   minta coding agent bandingkan langsung ke screenshot yang dilampirkan user,
 >   cari beda konkretnya (jangan cuma "rapi-rapiin" tanpa referensi persis, ini
@@ -992,6 +1007,11 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
       di komponen preview Repost doang (kemungkinan kolom itu di-hardcode/di-skip
       di komponen frontend preview, bukan masalah parser backend). Bandingkan kedua
       komponen itu buat nemuin bedanya.
+      **SUDAH BERES — dikonfirmasi 13 Agu**: `repost-budgeting.component.ts`'s
+      `buildPreviewColumns()` sudah menaruh `sub_group` sebagai kolom PALING KIRI
+      preview Repost (`{ key: 'sub_group', label: 'Sub Group' }`), sesuai keputusan
+      final "kolom preview dipersempit" 8 Agu di atas — sudah konsisten dengan
+      Wait to Repost/Confirm Reposted.
     - **"Catatan Reviewer" (baru 3 Agu)**: kolom ini HARUS **fixed di tempat, TIDAK
       scrollable** — sekarang keliatannya jadi kotak scroll terpisah, harusnya
       langsung kebaca penuh tanpa perlu scroll di dalam sel/kolom itu.
@@ -1211,9 +1231,61 @@ halaman jadi worth didokumentasikan di satu tempat drpd diputuskan ulang tiap ko
   > browsing biasa (perlu render JS) — coding agent WAJIB verifikasi detail
   > animasi/timing persis dari link itu sendiri (buka langsung di browser),
   > JANGAN cuma mengandalkan deskripsi umum di atas.
+  > **DIBATALKAN 8 Agu, setelah dicoba beneran jalan**: pola hover-collapse/pin
+  > (ikon-doang default, expand pas hover, atau perlu "pin" biar tetap kebuka)
+  > ternyata bikin masalah yang SAMA kayak accordion sidebar yang udah dibatalkan
+  > sebelumnya — non-IT end-user bisa gak sadar ada isi sidebar yang ketutup.
+  > **KEPUTUSAN FINAL**: sidebar **FIXED LEBAR PENUH SELAMANYA**, TIDAK collapse
+  > jadi ikon-doang, TIDAK butuh hover/pin buat kelihatan — semua label teks
+  > SELALU tampil dari awal. Kalau kode sudah kadung nerapin hover-collapse/pin
+  > dari instruksi Dribbble di atas, REVERT total ke lebar penuh fixed. Lebar
+  > boleh tetap sedikit lebih ramping dari versi paling awal (permintaan
+  > "dikecilkan" masih valid), tapi PERUBAHAN LEBARNYA STATIS/tetap — bukan
+  > dinamis berdasarkan hover/interaksi apapun.
 - `REQ-RDT-UI-09` **(baru 5 Agu)**: Banyak elemen dashboard yang sekarang tidak
   simetris (ukuran/spacing beda-beda antar kartu yang seharusnya sejenis) — audit
   dan samakan.
+- `REQ-RDT-UI-12` **(baru 8 Agu, DIBATALKAN 8 Agu — salah interpretasi, baca
+  koreksi di bawah sebelum eksekusi apapun)**: ~~SEMUA item sidebar yang punya
+  sub-item pakai pola accordion/collapsible~~ — **INI SALAH**. Pemilik proyek
+  eksplisit klarifikasi: **sidebar navigasi HARUS TETAP SELALU KELIHATAN
+  SEPENUHNYA** (semua item + sub-item, gak ada yang collapse/nyembunyi) —
+  alasannya end-user itu non-IT, khawatir bingung kalau ada yang tersembunyi
+  dari sidebar. Kalau ada kode yang sudah kadung nerapin accordion ke sidebar
+  dari instruksi sebelumnya, REVERT ke selalu-expanded seperti semula.
+  Maksud ASLI pemilik proyek soal "expand pas diklik" itu BUKAN buat sidebar —
+  masih perlu diklarifikasi ulang elemen UI mana persisnya yang dimaksud
+  (kandidat: pola breakdown-per-pasangan REQ-RDT-SAP-15, atau pola chain-hop
+  expand yang sudah ada di kartu Dashboard/REQ-RDT-NAV-03) — JANGAN menebak,
+  tunggu klarifikasi eksplisit sebelum menerapkan accordion di tempat manapun
+  yang baru.
+  > **DIKLARIFIKASI 8 Agu**: ternyata TETAP soal sidebar, tapi pola interaksinya
+  > beda dari accordion strict — yang dimaksud itu **tree-view kayak file
+  > explorer** (VS Code/Windows Explorer): tiap item induk punya panah kecil
+  > (▶ collapsed / ▼ expanded) yang bisa diklik user BUAT COLLAPSE MANUAL kalau
+  > mereka mau, sub-item lain gak ikut kepengaruh (bukan mutually-exclusive kayak
+  > accordion strict, boleh banyak grup expand bersamaan).
+  > **State DEFAULT wajib expanded/kelihatan semua** (ini yang jadi concern awal
+  > soal non-IT end-user) — sistem TIDAK collapse apapun secara otomatis, user
+  > sendiri yang opsional collapse kalau mau. Grup yang lagi berisi halaman aktif
+  > (mis. user lagi buka "Own Repost") harus SELALU force-expanded terlepas dari
+  > state collapse manual sebelumnya — gak boleh nyembunyiin halaman yang lagi
+  > dibuka user.
+  > **BELUM DIIMPLEMENTASIKAN per 8 Agu (dilaporkan lagi)**: sidebar sekarang
+  > sudah benar fixed lebar penuh (REQ-RDT-UI-06 revisi sudah kelar), TAPI panah
+  > ▶/▼ buat collapse manual sub-item MASIH BELUM ADA sama sekali — sub-item
+  > kayaknya kelewat/kesenggol kesibukan revert-revert sidebar-width, bukan
+  > sengaja diputuskan begini. Kerjakan requirement ini SEKARANG, terpisah dari
+  > urusan lebar sidebar yang sudah beres.
+  > **DIKONFIRMASI SUDAH ADA — 13 Agu**: ternyata sudah diimplementasikan sebelum
+  > laporan 8 Agu di atas ditulis (`shell.component.ts`'s `isNavGroupExpanded`/
+  > `toggleNavGroup`/`activeNavGroup`, tombol panah di `shell.component.html`) —
+  > laporan "belum ada" itu keliru, bukan kode yang kelewat. Diverifikasi ulang
+  > live 3 skenario: (1) default semua expanded, (2) collapse manual "Need
+  > Identification" tidak mempengaruhi "Dashboard" (independen), (3) navigasi ke
+  > halaman dalam grup yang tadi di-collapse manual → grup otomatis balik expand
+  > (force-active). Revert REQ-RDT-UI-06 (13 Agu, hover-collapse/pin dibuang) tidak
+  > menyentuh kode ini sama sekali.
 
 > **Eksperimen perbandingan 5 Agu (BUKAN requirement, catatan proses)**: pemilik
 > proyek minta dicoba implementasi FRESH dari Figma node `0-1` dan `78-243` di
@@ -1357,6 +1429,42 @@ kolom data yang scroll di antaranya.
   buat lihat pasangan MANAPUN sudah ada sejak REQ-RDT-AUTH-05 (24 Jul), jadi ini
   murni kerjaan UI + satu endpoint agregasi baru (breakdown per pasangan untuk
   SATU dinas_inisiasi), bukan perubahan otorisasi.
+- `REQ-RDT-SAP-16` **(baru 8 Agu, PEMBALIKAN ALUR deadline — koreksi penting)**:
+  Alur deadline SEKARANG (per REQ-RDT-SAP-14) itu REAKTIF — TAB cuma bisa bulk-set
+  deadline buat periode yang SUDAH PUNYA transaksi aktif (query bulk-set butuh
+  pasangan yang beneran ada). **Ini KEBALIK dari alur yang benar**: TAB harus bisa
+  set deadline periode **DI MUKA**, SEBELUM ada dinas manapun upload untuk periode
+  itu — begitu ada DINAS MANAPUN (berlaku sama rata ke semua dinas, bukan
+  dibedain berdasarkan klasifikasi CBO/CSS — itu cuma kategori bisnis MRO-vs-
+  supporting, gak ada percabangan logic sistem berdasarkan itu) yang upload
+  belakangan dan menyatakan periode itu, deadline-nya otomatis "warisan" dari
+  yang TAB udah set duluan.
+  - Butuh tabel BARU `rdt.period_default_deadlines` (periode TEXT PRIMARY KEY,
+    deadline_at, set_by_user_id) — default per PERIODE SAJA, gak butuh pasangan
+    dinas spesifik, TIDAK gantikan `rdt.period_deadlines` (REQ-RDT-SAP-14) yang
+    tetap dipakai buat override per-pasangan/pasangan yang udah eksis.
+  - `snapshotPeriodeEfektif()` (dipanggil saat Confirm/Reject, REQ-RDT-SAP-14)
+    urutan lookup deadline yang dipakai: (1) override per-pasangan spesifik di
+    `rdt.period_deadlines` kalau ada, (2) fallback ke default periode di
+    `rdt.period_default_deadlines` kalau ada, (3) kalau dua-duanya gak ada, tidak
+    ada pengecekan (perilaku sekarang, opt-in).
+  - UI "Setting Periode" → "Setting Deadline": TAB bisa isi periode + deadline
+    KAPAN SAJA (gak perlu nunggu ada transaksi aktif dulu) — ini SEKARANG jadi
+    aksi utama set default periode, terpisah dari bulk-apply-ke-pasangan-aktif
+    yang sudah ada sebelumnya (yang masih berguna buat kasus "deadline baru buat
+    periode yang UDAH JALAN").
+- `REQ-RDT-SAP-17` **(baru 8 Agu, alert salah pilih periode)**: saat dinas pengaju
+  upload & menyatakan periode (REQ-RDT-SAP-13), kalau periode yang dipilih BUKAN
+  periode "berjalan" saat ini (mis. sekarang Agustus tapi pilih Juni), tampilkan
+  **alert konfirmasi** ("yakin ini buat periode Juni, bukan Agustus?") sebelum
+  lanjut — mencegah salah input gak sengaja. Definisi "periode berjalan" =
+  bulan-tahun saat ini (server time).
+- `REQ-RDT-SAP-18` **(baru 8 Agu, filter-aware select all)**: tambahkan opsi
+  **"Select/Unselect semua yang ke-filter"** di tabel manapun yang sudah punya
+  filter multi-value (REQ-RDT-NAV-09) DAN checkbox select (Confirmation,
+  Investigation bulk-assign, dst) — beda dari "Select All" biasa yang mungkin
+  pilih SEMUA baris termasuk yang lagi disembunyikan filter, opsi baru ini CUMA
+  pilih baris yang LAGI KELIHATAN (hasil filter aktif).
 - **Deskripsi opsional saat Confirm/Reject (ditegaskan ulang 8 Agu)**: field
   "Deskripsi (opsional)" di alur Confirm/Reject (`confirmation.js`'s
   `trimmedDescription`) sudah BERLABEL opsional di UI — pastikan backend juga
@@ -1365,6 +1473,17 @@ kolom data yang scroll di antaranya.
   request)**: field "Deskripsi penutup" di "Confirm Reposted" (REQ-RDT-SAP-05,
   `exportBatches.js POST /confirm`) SEBELUMNYA wajib diisi (lihat migration
   006) — sekarang TAB bisa confirm/repost tanpa catatan penutup sama sekali.
+- `REQ-RDT-NAV-11` **(baru 8 Agu, Declined belum muncul di Dashboard utama)**:
+  di `/rdt/dashboard?sub=need`, kalau ada baris yang di-reject/redirect ke dinas
+  lain, itu HARUS masuk hitungan segmen **Declined** di visualisasi progress
+  circle — sekarang belum kelihatan di situ, padahal halaman Dashboard-Detailing
+  (`/rdt/dashboard/detail/:from/:target`) sudah benar menampilkannya. Samakan
+  logic-nya, reuse dari situ.
+- `REQ-RDT-UI-11` **(baru 8 Agu, DIPERJELAS dari instruksi "Catatan Reviewer"
+  sebelumnya)**: SEMUA kolom deskripsi/catatan/notes (bukan cuma Catatan
+  Reviewer) — ukurannya HARUS **fixed dan BESAR** (bukan cuma "fixed ngikutin
+  ruang sekitar" yang keliatan pelit sekarang), dengan scroll internal kalau
+  isinya lebih panjang dari box-nya.
   Migration `018` buka constraint `NOT NULL` di kolom
   `rdt.export_batches.closing_description`.
   **REVISI sama hari**: notifikasi ke dinas target TETAP JALAN walau field ini

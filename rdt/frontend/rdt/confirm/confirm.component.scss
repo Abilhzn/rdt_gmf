@@ -290,6 +290,10 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
   font-size: 11px;
   font-weight: 700;
   text-transform: none;
+
+  // REQ-RDT-SAP-18 (8 Agu): a second select-all-label (filter-aware) can stack below the first
+  // when a column filter is active — small gap so they don't read as one cramped block.
+  & + & { margin-top: 6px; }
 }
 
 .declined-row {
@@ -363,13 +367,15 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
 // fixed height matching the space around it instead, with internal scroll for long text (see
 // [autoGrow]="false" at each call site in confirm.component.html and mention-input.component.ts's
 // autoGrow input).
+// REQ-RDT-UI-11 (8 Agu): "fixed" alone wasn't the whole ask — 90px read as stingy for the ruang
+// yang tersedia around it. Bigger, still fixed + internal scroll (not grow-to-fit).
 ::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
   padding: 8px 10px;
   font-size: 13.5px;
   font-family: inherit;
-  height: 90px;
+  height: 160px;
   overflow-y: auto;
   resize: vertical;
 }

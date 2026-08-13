@@ -7,6 +7,7 @@
 // occurred and stays greppable.
 const fs = require('fs');
 const path = require('path');
+const { classifyError } = require('./rules/errorClassification');
 
 const LOG_DIR = path.join(__dirname, '..', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'error.log');
@@ -48,4 +49,22 @@ function errorLoggingMiddleware(serviceName) {
   };
 }
 
-module.exports = { logError, errorLoggingMiddleware, LOG_FILE };
+// REQ-RDT-LEDGER-05 / REQ-RDT-AUDIT-02 (audit finding, 13 Agu): shared by every ledger-mutating
+// route's ROLLBACK catch block (confirmation.js, exportBatches.js, investigation.js,
+// periodDeadlines.js, reassignment.js, shareCost.js) — categorizes the error and writes ONE
+// rdt.audit_log row for the rollback itself (transaction_id NULL when the failure isn't
+// attributable to a single row, e.g. a batch-level gate check). Swallows its own failures (logging
+// must never turn a real error response into a worse one) and always returns the category so the
+// caller can still put it in the HTTP response even if the DB write itself failed.
+async function logRollbackAudit(client, { userId, req, err, route, transactionId = null }) {
+  const category = classifyError(err);
+  try {
+    await client.query(
+      'INSERT INTO rdt.audit_log(user_id,transaction_id,action,status_before,status_after,detail,ip_address) VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [userId || 'unknown', transactionId, 'ROLLBACK', null, null, JSON.stringify({ route, category, message: String((err && err.message) || err) }), (req && req.ip) || null]
+    );
+  } catch (logErr) { /* never let audit logging itself break the error response */ }
+  return category;
+}
+
+module.exports = { logError, errorLoggingMiddleware, logRollbackAudit, LOG_FILE };

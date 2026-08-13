@@ -207,8 +207,26 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
       });
   }
 
-  commit(): void {
+  // REQ-RDT-SAP-17 (8 Agu, "alert salah pilih periode"): 'periode berjalan' = bulan-tahun SEKARANG
+  // (waktu client, karena ini cuma sebuah confirmation prompt buat mencegah salah klik — bukan
+  // validasi keamanan yang butuh waktu server). 'YYYY-MM', format sama dengan this.period.
+  private currentPeriode(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  async commit(): Promise<void> {
     if (!this.rows.length || !this.period) return;
+    // REQ-RDT-SAP-17: periode yang dipilih dinas pengaju BUKAN periode berjalan saat ini — kasih
+    // kesempatan batal sebelum benar-benar submit, mencegah salah input gak sengaja (mis. lupa
+    // ganti bulan di period picker).
+    if (this.period !== this.currentPeriode()) {
+      const ok = await this.modal.confirm(
+        `Periode yang dipilih (${this.period}) BUKAN periode berjalan saat ini (${this.currentPeriode()}). ` +
+        `Yakin repost ini memang buat periode ${this.period}, bukan salah pilih?`
+      );
+      if (!ok) return;
+    }
     this.phase = 'committing';
     // REQ-RDT-NAV-04 (5 Agu, project owner confirmation): reviewer_note now persists (migration
     // 015 + index.js's /api/persist cols list) — it USED to be stripped here deliberately while

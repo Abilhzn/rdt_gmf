@@ -1,4 +1,7 @@
 <div class="app-shell">
+  <!-- REQ-RDT-UI-06 (DIBATALKAN 8 Agu — REVERT total dari pola hover-collapse/pin, lihat
+       shell.component.ts's header comment): fixed lebar penuh selamanya, tidak ada state
+       tersembunyi terkait lebar sidebar sama sekali. -->
   <aside class="sidebar">
     <img class="sidebar__logo" src="assets/gmf-logo.png" alt="GMF AeroAsia" />
     <p class="sidebar__subtitle">Repost Detail Transaction</p>
@@ -8,8 +11,18 @@
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
           </span>
-          Dashboard
+          <span class="nav-label">Dashboard</span>
           <span class="nav-badge" *ngIf="needToConfirmCount > 0">{{ needToConfirmCount }}</span>
+          <!-- REQ-RDT-UI-12 (DIKLARIFIKASI 8 Agu): tree-view toggle, independen dari sidebar
+               collapse (REQ-RDT-UI-06, beda fitur). Default expanded selalu — panah ini cuma
+               kontrol collapse MANUAL milik user, gak pernah otomatis dari sistem. stopPropagation
+               supaya klik panah gak ikut memicu routerLink navigasi ke Dashboard. -->
+          <button
+            type="button"
+            class="nav-group-toggle"
+            (click)="$event.stopPropagation(); $event.preventDefault(); toggleNavGroup('dashboard')"
+            [title]="isNavGroupExpanded('dashboard') ? 'Sembunyikan sub-item Dashboard' : 'Tampilkan sub-item Dashboard'"
+          >{{ isNavGroupExpanded('dashboard') ? '▼' : '▶' }}</button>
         </a>
         <!-- REQ-RDT-NAV-02a: two switchable sub-views, "Need to Confirm" default (Figma nodes
              1:2/69:209 show both as persistent sidebar sub-links under Dashboard).
@@ -18,8 +31,10 @@
              Identification", but the project owner asked for it back, just relabeled to match
              (still the exact same underlying data/sub-view, now styled like Report Submission —
              see home.component.html's pairCard useBar). A plain PIC's link stays "Need to
-             Confirm", unrenamed, per the earlier unresolved-ambiguity call. -->
-        <div class="nav-subnav">
+             Confirm", unrenamed, per the earlier unresolved-ambiguity call.
+             REQ-RDT-UI-12: hidden only on manual collapse, NEVER when this group is the one the
+             user currently has open (isNavGroupExpanded's force-active rule). -->
+        <div class="nav-subnav" *ngIf="isNavGroupExpanded('dashboard')">
           <a [routerLink]="['dashboard']" [queryParams]="{ sub: 'need' }" class="nav-sublink" [class.active]="dashboardSubview === 'need'">{{ currentUser.current?.role === 'TAB' ? 'Need Identification' : 'Need to Confirm' }}</a>
           <!-- TAB's "Own Repost" is actually a global view across every submitting dinas (TAB
                doesn't originate reposts itself) — "Own Repost" reads wrong for that role
@@ -35,7 +50,7 @@
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
         </span>
-        Upload Detail Transaction
+        <span class="nav-label">Upload Detail Transaction</span>
       </a>
       <div class="nav-group">
         <!-- REQ-RDT-NAV-10 (31 Jul): "Confirmation (nav item)" -> "Detail Confirmation" for a
@@ -47,7 +62,16 @@
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
           </span>
-          {{ currentUser.current?.role === 'TAB' ? 'Need Identification' : 'Detail Confirmation' }}
+          <span class="nav-label">{{ currentUser.current?.role === 'TAB' ? 'Need Identification' : 'Detail Confirmation' }}</span>
+          <!-- REQ-RDT-UI-12: same tree-view toggle as Dashboard above — only rendered at all when
+               there's actually a sub-nav to toggle (canSeeConfirmSubnav, TAB-only). -->
+          <button
+            *ngIf="canSeeConfirmSubnav"
+            type="button"
+            class="nav-group-toggle"
+            (click)="$event.stopPropagation(); $event.preventDefault(); toggleNavGroup('confirm')"
+            [title]="isNavGroupExpanded('confirm') ? 'Sembunyikan sub-item Need Identification' : 'Tampilkan sub-item Need Identification'"
+          >{{ isNavGroupExpanded('confirm') ? '▼' : '▶' }}</button>
         </a>
         <!-- REQ-RDT-LEDGER-10 restructure (29 Jul, project owner request): TAB-only sub-nav,
              styled like Dashboard's Need-to-Confirm/Own-Repost — Corp is TAB's no-PIC queue
@@ -56,8 +80,9 @@
              (formerly a standalone "Investigation" nav item, then "Investigation/Ask TA") is
              relabeled "TAB" here (TERJAWAB 1 Agu, REQ-RDT-NAV-10) — same ?target=INVESTIGATION
              queue, still TAB's own ambiguous-ownership bucket, just matching the sub-item name
-             the SRS's "Corp dan TAB" table row now specifies. -->
-        <div class="nav-subnav" *ngIf="canSeeConfirmSubnav">
+             the SRS's "Corp dan TAB" table row now specifies.
+             REQ-RDT-UI-12: hidden only on manual collapse, never when this group is active. -->
+        <div class="nav-subnav" *ngIf="canSeeConfirmSubnav && isNavGroupExpanded('confirm')">
           <a [routerLink]="['confirm']" [queryParams]="{ target: 'Corp' }" class="nav-sublink" [class.active]="confirmSubTarget === 'Corp'">Corp</a>
           <a [routerLink]="['confirm']" [queryParams]="{ target: 'INVESTIGATION' }" class="nav-sublink" [class.active]="confirmSubTarget === 'INVESTIGATION'">TAB</a>
           <!-- SRS section 3.10 (Share-Cost, 3 Agu): "tempatnya di sidebar ini juga, di bawah
@@ -70,7 +95,7 @@
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
         </span>
-        Wait to Repost
+        <span class="nav-label">Wait to Repost</span>
       </a>
       <!-- REQ-RDT-SAP-12 (31 Jul, expanded): visible to every logged-in user now, not TAB-only —
            GET /history auto-scopes to the caller's own dinas_inisiasi for a plain PIC.
@@ -80,7 +105,7 @@
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
         </span>
-        {{ currentUser.current?.role === 'TAB' ? 'Riwayat Repost TAB' : 'Repost History' }}
+        <span class="nav-label">{{ currentUser.current?.role === 'TAB' ? 'Riwayat Repost TAB' : 'Repost History' }}</span>
       </a>
       <!-- REQ-RDT-SAP-14 (11 Agu): moved out of the Riwayat Repost TAB <details> panel into its
            own sidebar item — same TAB-only gate it already had there (canSeeSettingPeriode). -->
@@ -88,19 +113,19 @@
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
         </span>
-        Setting Periode
+        <span class="nav-label">Setting Periode</span>
       </a>
       <span class="nav-link nav-link--disabled">
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
         </span>
-        Guidance Application
+        <span class="nav-label">Guidance Application</span>
       </span>
       <span class="nav-link nav-link--disabled">
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </span>
-        Feedback Application
+        <span class="nav-label">Feedback Application</span>
       </span>
     </nav>
   </aside>
