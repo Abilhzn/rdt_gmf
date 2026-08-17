@@ -212,6 +212,18 @@ $danger-600: #b3261e;
 
 .page-title { margin: 0; font-size: 30px; font-weight: 800; color: $ink; letter-spacing: 0.03em; }
 
+// SRS 3.13 (14 Agu, point 2) — reminder banner, not an alert: informational tint (accent, not
+// danger) since it's just "here's the deadline", not a warning that something's already wrong.
+.deadline-banner {
+  margin-bottom: 18px;
+  padding: 10px 16px;
+  border-radius: $radius-md;
+  background: rgba($accent, 0.08);
+  border: 1px solid rgba($accent, 0.25);
+  color: $accent;
+  font-size: 13.5px;
+}
+
 // ---------- clickable user badge + notif bell + dropdown menus (REQ-RDT-NAV-01/08) ----------
 .user-menu-wrap { position: relative; }
 

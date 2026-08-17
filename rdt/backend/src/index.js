@@ -20,6 +20,7 @@ const { parseExcelFile, CONTRACT_FIELDS } = require('./parser/excelParser');
 const { flagDuplicates } = require('./persist/duplicateCheck');
 const { evaluateSupersede } = require('./persist/supersedeCheck');
 const { saveOriginalFile } = require('./persist/originalFile');
+const { currentAutoPeriode } = require('./rules/periodEffective');
 const confirmationRouter = require('./routes/confirmation');
 const reassignmentRouter = require('./routes/reassignment');
 const exportBatchesRouter = require('./routes/exportBatches');
@@ -414,15 +415,10 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
   body.rows = rows;
   body.aggregation = typeof body.aggregation === 'string' ? JSON.parse(body.aggregation) : body.aggregation;
 
-  // REQ-RDT-SAP-13 (3 Agu): the dinas pengaju must explicitly state which month/year this DT is
-  // FOR — never inferred from the upload/repost timestamp (that's the bug this requirement fixes:
-  // a June DT re-posted in August used to archive under August). "YYYY-MM" from an
-  // <input type="month">, validated here rather than trusted as freeform text.
-  const period = typeof body.period === 'string' ? body.period.trim() : '';
-  if (!/^\d{4}-\d{2}$/.test(period)) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
-    return res.status(400).json({ ok: false, error: 'period is required, format YYYY-MM' });
-  }
+  // REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode tidak lagi diminta dari client sama
+  // sekali (dan kalaupun dikirim, diabaikan) — selalu implisit = bulan sebelum bulan upload
+  // berjalan (server time), lihat rules/periodEffective.js's currentAutoPeriode.
+  const period = currentAutoPeriode();
 
   // Bug fix (11 Agu, found via live-DB testing): rdt.uploads.original_filename is NOT NULL in
   // the schema, but this route treated it as optional (defaulted to null below) — a caller that

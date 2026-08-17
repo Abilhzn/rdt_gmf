@@ -180,6 +180,13 @@
       </div>
     </header>
 
+    <!-- SRS 3.13 (14 Agu, point 2): TAB's periode-wide deadline as a reminder banner, visible on
+         every dinas-facing page (shell wraps all of them), not just TAB's own Setting Periode
+         page. Only renders once a default deadline exists for the current auto-periode. -->
+    <div class="deadline-banner" *ngIf="deadlineReminder">
+      Deadline repost periode {{ deadlineReminder.periode }}: <strong>{{ deadlineReminder.deadline_at | idDate }}</strong>
+    </div>
+
     <router-outlet></router-outlet>
   </div>
 </div>

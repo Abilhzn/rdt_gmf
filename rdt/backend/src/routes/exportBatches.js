@@ -87,10 +87,11 @@ router.get('/waiting', requireRole('TAB'), async (req, res) => {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    // REQ-RDT-SAP-21 (8 Agu): u.period + t.periode_efektif joined in — an overdue pair (its
-    // periode_efektif already shifted to next month) must NOT show here, it's automatically next
-    // period's business, not this one's. Same declared-vs-effective tracking dashboard.js's
-    // buildChainAwareProgress/buildNeedToConfirmProgress already use.
+    // REQ-RDT-SAP-21 (DIBALIK 14 Agu, SRS 3.13): overdue pairs used to be excluded here; now they
+    // stay in the list with an `overdue` flag (permanent/sticky — see isOverdue below, it's based
+    // on periode_efektif ever having shifted, which snapshotPeriodeEfektif never un-writes). Same
+    // declared-vs-effective tracking dashboard.js's buildChainAwareProgress/
+    // buildNeedToConfirmProgress already use.
     const r = await client.query(
       `SELECT t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, u.period AS declared_period, t.periode_efektif
        FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
@@ -107,8 +108,11 @@ router.get('/waiting', requireRole('TAB'), async (req, res) => {
       if (t.declared_period) byPair[key].periodCounts[t.declared_period] = (byPair[key].periodCounts[t.declared_period] || 0) + 1;
       if (t.periode_efektif && (!byPair[key].maxPeriodeEfektif || t.periode_efektif > byPair[key].maxPeriodeEfektif)) byPair[key].maxPeriodeEfektif = t.periode_efektif;
     }
-    // REQ-RDT-SAP-21: most-common declared period wins (same pattern as dashboard.js/
-    // exportBatches.js's own GET /history), overdue = MAX(periode_efektif) shifted away from it.
+    // REQ-RDT-SAP-21 (DIBALIK 14 Agu): most-common declared period wins (same pattern as
+    // dashboard.js/exportBatches.js's own GET /history), overdue = MAX(periode_efektif) shifted
+    // away from it. Sticky by construction: periode_efektif is a one-way snapshot
+    // (confirmation.js's snapshotPeriodeEfektif), so once it has shifted for any row in this pair,
+    // this flag stays true for that pair regardless of new deadlines set later.
     const isOverdue = (p) => {
       let declaredPeriod = null;
       let bestCount = 0;
@@ -119,10 +123,12 @@ router.get('/waiting', requireRole('TAB'), async (req, res) => {
     };
     // Every entry here is, by construction, fully resolved with no export_batches row yet -- the
     // exact "Waiting to repost" state (REQ-RDT-SAP-07), constant across all rows in this list.
+    // REQ-RDT-SAP-21 (DIBALIK 14 Agu): overdue pairs no longer filtered out — they stay in
+    // "Wait to Repost" with `overdue: true` so TAB can still act on them (REQ-RDT-SAP-22 tag).
     const waiting = Object.values(byPair)
-      .filter((p) => !p.blocked && p.total > 0 && !isOverdue(p))
+      .filter((p) => !p.blocked && p.total > 0)
       .sort((a, b) => (a.dinas_inisiasi + a.dinas_target).localeCompare(b.dinas_inisiasi + b.dinas_target))
-      .map((p) => ({ dinas_inisiasi: p.dinas_inisiasi, dinas_target: p.dinas_target, total: p.total, state_label: deriveStateLabel({ pendingCount: 0, targetDinas: p.dinas_target }) }));
+      .map((p) => ({ dinas_inisiasi: p.dinas_inisiasi, dinas_target: p.dinas_target, total: p.total, overdue: isOverdue(p), state_label: deriveStateLabel({ pendingCount: 0, targetDinas: p.dinas_target }) }));
     res.json({ ok: true, waiting });
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
   finally { try { await client.end(); } catch (e) {} }
@@ -235,7 +241,11 @@ router.post('/:batchId/subdocs', requireRole('TAB'), express.json(), async (req,
 // non-TAB caller, since letting them pass one would just be requireRole('TAB') with extra steps.
 router.get('/history', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
-  const { from, to } = req.query;
+  // SRS 3.13 (14 Agu): date-range (from/to over confirmed_at) replaced with a single periode
+  // ('YYYY-MM') filter, matching the same declared/effective period the frontend's month-tabs
+  // already group by — applied after `period`/`period_efektif` are derived below (small per-dinas
+  // monthly row counts, filtering in JS here is simpler than reshaping the SQL joins for it).
+  const { periode } = req.query;
   const user = req.rdtUser;
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
@@ -243,8 +253,6 @@ router.get('/history', async (req, res) => {
     const whereParts = ['EXISTS (SELECT 1 FROM rdt.export_subdocs s WHERE s.batch_id = b.id)'];
     const params = [];
     if (user.role !== 'TAB') { whereParts.push(`b.dinas_inisiasi = $${params.length + 1}`); params.push(user.dinas); }
-    if (from) { whereParts.push(`b.confirmed_at >= $${params.length + 1}`); params.push(from); }
-    if (to) { whereParts.push(`b.confirmed_at < ($${params.length + 1}::date + interval '1 day')`); params.push(to); }
     const r = await client.query(
       `SELECT b.* FROM rdt.export_batches b WHERE ${whereParts.join(' AND ')} ORDER BY b.confirmed_at DESC`,
       params
@@ -330,7 +338,10 @@ router.get('/history', async (req, res) => {
         state_label: deriveStateLabel({ pendingCount: 0, targetDinas: b.dinas_target, subdocNumbers }),
       };
     });
-    res.json({ ok: true, batches });
+    // Filter by periode (declared, falling back to effective — same precedence monthGroups uses)
+    // after derivation, not in the WHERE clause above — see comment on `periode` destructure.
+    const filtered = periode ? batches.filter((b) => (b.period_efektif || b.period) === periode) : batches;
+    res.json({ ok: true, batches: filtered });
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
   finally { try { await client.end(); } catch (e) {} }
 });

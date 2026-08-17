@@ -1550,6 +1550,35 @@ kolom data yang scroll di antaranya.
   (1) nilai `dinas_target` PERSIS apa yang gagal di-insert, (2) bandingkan isi
   `rdt.dinas` di Supabase vs seed yang seharusnya (`schema.sql`/migrations),
   (3) laporkan temuan sebelum memperbaiki.
+
+### 3.13 Koreksi Alur Periode dari Rapat Tim TAB (Jumat, 14 Agu)
+
+Empat koreksi ini MEMBALIK LAGI beberapa requirement periode/deadline yang baru
+ditulis minggu ini (REQ-RDT-SAP-13, 17, 21) — baca sebagai PENGGANTI, bukan
+tambahan, untuk bagian yang disebut eksplisit di bawah.
+
+- `REQ-RDT-SAP-13` **DIBATALKAN 14 Agu**: input manual "set periode DT" di
+  Upload Detail Transaction DIHAPUS TOTAL. Periode itu **selalu implisit = bulan
+  SEBELUM bulan upload berjalan** (mis. upload tanggal 1 Agustus → otomatis
+  periode Juli, TANPA user pilih apapun) — repost itu emang selalu berdasarkan
+  transaksi bulan kemarin, jadi gak ada ambiguitas yang perlu dipilih manual.
+  Konsekuensi: `REQ-RDT-SAP-17` (alert salah pilih periode) **JUGA DIBATALKAN**
+  — gak ada lagi pilihan manual yang bisa salah.
+- `REQ-RDT-SAP-16`/`REQ-RDT-SAP-20` **DIPERSEMPIT SCOPE-nya**: "Setting Periode"
+  sekarang CUMA soal **setting deadline** (bukan lagi soal periode data — itu
+  udah otomatis per poin di atas). Deadline yang di-set TAB HARUS **terlihat di
+  SEMUA dinas, di SEMUA halaman repost mereka** (bukan cuma dashboard TAB) —
+  jadi reminder aktif buat PIC, bukan info yang cuma TAB bisa lihat.
+- `REQ-RDT-SAP-21` **DIBALIK 14 Agu**: SEMUA repost (termasuk yang overdue) TETAP
+  muncul di "Wait to Repost" — TIDAK dikecualikan seperti keputusan sebelumnya.
+  Yang overdue dapat **cap "Overdue"** di situ juga (bukan cuma di Dashboard,
+  REQ-RDT-SAP-22 tetap berlaku juga). Cap ini **PERMANEN/STICKY** — begitu
+  sebuah pasangan pernah overdue, cap itu TIDAK HILANG walau bulan berikutnya
+  sudah lewat dan deadline baru sudah di-set — itu jadi catatan permanen bahwa
+  pasangan itu pernah telat, bukan status yang bisa "bersih" lagi.
+- **Filter periode di Riwayat Repost TAB disederhanakan**: cukup **dropdown
+  Bulan + dropdown Tahun** (bukan date-range picker atau bentuk lain yang lebih
+  kompleks).
   Migration `018` buka constraint `NOT NULL` di kolom
   `rdt.export_batches.closing_description`.
   **REVISI sama hari**: notifikasi ke dinas target TETAP JALAN walau field ini

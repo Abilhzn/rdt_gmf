@@ -51,11 +51,9 @@ export class TransactionService {
   // not just JSON — the server saves those bytes so REQ-RDT-LEDGER-09's download-with-live-
   // formulas has something to serve later. rows/aggregation travel as JSON-stringified fields
   // since multipart fields are plain strings; index.js's /api/persist parses them back.
-  // REQ-RDT-SAP-13 (3 Agu): `period` ("YYYY-MM") is required — the dinas pengaju states which
-  // month/year this DT is FOR, never inferred from the upload timestamp. Backend rejects a
-  // missing/malformed value; the Angular form also gates Confirm on it (see
-  // repost-budgeting.component.ts) so this never actually round-trips empty in practice.
-  persistToDatabase(rows: Transaction[], aggregation: AggregationMatrix, originalFile: File | null, period: string, description?: string): Observable<CommitResponse> {
+  // REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode tidak lagi dikirim dari sini sama sekali
+  // — server men-derive-nya sendiri (bulan sebelum bulan upload berjalan) di POST /api/persist.
+  persistToDatabase(rows: Transaction[], aggregation: AggregationMatrix, originalFile: File | null, description?: string): Observable<CommitResponse> {
     const user = this.currentUser.current;
     if (!user) return throwError(() => new Error('Pilih "Login sebagai" dulu.'));
     const fd = new FormData();
@@ -63,7 +61,6 @@ export class TransactionService {
     fd.append('aggregation', JSON.stringify(aggregation));
     fd.append('original_filename', originalFile?.name || 'unknown.xlsx');
     fd.append('description', description?.trim() || '');
-    fd.append('period', period);
     if (originalFile) fd.append('file', originalFile);
     return this.http.post<CommitResponse>(`${this.base}/persist`, fd, { headers: this.currentUser.authHeaders() });
   }

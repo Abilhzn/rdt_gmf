@@ -5,6 +5,7 @@ import { CurrentUserService } from '@auth/services/current-user.service';
 import { NotificationsService } from '../services/notifications.service';
 import { Notification } from '../services/notification.model';
 import { DashboardService } from '../services/dashboard.service';
+import { ExportBatchService } from '../services/export-batch.service';
 
 // REQ-RDT-NAV-10 (31 Jul, presentation feedback): display-label renames. Only the UNAMBIGUOUS
 // rows from the SRS table are applied here — two rows are explicitly flagged "perlu diklarifikasi,
@@ -45,6 +46,12 @@ export class ShellComponent implements OnInit {
   // 'need' as a harmless default, matching HomeComponent's own default).
   needToConfirmCount = 0;
   dashboardSubview: 'need' | 'own' = 'need';
+
+  // SRS 3.13 (14 Agu, point 2): TAB's periode-wide deadline shown as a reminder banner on EVERY
+  // dinas-facing page (not just TAB's own), sourced from routes/periodDeadlines.js's
+  // GET /current-reminder (the one non-TAB-gated route on that router). null while loading or when
+  // no default deadline is set for the current auto-periode — banner just doesn't render then.
+  deadlineReminder: { periode: string; deadline_at: string } | null = null;
   // REQ-RDT-LEDGER-10 restructure (29 Jul): Confirmation's TAB-only sub-nav. Originally
   // TA/Corp/Investigation; REQ-RDT-AUTH-05 (corrected 31 Jul) removed 'TA' from this sub-nav —
   // TA has its own dedicated PIC and its own confirmation queue like any other dinas now, it is
@@ -93,6 +100,7 @@ export class ShellComponent implements OnInit {
     public currentUser: CurrentUserService,
     private notificationsSvc: NotificationsService,
     private dashboardSvc: DashboardService,
+    private exportBatches: ExportBatchService,
     private router: Router,
     private route: ActivatedRoute,
     private elementRef: ElementRef<HTMLElement>,
@@ -132,6 +140,18 @@ export class ShellComponent implements OnInit {
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => this.syncFromRoute());
     this.loadNotifCount();
     this.loadDashboardBadge();
+    this.loadDeadlineReminder();
+  }
+
+  // SRS 3.13 point 2 — loaded once at shell mount (login), same lifecycle as the notif count and
+  // dashboard badge just above; the reminder is a single periode-wide value, not per-route, so it
+  // doesn't need re-fetching on every navigation like syncFromRoute's per-page state does.
+  private loadDeadlineReminder(): void {
+    if (!this.currentUser.current) { this.deadlineReminder = null; return; }
+    this.exportBatches.getCurrentDeadlineReminder().subscribe({
+      next: (res) => { this.deadlineReminder = res.deadline_at ? { periode: res.periode, deadline_at: res.deadline_at } : null; },
+      error: () => { /* purely informational — ignore, same convention as notif/dashboard badge */ },
+    });
   }
 
   private syncFromRoute(): void {

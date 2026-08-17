@@ -2,8 +2,10 @@
   <p class="note intro">
     Semua pasangan (dinas pengaju × dinas target) yang masih AKTIF (belum selesai) atau OVERDUE
     (sudah 100% confirmed tapi lewat deadline, belum di-repost) di periode-periode yang pernah
-    dapat deadline — satu tab per periode, seperti Riwayat Repost. Pasangan OVERDUE bisa
-    di-override deadline-nya di sini.
+    dapat deadline — satu tab per periode, seperti Riwayat Repost.
+    <!-- SRS 3.13 (14 Agu): "Override deadline"/re-evaluasi DIHAPUS — cap Overdue sekarang
+         permanen/sticky (REQ-RDT-SAP-21 dibalik), jadi tidak ada lagi aksi yang bisa
+         menghilangkannya di sini. Baris OVERDUE tetap tampil, informational saja. -->
   </p>
 
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
@@ -27,7 +29,6 @@
           <thead>
             <tr>
               <th>Dinas Pengaju</th><th>Dinas Target</th><th>Total</th><th>Status</th>
-              <th>Override deadline</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -42,23 +43,6 @@
                   *ngIf="row.status === 'OVERDUE'"
                   [title]="'Periode efektif sudah geser ke ' + row.periode_efektif"
                 >Overdue — {{ row.periode_efektif }}</span>
-              </td>
-              <td>
-                <input
-                  *ngIf="row.status === 'OVERDUE'"
-                  class="filter-input"
-                  type="datetime-local"
-                  [(ngModel)]="overrideDeadlineInputByPair[row.dinas_inisiasi + ' ' + row.dinas_target]"
-                />
-              </td>
-              <td>
-                <button
-                  *ngIf="row.status === 'OVERDUE'"
-                  class="btn btn--primary"
-                  type="button"
-                  [disabled]="!overrideDeadlineInputByPair[row.dinas_inisiasi + ' ' + row.dinas_target] || overrideBusyPair === (row.dinas_inisiasi + ' ' + row.dinas_target)"
-                  (click)="submitOverride(row)"
-                >Re-evaluasi</button>
               </td>
             </tr>
           </tbody>

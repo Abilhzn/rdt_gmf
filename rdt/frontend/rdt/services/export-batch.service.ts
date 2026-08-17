@@ -20,6 +20,10 @@ export interface WaitingEntry {
   dinas_inisiasi: string;
   dinas_target: string;
   total: number;
+  /** REQ-RDT-SAP-21 (DIBALIK 14 Agu): overdue pairs stay in "Wait to Repost" now (no longer
+   * filtered out) — this flags them for the "Overdue" tag, sticky per routes/exportBatches.js's
+   * isOverdue (based on periode_efektif, a one-way snapshot). */
+  overdue: boolean;
   state_label: string;
 }
 
@@ -91,16 +95,6 @@ export interface ActivePairEntry {
   open_count: number;
 }
 
-// Result of re-evaluating one pasangan's periode_efektif per row (routes/periodDeadlines.js's
-// POST /override-reevaluate) — one entry per transaction actually touched.
-export interface OverrideReevaluateResult {
-  dinas_inisiasi: string;
-  dinas_target: string;
-  periode: string;
-  deadline_at: string;
-  reevaluated: Array<{ id: number; old_periode_efektif: string | null; new_periode_efektif: string }>;
-}
-
 // REQ-RDT-SAP-11 — one subdoc entry with the transaction ids it actually covers, not just the
 // bare number.
 export interface SubdocDetail {
@@ -169,13 +163,10 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-10 — archived batches (>=1 subdoc). from/to are optional YYYY-MM-DD period bounds
-  // against confirmed_at.
-  getHistory(from?: string, to?: string): Observable<HistoryBatch[]> {
-    const params: string[] = [];
-    if (from) params.push(`from=${encodeURIComponent(from)}`);
-    if (to) params.push(`to=${encodeURIComponent(to)}`);
-    const qs = params.length ? `?${params.join('&')}` : '';
+  // REQ-RDT-SAP-10 — archived batches (>=1 subdoc). periode (optional, 'YYYY-MM') filters against
+  // the batch's declared/effective period — SRS 3.13 (14 Agu) replaced the old from/to date-range.
+  getHistory(periode?: string): Observable<HistoryBatch[]> {
+    const qs = periode ? `?periode=${encodeURIComponent(periode)}` : '';
     return this.http
       .get<{ ok: boolean; batches: HistoryBatch[]; error?: string }>(`${this.base}/history${qs}`, { headers: this.currentUser.authHeaders() })
       .pipe(map((res) => {
@@ -356,7 +347,8 @@ export class ExportBatchService {
       }));
   }
 
-  // DIPERJELAS 7 Agu — "Override Deadline"'s list, replacing the old manual dinas-picker form.
+  // DIPERJELAS 7 Agu — "Overdue" list, informational (SRS 3.13: cap sticky, tidak ada lagi aksi
+  // override yang menghapusnya).
   getOverdueDeadlines(periode: string): Observable<OverdueDeadlineEntry[]> {
     return this.http
       .get<{ ok: boolean; overdue: OverdueDeadlineEntry[]; error?: string }>(
@@ -369,20 +361,18 @@ export class ExportBatchService {
       }));
   }
 
-  // DIPERJELAS 7 Agu — re-opens one overdue pasangan with a new deadline: re-evaluates (not just
-  // records) its periode_efektif per row. The one deliberate exception to periode_efektif being a
-  // permanent snapshot — always on the strength of an out-of-band team agreement, gated behind
-  // ModalService.confirm() at the call site.
-  overrideDeadline(dinasInisiasi: string, dinasTarget: string, periode: string, deadlineAt: string): Observable<OverrideReevaluateResult> {
+  // SRS 3.13 (14 Agu, point 2) — the periode-wide default deadline for the CURRENT auto-periode,
+  // for shell.component's reminder banner. Only non-TAB-reachable route on this router (see
+  // routes/periodDeadlines.js's GET /current-reminder) — any logged-in user, not just TAB.
+  getCurrentDeadlineReminder(): Observable<{ periode: string; deadline_at: string | null }> {
     return this.http
-      .post<{ ok: boolean; error?: string } & OverrideReevaluateResult>(
-        `${this.deadlinesBase}/override-reevaluate`,
-        { dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, periode, deadline_at: deadlineAt },
+      .get<{ ok: boolean; periode: string; deadline_at: string | null; error?: string }>(
+        `${this.deadlinesBase}/current-reminder`,
         { headers: this.currentUser.authHeaders() }
       )
       .pipe(map((res) => {
-        if (!res.ok) throw new Error(res.error || 'gagal override deadline');
-        return res;
+        if (!res.ok) throw new Error(res.error || 'gagal memuat reminder deadline');
+        return { periode: res.periode, deadline_at: res.deadline_at };
       }));
   }
 }

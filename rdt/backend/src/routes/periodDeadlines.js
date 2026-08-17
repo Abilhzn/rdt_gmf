@@ -1,8 +1,8 @@
 // REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): TAB sets a confirmation deadline PER PASANGAN
 // (dinas_inisiasi x dinas_target) x periode, instead of one global rule. Mounted at
-// /api/period-deadlines in index.js. TAB-only throughout, same gating as the rest of
-// exportBatches.js/investigation.js — setting a deadline that shifts a pair's effective repost
-// period is TAB's call.
+// /api/period-deadlines in index.js. TAB-only throughout (except GET /current-reminder below —
+// see its own comment), same gating as the rest of exportBatches.js/investigation.js — setting a
+// deadline that shifts a pair's effective repost period is TAB's call.
 //
 // See rules/periodEffective.js for how these rows actually get consumed (routes/exportBatches.js's
 // GET /history) — this file is just CRUD for the deadline table itself.
@@ -11,10 +11,29 @@ const express = require('express');
 const { Client } = require('pg');
 const { requireUser, requireRole } = require('../middleware/auth');
 const { buildValidCodeMap } = require('../rules/reassignmentRules');
-const { computeEffectivePeriod, addMonths } = require('../rules/periodEffective');
+const { currentAutoPeriode } = require('../rules/periodEffective');
 const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
+
+// SRS 3.13 (14 Agu, point 2): the deadline TAB sets must show as a reminder on EVERY dinas's
+// repost pages, not just TAB's own — so this one route is requireUser only, registered before the
+// requireRole('TAB') gate below applies to the rest of the router. Returns the periode-wide
+// default deadline (rdt.period_default_deadlines) for the CURRENT auto-periode (same value
+// POST /api/persist now derives, see rules/periodEffective.js's currentAutoPeriode) — deliberately
+// not per-pasangan-specific: a banner reminder doesn't need that precision, and every non-TAB
+// caller here is a PIC who doesn't know their own dinas_inisiasi/dinas_target pairing set upfront.
+router.get('/current-reminder', requireUser, async (req, res) => {
+  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
+  const periode = currentAutoPeriode();
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await client.connect();
+    const r = await client.query('SELECT deadline_at FROM rdt.period_default_deadlines WHERE periode = $1', [periode]);
+    res.json({ ok: true, periode, deadline_at: r.rows[0]?.deadline_at || null });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+  finally { try { await client.end(); } catch (e) {} }
+});
 
 router.use(requireUser, requireRole('TAB'));
 
@@ -203,14 +222,10 @@ router.delete('/default/:periode', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// Used by GET /overdue below. NOT reused by POST /override-reevaluate's own re-check — that
-// route needs row-level `SELECT ... FOR UPDATE` locks, and Postgres doesn't allow FOR UPDATE
-// together with GROUP BY/aggregates, so it re-verifies the same "100% confirmed + overdue" shape
-// via its own row-level query instead (see there). Scoped to un-batched pasangan only
-// (export_batch_id IS NULL) — per project owner decision (7 Agu planning): a pasangan already
-// reposted/archived to Riwayat Repost can never appear here, keeping this strictly pre-export and
-// consistent with the non-retroactive periode_efektif snapshot rule (see routes/confirmation.js's
-// snapshotPeriodeEfektif).
+// Scoped to un-batched pasangan only (export_batch_id IS NULL) — per project owner decision
+// (7 Agu planning): a pasangan already reposted/archived to Riwayat Repost can never appear here,
+// keeping this strictly pre-export and consistent with the non-retroactive periode_efektif
+// snapshot rule (see routes/confirmation.js's snapshotPeriodeEfektif).
 async function findOverduePairs(client, periode) {
   const r = await client.query(
     `SELECT t.dinas_inisiasi, t.dinas_target,
@@ -228,22 +243,13 @@ async function findOverduePairs(client, periode) {
   return r.rows;
 }
 
-// "TAB has moved on to Setting Deadline for periode N+1" — DIPERJELAS 7 Agu's reset rule: once
-// TRUE, the Override Deadline list for `periode` must come back empty regardless of what
-// findOverduePairs above would otherwise find, and POST /override-reevaluate must reject. A
-// GLOBAL check (ANY pasangan at N+1), not scoped to the one pasangan being overridden — matches
-// the SRS framing that the closing event is "TAB set deadline for N+1" as a whole (typically via
-// POST /bulk), not "this specific pasangan already has an N+1 deadline".
-async function periodeNextAlreadySet(client, periode) {
-  const r = await client.query('SELECT 1 FROM rdt.period_deadlines WHERE periode = $1 LIMIT 1', [addMonths(periode, 1)]);
-  return r.rows.length > 0;
-}
-
-// GET /api/period-deadlines/overdue?periode=YYYY-MM — DIPERJELAS 7 Agu: "Override Deadline"'s
-// list — pasangan that are 100% confirmed for this periode but whose confirm/decline happened
-// AFTER the deadline (periode_efektif already shifted), and are still un-batched. TAB picks one
-// from this list and gives it a new deadline via POST /override-reevaluate below, which
-// re-evaluates (not just records) that pasangan's periode_efektif.
+// GET /api/period-deadlines/overdue?periode=YYYY-MM — pasangan that are 100% confirmed for this
+// periode but whose confirm/decline happened AFTER the deadline (periode_efektif already
+// shifted), and are still un-batched. Informational only — REQ-RDT-SAP-21 (DIBALIK 14 Agu, SRS
+// 3.13): the old "override-reevaluate"/un-stick action is GONE, and so is the "periode N+1 sudah
+// di-set -> list balik kosong" reset that only existed to close that workflow — the cap is
+// permanent now, so this list no longer hides an overdue pair once TAB moves on to the next
+// periode's deadline.
 router.get('/overdue', async (req, res) => {
   const periode = req.query.periode;
   if (!periode || !PERIODE_RE.test(periode)) return res.status(400).json({ ok: false, error: "periode must be 'YYYY-MM'" });
@@ -251,9 +257,6 @@ router.get('/overdue', async (req, res) => {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    if (await periodeNextAlreadySet(client, periode)) {
-      return res.json({ ok: true, periode, overdue: [] });
-    }
     const rows = await findOverduePairs(client, periode);
     res.json({
       ok: true,
@@ -269,9 +272,8 @@ router.get('/overdue', async (req, res) => {
 // resolved (PENDING/DECLINED/NEEDS_REVIEW) di periode ini, un-batched. Deliberately a SEPARATE
 // query/endpoint from GET /overdue above rather than one merged query — each stays single-purpose
 // (this file's existing convention), the frontend combines both arrays into one table with a
-// status column ("Masih Aktif" here, "Overdue — Butuh Override" from GET /overdue). No Override
-// Deadline action applies to rows from THIS endpoint — that action only makes sense once a
-// pasangan is 100% resolved (see POST /override-reevaluate's own "belum 100% confirmed" check).
+// status column ("Masih Aktif" here, "Overdue" from GET /overdue, both informational only per
+// SRS 3.13).
 router.get('/active-pairs', async (req, res) => {
   const periode = req.query.periode;
   if (!periode || !PERIODE_RE.test(periode)) return res.status(400).json({ ok: false, error: "periode must be 'YYYY-MM'" });
@@ -295,122 +297,11 @@ router.get('/active-pairs', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// POST /api/period-deadlines/override-reevaluate — DIPERJELAS 7 Agu. Body: { dinas_inisiasi,
-// dinas_target, periode, deadline_at }. The one deliberate exception to periode_efektif being a
-// permanent snapshot (routes/confirmation.js's snapshotPeriodeEfektif) — a conscious, TAB-
-// initiated, single-pasangan re-open, always on the strength of an out-of-band team agreement
-// (same shape as REQ-RDT-LEDGER-10's Investigation assign flow), never an automatic recompute.
-// Reviewed with senior-advisor (7 Agu) given the sensitivity: everything re-checked INSIDE the
-// transaction after locking (never trusts what GET /overdue showed the frontend a moment
-// earlier — another TAB action, e.g. Setting Deadline for periode N+1, could race in between),
-// row locks acquired in a stable `ORDER BY id ASC` to bound deadlock risk on a multi-row update,
-// and one audit_log row PER TRANSACTION (matching investigation.js's assign-all convention, not
-// a single summary row) so the old periode_efektif per row survives as a permanent record.
-router.post('/override-reevaluate', express.json(), async (req, res) => {
-  const { dinas_inisiasi: dinasInisiasiRaw, dinas_target: dinasTargetRaw } = req.body || {};
-  if (!dinasInisiasiRaw || !dinasTargetRaw) return res.status(400).json({ ok: false, error: 'dinas_inisiasi and dinas_target are required' });
-  const validation = validatePeriodAndDeadline(req.body || {});
-  if (!validation.ok) return res.status(400).json({ ok: false, error: validation.error });
-  const { deadlineAt } = validation;
-  const periode = req.body.periode;
-  const userId = req.rdtUser.id;
-
-  if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  try {
-    await client.connect();
-    const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
-    const validCodes = buildValidCodeMap(validRes.rows);
-    const dinasInisiasi = validCodes.get(String(dinasInisiasiRaw).toUpperCase());
-    const dinasTarget = validCodes.get(String(dinasTargetRaw).toUpperCase());
-    if (!dinasInisiasi) return res.status(400).json({ ok: false, error: `dinas_inisiasi '${dinasInisiasiRaw}' is not a known active dinas` });
-    if (!dinasTarget) return res.status(400).json({ ok: false, error: `dinas_target '${dinasTargetRaw}' is not a known active dinas` });
-
-    await client.query('BEGIN');
-    try {
-      if (await periodeNextAlreadySet(client, periode)) {
-        throw Object.assign(new Error(`periode berikutnya sudah punya deadline — pasangan overdue di periode ${periode} sudah permanen masuk periode berikutnya, tidak bisa di-override lagi`), { httpStatus: 400 });
-      }
-      // Lock every currently un-batched row for this pasangan+periode, ANY status — need to see
-      // BLOCKING rows too (not just ATTACHABLE) to correctly reject a pasangan that ISN'T actually
-      // 100% resolved yet, not just to read the ATTACHABLE ones.
-      const lockRes = await client.query(
-        `SELECT t.id, t.status_konfirmasi, t.periode_efektif
-         FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
-         WHERE t.dinas_inisiasi = $1 AND t.dinas_target = $2 AND u.period = $3 AND t.export_batch_id IS NULL
-         ORDER BY t.id ASC FOR UPDATE`,
-        [dinasInisiasi, dinasTarget, periode]
-      );
-      const rows = lockRes.rows;
-      if (!rows.length) throw Object.assign(new Error(`tidak ada transaksi un-batched untuk ${dinasInisiasi}→${dinasTarget} periode ${periode}`), { httpStatus: 400 });
-      const notAttachable = rows.filter((r) => !ATTACHABLE_STATUSES.includes(r.status_konfirmasi));
-      if (notAttachable.length) {
-        throw Object.assign(new Error(`${notAttachable.length} transaksi ${dinasInisiasi}→${dinasTarget} periode ${periode} belum 100% confirmed (masih PENDING/DECLINED/NEEDS_REVIEW) — belum bisa di-override`), { httpStatus: 400 });
-      }
-      const maxPeriodeEfektif = rows.reduce((max, r) => (!max || (r.periode_efektif && r.periode_efektif > max) ? r.periode_efektif : max), null);
-      if (!maxPeriodeEfektif || maxPeriodeEfektif === periode) {
-        throw Object.assign(new Error(`pasangan ${dinasInisiasi}→${dinasTarget} periode ${periode} tidak/tidak lagi overdue — tidak ada yang perlu di-override`), { httpStatus: 400 });
-      }
-
-      // Upsert the new deadline — same statement POST / above uses.
-      await client.query(
-        `INSERT INTO rdt.period_deadlines (dinas_inisiasi, dinas_target, periode, deadline_at, set_by_user_id)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (dinas_inisiasi, dinas_target, periode)
-         DO UPDATE SET deadline_at = EXCLUDED.deadline_at, set_by_user_id = EXCLUDED.set_by_user_id, updated_at = now()`,
-        [dinasInisiasi, dinasTarget, periode, deadlineAt.toISOString(), userId]
-      );
-
-      // Per-row re-evaluation — granularity confirmed load-bearing 5 Agu malam (split+redirect+
-      // reconverge scenario: each row keeps its OWN confirm/decline timestamp, not one shared
-      // pasangan-level value).
-      const reevaluated = [];
-      for (const row of rows) {
-        const actionRes = await client.query(
-          `SELECT MAX(created_at) AS acted_at FROM rdt.audit_log WHERE transaction_id = $1 AND action IN ('CONFIRM','DECLINE')`,
-          [row.id]
-        );
-        const latestTargetActionAt = actionRes.rows[0].acted_at;
-        const { periodeEfektif: newPeriodeEfektif } = computeEffectivePeriod({
-          declaredPeriod: periode,
-          deadlineAt: deadlineAt.toISOString(),
-          latestTargetActionAt,
-        });
-        const oldPeriodeEfektif = row.periode_efektif;
-        await client.query('UPDATE rdt.transactions SET periode_efektif = $1 WHERE id = $2', [newPeriodeEfektif, row.id]);
-        await client.query(
-          `INSERT INTO rdt.audit_log(user_id, transaction_id, action, status_before, status_after, detail, ip_address)
-           VALUES ($1, $2, 'PERIODE_EFEKTIF_OVERRIDE', $3, $3, $4, $5)`,
-          [
-            userId,
-            row.id,
-            row.status_konfirmasi,
-            JSON.stringify({
-              dinas_inisiasi: dinasInisiasi,
-              dinas_target: dinasTarget,
-              periode,
-              old_periode_efektif: oldPeriodeEfektif,
-              new_periode_efektif: newPeriodeEfektif,
-              new_deadline_at: deadlineAt.toISOString(),
-            }),
-            req.ip,
-          ]
-        );
-        reevaluated.push({ id: row.id, old_periode_efektif: oldPeriodeEfektif, new_periode_efektif: newPeriodeEfektif });
-      }
-
-      await client.query('COMMIT');
-      res.json({ ok: true, dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget, periode, deadline_at: deadlineAt.toISOString(), reevaluated });
-    } catch (err) {
-      try { await client.query('ROLLBACK'); } catch (e) {}
-      const category = await logRollbackAudit(client, { userId, req, err, route: req.originalUrl });
-      res.status(err.httpStatus || 500).json({ ok: false, error: err.message || String(err), error_category: category });
-    }
-  } catch (err) {
-    res.status(500).json({ ok: false, error: String(err) });
-  } finally {
-    try { await client.end(); } catch (e) {}
-  }
-});
+// POST /api/period-deadlines/override-reevaluate — REMOVED 14 Agu (SRS 3.13, REQ-RDT-SAP-21
+// dibalik): this used to be the one deliberate exception that rewrote periode_efektif back so an
+// overdue pasangan could stop being overdue. That directly contradicted the new "cap Overdue
+// permanen/sticky" rule, so the whole re-open workflow (this endpoint, GET /overdue's
+// periode-N+1 reset gate, and the "Override Deadline" button in the 'Repost Active' page) is
+// gone — GET /overdue above is informational-only now, nothing here can un-mark a pair.
 
 module.exports = router;

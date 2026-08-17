@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { forkJoin, of } from 'rxjs';
 import { ExportBatchService, ActivePairEntry, OverdueDeadlineEntry } from '../services/export-batch.service';
-import { ModalService } from '../services/modal.service';
 import { extractErrorMessage } from '../shared/error-message.util';
 
 // REQ-RDT-SAP-20 (13 Agu, "'Repost' Active") — merges the old "Override Deadline" panel and the
@@ -47,13 +46,7 @@ export class RepostActiveComponent implements OnInit {
   periodeByMonthKey: Record<string, string> = {};
   selectedMonthKey: string | null = null;
 
-  overrideDeadlineInputByPair: Record<string, string> = {};
-  overrideBusyPair: string | null = null;
-
-  constructor(
-    private exportBatches: ExportBatchService,
-    private modal: ModalService,
-  ) {}
+  constructor(private exportBatches: ExportBatchService) {}
 
   ngOnInit(): void {
     this.load();
@@ -144,39 +137,6 @@ export class RepostActiveComponent implements OnInit {
       error: (err) => {
         this.loading = false;
         this.errorMessage = extractErrorMessage(err, 'Gagal memuat pasangan aktif/overdue');
-      },
-    });
-  }
-
-  // Re-opens one OVERDUE pasangan with a new deadline — the one deliberate exception to
-  // periode_efektif being a permanent snapshot, always on the strength of an out-of-band team
-  // agreement (same pattern as Investigation's assign flow).
-  async submitOverride(row: ActiveRow): Promise<void> {
-    if (row.status !== 'OVERDUE' || !this.activePeriode) return;
-    const periode = this.activePeriode;
-    const key = this.pairKey(row.dinas_inisiasi, row.dinas_target);
-    const deadlineAt = this.overrideDeadlineInputByPair[key];
-    if (!deadlineAt) return;
-    const ok = await this.modal.confirm(
-      `Override deadline ${row.dinas_inisiasi} → ${row.dinas_target} periode ${periode} jadi ` +
-      `${new Date(deadlineAt).toLocaleString('id-ID')}? Ini akan RE-EVALUASI periode_efektif pasangan ini ` +
-      `berdasarkan deadline baru — pastikan sudah ada kesepakatan tim di luar sistem sebelum lanjut.`
-    );
-    if (!ok) return;
-    this.overrideBusyPair = key;
-    this.exportBatches.overrideDeadline(row.dinas_inisiasi, row.dinas_target, periode, new Date(deadlineAt).toISOString()).subscribe({
-      next: async (result) => {
-        this.overrideBusyPair = null;
-        delete this.overrideDeadlineInputByPair[key];
-        await this.modal.success(
-          `${result.dinas_inisiasi} → ${result.dinas_target}: ${result.reevaluated.length} transaksi di-re-evaluasi. ` +
-          `periode_efektif baru: ${result.reevaluated[0]?.new_periode_efektif ?? periode}.`
-        );
-        this.load();
-      },
-      error: async (err) => {
-        this.overrideBusyPair = null;
-        await this.modal.alert('Gagal override deadline: ' + extractErrorMessage(err, String(err)));
       },
     });
   }

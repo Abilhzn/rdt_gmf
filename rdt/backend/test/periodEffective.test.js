@@ -1,4 +1,4 @@
-const { computeEffectivePeriod, addMonths, pickDeadline } = require('../src/rules/periodEffective');
+const { computeEffectivePeriod, addMonths, pickDeadline, currentAutoPeriode } = require('../src/rules/periodEffective');
 
 describe('addMonths', () => {
   test('adds within the same year', () => {
@@ -63,6 +63,22 @@ describe('computeEffectivePeriod (REQ-RDT-SAP-14, revisi total 5 Agu)', () => {
       latestTargetActionAt: '2026-12-21T00:00:00Z',
     });
     expect(result).toEqual({ periodeEfektif: '2027-01', overdue: true });
+  });
+});
+
+describe('currentAutoPeriode (REQ-RDT-SAP-13 DIBATALKAN 14 Agu, SRS 3.13 — bulan sebelum bulan upload berjalan)', () => {
+  // Constructed with local Date components (not ISO+Z strings) so this isn't sensitive to the
+  // test runner's timezone — matches how currentAutoPeriode reads year/month off `now` itself.
+  test('pertengahan tahun: Agustus upload -> periode Juli', () => {
+    expect(currentAutoPeriode(new Date(2026, 7, 14))).toBe('2026-07');
+  });
+
+  test('awal bulan tetap ikut bulan berjalan, bukan tanggalnya: 1 Agustus -> tetap Juli', () => {
+    expect(currentAutoPeriode(new Date(2026, 7, 1))).toBe('2026-07');
+  });
+
+  test('wrap tahun: Januari upload -> Desember tahun sebelumnya', () => {
+    expect(currentAutoPeriode(new Date(2026, 0, 15))).toBe('2025-12');
   });
 });
 

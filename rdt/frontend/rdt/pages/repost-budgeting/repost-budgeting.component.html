@@ -221,16 +221,9 @@
     <!-- ===== Confirm-to-Repost: sticky side panel (Figma: Confirm/Cancel) ===== -->
     <aside class="repost-side" *ngIf="phase === 'parsed' || phase === 'committing' || phase === 'committed'">
       <h3>Confirm to Repost</h3>
-      <!-- REQ-RDT-SAP-13 (3 Agu): periode DT ini WAJIB diisi eksplisit — jangan diasumsikan dari
-           tanggal upload/repost (itu bug-nya: DT periode Juni yang baru di-repost Agustus kearsip
-           salah ke Agustus). Riwayat Repost TAB/Dinas mengelompokkan berdasarkan nilai ini. -->
-      <label class="repost-desc-label">
-        Periode DT ini (wajib)
-        <!-- REQ-RDT-UI-07 (4 Agu): native <input type="month"> rendered as a long scrollable
-             month/year list — replaced with Prev/Next-by-year navigation, see
-             shared/period-picker.component.ts. -->
-        <rdt-period-picker [(value)]="period"></rdt-period-picker>
-      </label>
+      <!-- REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode picker dihapus — periode DT
+           sekarang selalu implisit (bulan sebelum bulan upload berjalan), server yang menentukan
+           di POST /api/persist, tidak ada lagi pilihan manual di sini. -->
       <label class="repost-desc-label">
         Keterangan (opsional)
         <!-- REQ-RDT-COMMENT-03 (diperluas 3 Agu): satu implementasi @mention dipakai ulang, lihat
@@ -247,8 +240,7 @@
       <button
         class="btn btn--primary"
         type="button"
-        [disabled]="phase === 'committing' || phase === 'committed' || !period"
-        [title]="!period ? 'Isi periode DT dulu' : ''"
+        [disabled]="phase === 'committing' || phase === 'committed'"
         (click)="commit()"
       >
         {{ phase === 'committing' ? 'Menyimpan…' : (phase === 'committed' ? 'Tersimpan ✓' : 'Confirm') }}

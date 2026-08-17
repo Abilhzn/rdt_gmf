@@ -18,7 +18,12 @@
   <ng-container *ngFor="let w of waiting">
     <div class="batch-row">
       <div class="batch-row__id">{{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</div>
-      <div class="batch-row__period">{{ w.total }} transaksi <span class="state-label">{{ w.state_label }}</span></div>
+      <div class="batch-row__period">
+        {{ w.total }} transaksi <span class="state-label">{{ w.state_label }}</span>
+        <!-- REQ-RDT-SAP-21 (DIBALIK 14 Agu)/SAP-22: overdue pairs stay in this list now, tagged
+             here too (not just Dashboard) — sticky, cap tidak hilang walau periode baru berjalan. -->
+        <span *ngIf="w.overdue" class="state-label state-label--overdue">Overdue</span>
+      </div>
       <div class="batch-row__action">
         <!-- REQ-RDT-SAP-05/06 (revised 31 Jul): download available immediately, no Confirm needed first. -->
         <button

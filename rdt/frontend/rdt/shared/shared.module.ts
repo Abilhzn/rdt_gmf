@@ -6,16 +6,17 @@ import { MultiValueFilterComponent } from './multi-value-filter.component';
 import { IdDatePipe } from './id-date.pipe';
 import { MentionInputComponent } from './mention-input.component';
 import { MentionTextComponent } from './mention-text.component';
-import { PeriodPickerComponent } from './period-picker.component';
 import { ChainHopDetailComponent } from './chain-hop-detail.component';
 
 // Angular only allows a component to be declared in one NgModule, so a component/pipe reused
 // across lazy feature modules (RdtModule for Repost, ConfirmModule for Confirmation, HomeModule
 // for Dashboard-Detailing, NeedApprovalModule, per REQ-RDT-NAV-07/09/REQ-RDT-COMMENT) needs a
 // module of its own that all of them import.
+// PeriodPickerComponent (REQ-RDT-UI-07) removed 14 Agu — its one consumer (repost-budgeting's
+// manual periode picker) was deleted per SRS 3.13/REQ-RDT-SAP-13.
 @NgModule({
-  declarations: [PaginationComponent, MultiValueFilterComponent, IdDatePipe, MentionInputComponent, MentionTextComponent, PeriodPickerComponent, ChainHopDetailComponent],
+  declarations: [PaginationComponent, MultiValueFilterComponent, IdDatePipe, MentionInputComponent, MentionTextComponent, ChainHopDetailComponent],
   imports: [CommonModule, FormsModule],
-  exports: [PaginationComponent, MultiValueFilterComponent, IdDatePipe, MentionInputComponent, MentionTextComponent, PeriodPickerComponent, ChainHopDetailComponent],
+  exports: [PaginationComponent, MultiValueFilterComponent, IdDatePipe, MentionInputComponent, MentionTextComponent, ChainHopDetailComponent],
 })
 export class SharedModule {}

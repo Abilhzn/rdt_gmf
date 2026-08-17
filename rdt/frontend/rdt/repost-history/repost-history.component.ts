@@ -51,8 +51,18 @@ function monthKeySortValue(key: string): number {
 export class RepostHistoryComponent implements OnInit {
   batches: HistoryBatch[] = [];
   errorMessage = '';
-  from = '';
-  to = '';
+  // SRS 3.13 (14 Agu): replaced the old from/to date-range filter — plain Bulan+Tahun dropdown
+  // over the batch's declared/effective period ('YYYY-MM', same precedence monthGroups uses).
+  filterMonth = '';
+  filterYear = '';
+  readonly months = [
+    { value: '01', label: 'Januari' }, { value: '02', label: 'Februari' }, { value: '03', label: 'Maret' },
+    { value: '04', label: 'April' }, { value: '05', label: 'Mei' }, { value: '06', label: 'Juni' },
+    { value: '07', label: 'Juli' }, { value: '08', label: 'Agustus' }, { value: '09', label: 'September' },
+    { value: '10', label: 'Oktober' }, { value: '11', label: 'November' }, { value: '12', label: 'Desember' },
+  ];
+  // A handful of years around now — plenty for a Repost archive filter, no need to derive from data.
+  readonly years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - 3 + i));
   // Checklist section 3 (12 Agu, loading-state audit): !batches.length used to double as both
   // "still loading" and "genuinely nothing archived yet" — no way to tell them apart, page just
   // sat blank until the request resolved.
@@ -135,15 +145,16 @@ export class RepostHistoryComponent implements OnInit {
   load(): void {
     this.errorMessage = '';
     this.loading = true;
-    this.exportBatches.getHistory(this.from || undefined, this.to || undefined).subscribe({
+    const periode = this.filterMonth && this.filterYear ? `${this.filterYear}-${this.filterMonth}` : undefined;
+    this.exportBatches.getHistory(periode).subscribe({
       next: (batches) => { this.batches = batches; this.loading = false; },
       error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat riwayat repost'); this.loading = false; },
     });
   }
 
   clearFilter(): void {
-    this.from = '';
-    this.to = '';
+    this.filterMonth = '';
+    this.filterYear = '';
     this.load();
   }
 

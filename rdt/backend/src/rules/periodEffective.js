@@ -54,4 +54,13 @@ function pickDeadline(pairDeadlineRow, defaultDeadlineRow) {
   return null;
 }
 
-module.exports = { computeEffectivePeriod, addMonths, pickDeadline };
+// REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode DT tidak lagi dipilih manual saat Upload —
+// selalu implisit = bulan SEBELUM bulan upload berjalan (server time, bukan client — beda dari
+// REQ-RDT-SAP-17 lama yang eksplisit client time karena cuma dipakai buat confirm-prompt; ini
+// sekarang jadi nilai yang beneran di-persist). now: Date, default `new Date()` — parameterized
+// untuk testability, sama pola pure-function file ini.
+function currentAutoPeriode(now = new Date()) {
+  return addMonths(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, -1);
+}
+
+module.exports = { computeEffectivePeriod, addMonths, pickDeadline, currentAutoPeriode };

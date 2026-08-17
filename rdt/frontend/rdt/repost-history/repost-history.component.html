@@ -8,12 +8,18 @@
 
   <div class="card__actions">
     <label class="filter-label">
-      Dari
-      <input class="filter-input" type="date" [(ngModel)]="from" />
+      Bulan
+      <select class="filter-input" [(ngModel)]="filterMonth">
+        <option value="">Semua</option>
+        <option *ngFor="let m of months" [value]="m.value">{{ m.label }}</option>
+      </select>
     </label>
     <label class="filter-label">
-      Sampai
-      <input class="filter-input" type="date" [(ngModel)]="to" />
+      Tahun
+      <select class="filter-input" [(ngModel)]="filterYear">
+        <option value="">Semua</option>
+        <option *ngFor="let y of years" [value]="y">{{ y }}</option>
+      </select>
     </label>
     <button class="btn btn--primary" type="button" (click)="load()">Terapkan filter</button>
     <button class="btn btn--ghost" type="button" (click)="clearFilter()">Reset</button>

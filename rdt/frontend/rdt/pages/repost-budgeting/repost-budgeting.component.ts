@@ -32,10 +32,6 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   isDragOver = false;
   /** item 6: optional free-text note attached to the upload record, not a required field */
   description = '';
-  /** REQ-RDT-SAP-13 (3 Agu): which month/year this DT is FOR — REQUIRED, never inferred from the
-   * upload/repost timestamp (that inference is exactly the bug this requirement fixes: a June DT
-   * re-posted in August used to archive under August). "YYYY-MM" from an <input type="month">. */
-  period = '';
 
   rows: Transaction[] = [];
   aggregation: AggregationMatrix = {};
@@ -207,34 +203,18 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
       });
   }
 
-  // REQ-RDT-SAP-17 (8 Agu, "alert salah pilih periode"): 'periode berjalan' = bulan-tahun SEKARANG
-  // (waktu client, karena ini cuma sebuah confirmation prompt buat mencegah salah klik — bukan
-  // validasi keamanan yang butuh waktu server). 'YYYY-MM', format sama dengan this.period.
-  private currentPeriode(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  }
-
   async commit(): Promise<void> {
-    if (!this.rows.length || !this.period) return;
-    // REQ-RDT-SAP-17: periode yang dipilih dinas pengaju BUKAN periode berjalan saat ini — kasih
-    // kesempatan batal sebelum benar-benar submit, mencegah salah input gak sengaja (mis. lupa
-    // ganti bulan di period picker).
-    if (this.period !== this.currentPeriode()) {
-      const ok = await this.modal.confirm(
-        `Periode yang dipilih (${this.period}) BUKAN periode berjalan saat ini (${this.currentPeriode()}). ` +
-        `Yakin repost ini memang buat periode ${this.period}, bukan salah pilih?`
-      );
-      if (!ok) return;
-    }
+    if (!this.rows.length) return;
     this.phase = 'committing';
     // REQ-RDT-NAV-04 (5 Agu, project owner confirmation): reviewer_note now persists (migration
     // 015 + index.js's /api/persist cols list) — it USED to be stripped here deliberately while
     // "where should this be stored" was still an open question (see transaction.model.ts's old
     // comment, now updated). Sending it as-is now — Confirmation's sticky "Notes" column reads
     // this same field.
+    // REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode is no longer chosen here at all — the
+    // server derives it (bulan sebelum bulan upload berjalan) in POST /api/persist.
     this.txService
-      .persistToDatabase(this.rows, this.aggregation, this.selectedFile, this.period, this.description)
+      .persistToDatabase(this.rows, this.aggregation, this.selectedFile, this.description)
       .subscribe({
         next: async (res) => {
           if (!res.ok) {
@@ -261,7 +241,6 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.selectedFile = null;
     this.description = '';
-    this.period = '';
     this.rows = [];
     this.aggregation = {};
     this.statusFilter = 'ALL';
