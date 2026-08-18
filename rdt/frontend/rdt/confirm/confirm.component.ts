@@ -360,7 +360,7 @@ export class ConfirmComponent implements OnInit {
         await this.modal.success('Baris di-assign ke ' + dinasTarget);
         this.loadInvestigation();
       },
-      error: async (err) => { this.assigningRowId = null; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
+      error: async (err) => { this.assigningRowId = null; await this.modal.alert('Gagal menetapkan dinas: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -384,7 +384,7 @@ export class ConfirmComponent implements OnInit {
         await this.modal.success('Semua baris sudah di-assign');
         this.loadInvestigation();
       },
-      error: async (err) => { this.assigningAllInvestigation = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
+      error: async (err) => { this.assigningAllInvestigation = false; await this.modal.alert('Gagal menetapkan dinas untuk semua baris: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -440,7 +440,7 @@ export class ConfirmComponent implements OnInit {
         await this.modal.success(`${count} baris sudah di-assign ke ${target}`);
         this.loadInvestigation();
       },
-      error: async (err) => { this.bulkAssigning = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
+      error: async (err) => { this.bulkAssigning = false; await this.modal.alert('Gagal menetapkan dinas untuk baris terpilih: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -642,7 +642,7 @@ export class ConfirmComponent implements OnInit {
         }
         await this.modal.alert(parts.length ? `Keputusan tersimpan.\n\n${parts.join('\n\n')}` : 'Keputusan tersimpan');
       },
-      error: async (err) => { this.submittingDecisions = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
+      error: async (err) => { this.submittingDecisions = false; await this.modal.alert('Gagal menyimpan keputusan: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -658,7 +658,7 @@ export class ConfirmComponent implements OnInit {
     this.resolvingRowId = row.id;
     this.reassignment.resolveBorne(row.id).subscribe({
       next: async () => { this.resolvingRowId = null; await this.modal.alert('Tersimpan'); this.loadStatus(); },
-      error: async (err) => { this.resolvingRowId = null; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
+      error: async (err) => { this.resolvingRowId = null; await this.modal.alert('Gagal menandai tanggung sendiri: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -670,7 +670,7 @@ export class ConfirmComponent implements OnInit {
     this.resolvingRowId = row.id;
     this.reassignment.resolveReassign(row.id, target).subscribe({
       next: async () => { this.resolvingRowId = null; await this.modal.alert('Tersimpan'); this.loadStatus(); },
-      error: async (err) => { this.resolvingRowId = null; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
+      error: async (err) => { this.resolvingRowId = null; await this.modal.alert('Gagal mengajukan ulang ke dinas lain: ' + extractErrorMessage(err, String(err))); },
     });
   }
 
@@ -716,7 +716,7 @@ export class ConfirmComponent implements OnInit {
         await this.modal.alert('Tersimpan');
         this.loadStatus();
       },
-      error: async (err) => { this.submittingAllResolutions = false; await this.modal.alert('Error: ' + extractErrorMessage(err, String(err))); },
+      error: async (err) => { this.submittingAllResolutions = false; await this.modal.alert('Gagal menyimpan resolusi massal: ' + extractErrorMessage(err, String(err))); },
     });
   }
 }

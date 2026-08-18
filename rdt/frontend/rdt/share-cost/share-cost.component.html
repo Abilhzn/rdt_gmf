@@ -44,7 +44,7 @@
             <td>{{ row.ref_doc }}</td>
             <td class="rows__num">{{ row.nominal | number: '1.2-2' }}</td>
             <td class="rows__remark" [title]="row.remark || ''">{{ row.remark }}</td>
-            <td><button class="btn btn--ghost" type="button" (click)="selectRow(row)">Split</button></td>
+            <td><button class="btn btn--ghost" type="button" title="Split baris ini" (click)="selectRow(row)">Split</button></td>
           </tr>
         </tbody>
       </table>
@@ -92,7 +92,7 @@
 
     <div class="card__actions">
       <button class="btn btn--ghost" type="button" (click)="cancelSelection()">Batal</button>
-      <button class="btn btn--primary" type="button" [disabled]="!canSubmit()" (click)="submit()">Submit Split</button>
+      <button class="btn btn--primary" type="button" [disabled]="!canSubmit()" (click)="submit()">Simpan Pembagian</button>
     </div>
   </ng-container>
 </div>

@@ -128,7 +128,7 @@ export class ShareCostComponent implements OnInit {
       },
       error: async (err) => {
         this.submitting = false;
-        await this.modal.alert('Error: ' + extractErrorMessage(err, String(err)));
+        await this.modal.alert('Gagal menyimpan pembagian: ' + extractErrorMessage(err, String(err)));
       },
     });
   }

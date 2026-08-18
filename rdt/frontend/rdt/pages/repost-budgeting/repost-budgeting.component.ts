@@ -198,7 +198,7 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.phase = 'error';
-          this.errorMessage = extractErrorMessage(err, 'Gagal menghubungi server.');
+          this.errorMessage = extractErrorMessage(err, 'Gagal memproses file Excel.');
         },
       });
   }

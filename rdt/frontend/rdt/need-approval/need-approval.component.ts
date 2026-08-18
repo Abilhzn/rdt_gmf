@@ -177,7 +177,7 @@ export class NeedApprovalComponent implements OnInit {
       },
       error: async (err) => {
         this.confirming = false;
-        await this.modal.alert('Error: ' + extractErrorMessage(err, String(err)));
+        await this.modal.alert('Gagal mengonfirmasi repost: ' + extractErrorMessage(err, String(err)));
       },
     });
   }

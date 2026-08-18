@@ -306,7 +306,7 @@
                   <option *ngFor="let d of investigationDinasOptionsFor(r)" [value]="d.code">{{ d.code }}</option>
                 </select>
               </td>
-              <td><button class="btn btn--primary" type="button" [disabled]="assigningRowId === r.id" (click)="assignInvestigation(r)">{{ assigningRowId === r.id ? 'Menyimpan...' : 'Assign' }}</button></td>
+              <td><button class="btn btn--primary" type="button" [disabled]="assigningRowId === r.id" (click)="assignInvestigation(r)">{{ assigningRowId === r.id ? 'Menyimpan...' : 'Tetapkan Dinas' }}</button></td>
             </tr>
           </tbody>
         </table>
@@ -326,7 +326,7 @@
           [disabled]="!canBulkAssignSelected() || bulkAssigning"
           [title]="canBulkAssignSelected() ? '' : 'Pilih minimal satu baris dan satu dinas tujuan'"
           (click)="bulkAssignSelected()"
-        >{{ bulkAssigning ? 'Menyimpan...' : 'Assign Terpilih (' + selectedInvestigationIds.size + ') ke dinas ini' }}</button>
+        >{{ bulkAssigning ? 'Menyimpan...' : 'Tetapkan Terpilih (' + selectedInvestigationIds.size + ') ke dinas ini' }}</button>
       </div>
 
       <div class="batch-resolve-footer">
@@ -336,7 +336,7 @@
           [disabled]="!canAssignAllInvestigation() || assigningAllInvestigation"
           [title]="canAssignAllInvestigation() ? '' : 'Pilih dinas target untuk setiap baris dulu'"
           (click)="assignAllInvestigation()"
-        >{{ assigningAllInvestigation ? 'Menyimpan...' : 'Assign All (' + investigationRows.length + ')' }}</button>
+        >{{ assigningAllInvestigation ? 'Menyimpan...' : 'Tetapkan Semua (' + investigationRows.length + ')' }}</button>
       </div>
     </ng-container>
   </ng-container>
