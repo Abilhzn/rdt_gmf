@@ -181,8 +181,56 @@ $radius-md: 8px;
   100% { transform: rotate(360deg); }
 }
 
+// ---------- month-tab strip (was repost-active.component.scss, folded in 18 Agu when the two
+// sub-pages merged back into one — SRS 3.13 "Struktur navigasi disederhanakan lagi"). Same
+// "sheet per periode" visual as Riwayat Repost. ----------
+.month-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+  border-bottom: 1px solid $line;
+}
+
+.month-tab {
+  border: 1px solid $line;
+  border-bottom: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: $page-bg;
+  color: $ink-600;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+
+  &:hover { color: $ink; }
+
+  &--active {
+    background: #fff;
+    color: $ink;
+    border-color: $line;
+    border-bottom-color: #fff;
+  }
+
+  &__count { color: $ink-600; font-weight: 400; }
+}
+
+.month-tab-panel { padding-top: 16px; }
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: $radius-md;
+  font-size: 11.5px;
+  font-weight: 600;
+
+  &--active { background: $page-bg; color: $ink-600; }
+}
+
 // ---------- reduced motion (audit "kaku" 17 Agu) ----------
 @media (prefers-reduced-motion: reduce) {
-  .btn { transition: none; }
+  .btn, .month-tab { transition: none; }
   .btn--busy::after { animation: none; }
 }

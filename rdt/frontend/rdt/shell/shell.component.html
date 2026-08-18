@@ -108,27 +108,16 @@
         <span class="nav-label">{{ currentUser.current?.role === 'TAB' ? 'Riwayat Repost TAB' : 'Repost History' }}</span>
       </a>
       <!-- REQ-RDT-SAP-14 (11 Agu): moved out of the Riwayat Repost TAB <details> panel into its
-           own sidebar item. REQ-RDT-SAP-20 (13 Agu split): now a nav-group with 2 sub-pages
-           ("Setting Deadline" / "'Repost' Active"), same tree-view toggle pattern as Dashboard/
-           Confirmation above — still TAB-only (canSeeSettingPeriode). -->
-      <div class="nav-group" *ngIf="canSeeSettingPeriode">
-        <a routerLink="setting-periode" routerLinkActive="active" class="nav-link">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-          </span>
-          <span class="nav-label">Setting Periode</span>
-          <button
-            type="button"
-            class="nav-group-toggle"
-            (click)="$event.stopPropagation(); $event.preventDefault(); toggleNavGroup('setting-periode')"
-            [title]="isNavGroupExpanded('setting-periode') ? 'Sembunyikan sub-item Setting Periode' : 'Tampilkan sub-item Setting Periode'"
-          >{{ isNavGroupExpanded('setting-periode') ? '▼' : '▶' }}</button>
-        </a>
-        <div class="nav-subnav" *ngIf="isNavGroupExpanded('setting-periode')">
-          <a [routerLink]="['setting-periode', 'deadline']" routerLinkActive="active" class="nav-sublink">Setting Deadline</a>
-          <a [routerLink]="['setting-periode', 'active']" routerLinkActive="active" class="nav-sublink">'Repost' Active</a>
-        </div>
-      </div>
+           own sidebar item. SRS 3.13 "Struktur navigasi disederhanakan lagi" (14 Agu, 18 Agu
+           eksekusi): REQ-RDT-SAP-20's 2-sub-page split (13 Agu) DIBATALKAN — back to ONE flat
+           nav-link, no collapse/expand, same pattern as Wait to Repost/Riwayat Repost TAB below —
+           still TAB-only (canSeeSettingPeriode). -->
+      <a *ngIf="canSeeSettingPeriode" routerLink="setting-periode" routerLinkActive="active" class="nav-link">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+        </span>
+        <span class="nav-label">Setting Periode</span>
+      </a>
       <span class="nav-link nav-link--disabled">
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>

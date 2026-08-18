@@ -1579,6 +1579,15 @@ tambahan, untuk bagian yang disebut eksplisit di bawah.
 - **Filter periode di Riwayat Repost TAB disederhanakan**: cukup **dropdown
   Bulan + dropdown Tahun** (bukan date-range picker atau bentuk lain yang lebih
   kompleks).
+- **Struktur navigasi disederhanakan lagi (14 Agu, temuan dari screenshot
+  pemilik proyek)**: section 3.12 dulu memecah "Setting Periode" jadi 2
+  SUB-HALAMAN terpisah di sidebar ("Setting Deadline" dan "'Repost' Active",
+  masing-masing item nav sendiri yang perlu diklik terpisah) — **INI
+  DIBATALKAN**. Sekarang cukup **SATU halaman "Setting Periode" saja** (TIDAK
+  ada sub-item di sidebar sama sekali untuk ini) — form setting deadline DAN
+  daftar repost yang masih aktif (dengan tombol Override Deadline per baris,
+  gaya tabel yang sudah dirancang di 3.12) ada di HALAMAN YANG SAMA, list-nya
+  di BAWAH form, bukan di halaman/tab terpisah yang perlu navigasi lagi.
   Migration `018` buka constraint `NOT NULL` di kolom
   `rdt.export_batches.closing_description`.
   **REVISI sama hari**: notifikasi ke dinas target TETAP JALAN walau field ini

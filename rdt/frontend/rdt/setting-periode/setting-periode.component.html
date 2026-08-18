@@ -1,0 +1,123 @@
+<div class="page-card">
+  <!-- SRS 3.13 "Struktur navigasi disederhanakan lagi" (14 Agu): SATU halaman, form Setting
+       Deadline di atas, tabel Repost Active di bawah — bukan 2 sub-halaman terpisah lagi. -->
+  <p class="note intro">
+    Deadline mengikat kapan <strong>dinas target</strong> Confirm/Reject pasangan ini — bukan kapan
+    TAB repost. Kalau dinas target confirm/reject setelah deadline, periode repost efektif
+    pasangan itu otomatis geser ke bulan berikutnya. Opsional per pasangan+periode — tanpa
+    deadline, repost jalan normal ke periode data yang dinyatakan.
+  </p>
+
+  <!-- REQ-RDT-SAP-16/20 — the ONE Setting Deadline action: settable ANYTIME (before any dinas has
+       even uploaded for this periode), and if pasangan aktif sudah ada sekarang, langsung ikut
+       ter-set juga — sekali klik, bukan dua aksi terpisah lagi. -->
+  <div class="section-panel">
+    <h3 class="card__subtitle">Setting Deadline</h3>
+    <p class="note">
+      Set deadline periode ini sekarang. Berlaku langsung ke setiap pasangan (dinas pengaju ×
+      dinas target) yang SUDAH aktif (masih ada transaksi belum selesai) di periode ini, DAN
+      otomatis "diwariskan" ke pasangan manapun yang baru muncul nanti di periode ini.
+    </p>
+    <div class="deadline-form">
+      <label class="filter-label">
+        Periode
+        <input class="filter-input" type="month" [(ngModel)]="defaultDeadlineForm.periode" />
+      </label>
+      <label class="filter-label">
+        Deadline
+        <input class="filter-input" type="datetime-local" [(ngModel)]="defaultDeadlineForm.deadline_at" />
+      </label>
+      <button
+        class="btn btn--primary"
+        type="button"
+        [class.btn--busy]="defaultDeadlineFormBusy"
+        [disabled]="defaultDeadlineFormBusy || !defaultDeadlineForm.periode || !defaultDeadlineForm.deadline_at"
+        (click)="submitDefaultDeadline()"
+      >Set Deadline</button>
+    </div>
+    <p class="result-banner result-banner--success" *ngIf="defaultDeadlineFormMessage">{{ defaultDeadlineFormMessage }}</p>
+
+    <div class="overflow-x" *ngIf="existingDefaultDeadlines.length">
+      <table class="deadline-table">
+        <thead><tr><th>Periode</th><th>Deadline</th><th></th></tr></thead>
+        <tbody>
+          <tr *ngFor="let dl of existingDefaultDeadlines">
+            <td>{{ dl.periode }}</td>
+            <td>{{ dl.deadline_at | idDate }}</td>
+            <td>
+              <!-- REQ-RDT-SAP-19: hanya bisa dihapus kalau deadline-nya belum lewat. -->
+              <button
+                class="btn btn--ghost"
+                type="button"
+                *ngIf="canDelete(dl)"
+                [disabled]="deletingPeriode === dl.periode"
+                (click)="deleteDefault(dl)"
+              >Hapus</button>
+              <span class="note" *ngIf="!canDelete(dl)">sudah lewat</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="empty-state" *ngIf="!existingDefaultDeadlines.length">Belum ada deadline default yang pernah di-set.</p>
+  </div>
+
+  <!-- Was RepostActiveComponent's page, now a second .section-panel on the same page, langsung di
+       bawah form — tidak perlu klik ke halaman/tab lain. -->
+  <div class="section-panel">
+    <h3 class="card__subtitle">Repost Active</h3>
+    <p class="note">
+      Semua pasangan (dinas pengaju × dinas target) yang masih AKTIF (belum selesai) atau OVERDUE
+      (sudah 100% confirmed tapi lewat deadline, belum di-repost) di periode-periode yang pernah
+      dapat deadline — satu tab per periode, seperti Riwayat Repost.
+      <!-- SRS 3.13 (14 Agu): "Override deadline"/re-evaluasi DIHAPUS — cap Overdue sekarang
+           permanen/sticky (REQ-RDT-SAP-21 dibalik), jadi tidak ada lagi aksi yang bisa
+           menghilangkannya di sini. Baris OVERDUE tetap tampil, informational saja (dikonfirmasi
+           ulang 18 Agu — SRS text section ini masih menyebut tombol lama, project owner setuju
+           tetap dihapus, bukan restore). -->
+    </p>
+
+    <p class="alert alert--error" *ngIf="activeErrorMessage">{{ activeErrorMessage }}</p>
+    <p class="note" *ngIf="activeLoading">Memuat data...</p>
+    <p class="empty-state" *ngIf="!activeLoading && !monthKeys.length">Tidak ada pasangan aktif atau overdue di periode manapun yang pernah dapat deadline.</p>
+
+    <ng-container *ngIf="monthKeys.length">
+      <div class="month-tabs">
+        <button
+          *ngFor="let key of monthKeys"
+          type="button"
+          class="month-tab"
+          [class.month-tab--active]="key === activeMonthKey"
+          (click)="selectMonth(key)"
+        >{{ key }} <span class="month-tab__count">({{ rowsByMonthKey[key].length }})</span></button>
+      </div>
+
+      <div class="month-tab-panel">
+        <div class="overflow-x">
+          <table class="deadline-table">
+            <thead>
+              <tr>
+                <th>Dinas Pengaju</th><th>Dinas Target</th><th>Total</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of activeRows">
+                <td>{{ row.dinas_inisiasi }}</td>
+                <td>{{ row.dinas_target }}</td>
+                <td>{{ row.total }}</td>
+                <td>
+                  <span class="status-pill status-pill--active" *ngIf="row.status === 'ACTIVE'">Active ({{ row.open_count }} open)</span>
+                  <span
+                    class="periode-pill"
+                    *ngIf="row.status === 'OVERDUE'"
+                    [title]="'Periode efektif sudah geser ke ' + row.periode_efektif"
+                  >Overdue — {{ row.periode_efektif }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</div>
