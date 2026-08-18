@@ -4,6 +4,8 @@
 // verbatim from home.component.scss's own state-badge palette (amber=waiting on a dinas,
 // blue=waiting on TAB, green=done, red=overdue) rather than inventing a new color for "applied
 // successfully" here — one semantic vocabulary across the whole app, not a page-local one.
+@use '../shared/typography' as t;
+
 $accent: #006298;
 $ink: #000;
 $ink-600: #52616e;
@@ -52,7 +54,7 @@ $radius-md: 8px;
 // icon decoration; icons in this app stay reserved for sidebar nav, not in-page section headers.
 .card__subtitle {
   margin: 0;
-  font-size: 14px;
+  font-size: t.$fs-subtitle;
   font-weight: 700;
   color: $ink;
   display: flex;
@@ -150,7 +152,7 @@ $radius-md: 8px;
   thead th { color: $ink-600; font-weight: 600; }
   tbody tr:last-child td { border-bottom: none; }
   // Digits (nominal count, periode) line up cleanly column-to-column.
-  td { font-variant-numeric: tabular-nums; }
+  td { @include t.numeric-align; }
 }
 
 .overflow-x { overflow-x: auto; }
@@ -164,7 +166,7 @@ $radius-md: 8px;
   border-radius: $radius-md;
   font-size: 11.5px;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  @include t.numeric-align;
   background: $danger-050;
   color: $danger-600;
   border: 1px solid $danger-600;

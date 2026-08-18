@@ -1,6 +1,8 @@
 // Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
 // shell.component.scss for the "why literal, not just structural" note.
 
+@use '../shared/typography' as t;
+
 $accent: #006298;
 $ink: #000;
 $ink-600: #52616e;
@@ -104,7 +106,7 @@ $radius-md: 8px;
 hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
 // REQ-RDT-UI-04 (1 Agu, spacing audit): top margin so this heading doesn't sit flush against
 // whatever button/alert came right before it (e.g. "Muat ulang" / the error alert).
-.card__subtitle { margin: 20px 0 8px; font-size: 15px; font-weight: 700; color: $ink; }
+.card__subtitle { margin: 20px 0 8px; font-size: t.$fs-subtitle; font-weight: 700; color: $ink; }
 
 // REQ-RDT-SAP-04 transparency view.
 .transparency-panel {
@@ -187,8 +189,8 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   font-size: 12px;
 
   th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; }
-  thead th { background: #fff; font-weight: 700; color: $ink; font-size: 11px; text-transform: uppercase; }
-  &__num { text-align: right; font-variant-numeric: tabular-nums; }
+  thead th { background: #fff; font-weight: 700; color: $ink; font-size: t.$fs-caption; text-transform: uppercase; }
+  &__num { text-align: right; @include t.numeric-align; }
   &__remark { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 

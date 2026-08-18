@@ -1,0 +1,46 @@
+// Type scale + numeric treatment tokens — single source of truth (audit "tipografi", 18 Agu).
+// FIRST shared SCSS partial in this repo (every other component duplicates its own $variable
+// block — see e.g. shell.component.scss's "why literal, not just structural" note) — deliberate
+// exception here, project owner's explicit call: a type scale/numeric token only means something
+// if every component actually shares the same numbers, not 17 copies that are supposed to agree.
+//
+// Anchor: $fs-body matches .note's pre-existing value (identical 12.5px across all 8 files that
+// defined it, the one role that was already consistent pre-audit) — every other step rounds to a
+// size already familiar from the codebase, so migrating an existing class onto these tokens is a
+// relabel, not a resize. Not a strict geometric ratio (12.5 -> 14 -> 16 -> 20 is ~1.12/1.14/1.25) —
+// matches project owner's own "1.25x-ish, angka yang wajar" brief over a mathematically exact
+// scale that would land on odd fractional px.
+
+$fs-caption: 11px;   // thead th / uppercase micro-labels
+$fs-body: 12.5px;    // .note, .filter-label, badges/pills — THE anchor
+$fs-ui: 14px;        // .btn, .filter-input, default interactive/body text
+$fs-subtitle: 16px;  // .card__subtitle / in-page section headers
+$fs-heading: 20px;   // secondary emphasis (e.g. Upload Detail Transaction's PENDING/EXCLUDED/
+                      // INVALID row counts) — NOT .page-title (shell sidebar, 30px/800), which
+                      // stays a one-off (no sibling role to reconcile it against).
+
+// "Hero" numbers — KPI card value, percentage, large financial nominal. Deliberately its own
+// value rather than snapping to $fs-heading: these read as DATA/display, not UI chrome text.
+$fs-kpi: 28px; // unifies .kpi-card__value (was 27px) and .pair-card__percent (was 28px)
+
+// ---------- numeric treatment ----------
+// Angka DOANG — never applied to ordinary text. No new font-family (17 Agu audit's conclusion
+// stands: system font-stack stays, for blending into the eventual OCX host) — personality comes
+// from tabular-nums + weight/tracking only.
+
+// Base: tabular-nums alone, for ANY numeric value/column (table cells included) so digits always
+// align regardless of size — this was already used ad hoc on some tables before this token
+// existed (.rows__num etc.), now the one place that convention lives.
+@mixin numeric-align {
+  font-variant-numeric: tabular-nums;
+}
+
+// Hero: numeric-align + heavier weight + slightly tightened tracking — reserved for "sorotan"
+// numbers (KPI card value, percentage, large financial nominal), NOT small in-row table figures
+// (weight 800 at 11-12.5px reads as a rendering glitch, not a design choice — keep those on
+// numeric-align alone).
+@mixin numeric-hero {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}

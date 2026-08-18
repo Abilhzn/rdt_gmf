@@ -1,6 +1,8 @@
 // Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
 // shell.component.scss for the "why literal, not just structural" note.
 
+@use '../shared/typography' as t;
+
 $accent: #006298;
 $ink: #000;
 $ink-600: #52616e;
@@ -332,7 +334,10 @@ $radius-md: 8px;
   }
 
   &__body { flex: 1 1 auto; min-width: 0; }
-  &__value { font-size: 27px; font-weight: 700; color: $ink-900; line-height: 1.2; }
+  // Audit tipografi (18 Agu): 27px -> t.$fs-kpi (28px), disamakan sama .pair-card__percent lewat
+  // shared token, bukan hardcode terpisah lagi. numeric-hero = tabular-nums + weight 800 + tracking
+  // dirapatkan sedikit — "kepribadian" angka tanpa font-family baru (lihat _typography.scss).
+  &__value { @include t.numeric-hero; font-size: t.$fs-kpi; color: $ink-900; line-height: 1.2; }
   // Label and note share ONE row (label left, note right-aligned).
   &__meta-row {
     display: flex;
@@ -363,7 +368,9 @@ $radius-md: 8px;
 // atas sudah bikin ini sejajar vertikal dengan bar, tinggal font-size-nya dinaikkan biar bobot
 // visualnya sesuai.
 .pair-card__bar-row { display: flex; align-items: center; gap: 16px; }
-.pair-card__percent { font-size: 28px; font-weight: 700; flex: 0 0 auto; }
+// Audit tipografi (18 Agu): sama seperti .kpi-card__value di atas — disatukan ke t.$fs-kpi +
+// numeric-hero (dulu 28px/weight 700 literal, kebetulan udah sama px-nya tapi bukan dari token).
+.pair-card__percent { @include t.numeric-hero; font-size: t.$fs-kpi; flex: 0 0 auto; }
 
 .segment-bar {
   flex: 1 1 auto;
@@ -417,12 +424,12 @@ $radius-md: 8px;
   font-size: 14px;
 
   th, td { padding: 12px 14px; text-align: left; white-space: nowrap; }
-  thead th { color: $ink-500; font-size: 12.5px; font-weight: 600; border-bottom: 1px solid $line; }
+  thead th { color: $ink-500; font-size: t.$fs-caption; font-weight: 600; border-bottom: 1px solid $line; }
   tbody tr { border-bottom: 1px solid #f2f2f5; }
   tbody tr:last-child { border-bottom: none; }
 
   &__dinas { font-weight: 700; color: $ink-900; font-size: 15px; }
-  &__num { text-align: right; font-variant-numeric: tabular-nums; }
+  &__num { text-align: right; @include t.numeric-align; }
   &__num--confirmed { color: $green; }
   &__num--open { color: $amber; font-weight: 700; }
   &__num--declined { color: $red; }

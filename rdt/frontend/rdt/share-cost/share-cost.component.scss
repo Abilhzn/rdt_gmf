@@ -1,6 +1,8 @@
 // Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
 // shell.component.scss for the "why literal, not just structural" note.
 
+@use '../shared/typography' as t;
+
 $accent: #006298;
 $ink: #000;
 $ink-600: #52616e;
@@ -22,7 +24,7 @@ $radius-md: 8px;
 }
 
 .note { font-size: 12.5px; color: $ink-600; }
-.card__subtitle { margin: 18px 0 4px; font-size: 14px; font-weight: 700; }
+.card__subtitle { margin: 18px 0 4px; font-size: t.$fs-subtitle; font-weight: 700; }
 .card__actions { margin-top: 14px; display: flex; gap: 10px; }
 
 .alert {
@@ -79,8 +81,8 @@ $radius-md: 8px;
   font-size: 12px;
 
   th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; }
-  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 11px; text-transform: uppercase; }
-  &__num { text-align: right; font-variant-numeric: tabular-nums; }
+  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: t.$fs-caption; text-transform: uppercase; }
+  &__num { text-align: right; @include t.numeric-align; }
   &__remark { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
   tbody tr:hover td { background: #f5f9fb; }
 }
@@ -101,7 +103,9 @@ $radius-md: 8px;
   color: $ink;
 }
 
-.split-original__nominal { font-weight: 700; font-variant-numeric: tabular-nums; }
+// Audit tipografi (18 Agu): nominal finansial — numeric-hero (tabular-nums + weight 800 + tracking
+// dirapatkan), ukuran font TETAP inline (bukan display digit berdiri sendiri kayak KPI card).
+.split-original__nominal { @include t.numeric-hero; }
 
 .split-row {
   display: flex;

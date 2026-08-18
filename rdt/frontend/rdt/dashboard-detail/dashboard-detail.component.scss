@@ -2,6 +2,8 @@
 // ZLbcosQTNTZdWQRusRYH0R), same values as shell.component.scss / home.component.scss — see
 // shell.component.scss for the "why literal, not just structural" note.
 
+@use '../shared/typography' as t;
+
 $accent: #006298;
 $ink: #000;
 $ink-600: #52616e;
@@ -145,9 +147,9 @@ $radius-md: 8px;
   overflow: hidden;
 
   th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; }
-  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 12px; text-transform: uppercase; }
+  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: t.$fs-caption; text-transform: uppercase; }
   tbody tr:last-child td { border-bottom: none; }
-  &__num { text-align: right; font-variant-numeric: tabular-nums; }
+  &__num { text-align: right; @include t.numeric-align; }
 }
 
 .thread-comment {
