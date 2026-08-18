@@ -14,7 +14,12 @@
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
   <h3 class="card__subtitle">Menunggu Repost</h3>
-  <p class="note" *ngIf="!waiting.length">Belum ada pasangan yang siap di-repost.</p>
+  <!-- Audit "kaku" 17 Agu: skeleton rows instead of a blank gap while loading, replaces the
+       missing loading-state distinction (see need-approval.component.ts's `loading` field). -->
+  <div class="skeleton-list" *ngIf="loading">
+    <div class="skeleton-row" *ngFor="let i of [1, 2, 3]"></div>
+  </div>
+  <p class="note" *ngIf="!loading && !waiting.length">Belum ada pasangan yang siap di-repost.</p>
   <ng-container *ngFor="let w of waiting">
     <div class="batch-row">
       <div class="batch-row__id">{{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</div>
@@ -100,6 +105,7 @@
         <button
           class="btn btn--primary"
           type="button"
+          [class.btn--busy]="confirming"
           [disabled]="!canConfirm() || confirming"
           [title]="canConfirm() ? '' : 'Deskripsi penutup dan nomor subdoc wajib diisi'"
           (click)="confirmPair(w.dinas_inisiasi, w.dinas_target)"

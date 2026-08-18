@@ -26,6 +26,7 @@ $radius-md: 8px;
   padding: 8px 16px;
   margin-bottom: -1px;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 
   &:hover { color: $ink; }
 
@@ -49,4 +50,9 @@ $radius-md: 8px;
   font-weight: 600;
 
   &--active { background: $page-bg; color: $ink-600; }
+}
+
+// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+@media (prefers-reduced-motion: reduce) {
+  .month-tab { transition: none; }
 }

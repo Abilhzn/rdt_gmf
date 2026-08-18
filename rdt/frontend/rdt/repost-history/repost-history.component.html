@@ -40,7 +40,10 @@
   <hr />
   <!-- Checklist section 3 (12 Agu, loading-state audit): loading dulu, baru bedain "genuinely
        kosong" vs "belum kelar loading" — sebelumnya dua-duanya keliatan sama (blank). -->
-  <p class="note" *ngIf="loading">Memuat riwayat repost...</p>
+  <!-- Audit "kaku" 17 Agu: skeleton rows instead of plain "Memuat..." text. -->
+  <div class="skeleton-list" *ngIf="loading">
+    <div class="skeleton-row" *ngFor="let i of [1, 2, 3]"></div>
+  </div>
   <p class="note" *ngIf="!loading && !batches.length">Belum ada pasangan yang di-repost dengan subdoc.</p>
   <p class="note" *ngIf="!loading && batches.length && !filteredBatches.length">Tidak ada pasangan yang cocok dengan filter subdoc.</p>
 

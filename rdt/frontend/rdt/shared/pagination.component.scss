@@ -48,6 +48,7 @@ $radius-md: 8px;
   font-weight: 700;
   cursor: pointer;
   border: none;
+  transition: border-color 120ms ease;
 
   // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
   // penanda visual sebagai gantinya.

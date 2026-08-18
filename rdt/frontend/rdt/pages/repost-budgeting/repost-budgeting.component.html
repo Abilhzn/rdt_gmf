@@ -240,6 +240,7 @@
       <button
         class="btn btn--primary"
         type="button"
+        [class.btn--busy]="phase === 'committing'"
         [disabled]="phase === 'committing' || phase === 'committed'"
         (click)="commit()"
       >

@@ -29,6 +29,7 @@
       <button
         class="btn btn--primary"
         type="button"
+        [class.btn--busy]="defaultDeadlineFormBusy"
         [disabled]="defaultDeadlineFormBusy || !defaultDeadlineForm.periode || !defaultDeadlineForm.deadline_at"
         (click)="submitDefaultDeadline()"
       >Set Deadline</button>

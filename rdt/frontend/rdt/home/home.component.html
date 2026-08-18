@@ -217,8 +217,14 @@
   <p class="note" *ngIf="!currentUser.current">Pilih "Login sebagai" dulu untuk memuat dashboard.</p>
   <!-- Checklist section 3 (12 Agu, loading-state audit): `loaded` sudah ada tapi cuma dipakai
        buat nge-gate pesan empty-state ("Tidak ada..." dst) — sebelum data datang, halaman ini
-       kosong tanpa feedback apapun. -->
-  <p class="note" *ngIf="currentUser.current && !loaded && !errorMessage">Memuat dashboard...</p>
+       kosong tanpa feedback apapun.
+       Audit "kaku" 17 Agu: skeleton (KPI-row + pair-card shapes) ganti plain text. -->
+  <div class="skeleton-dashboard" *ngIf="currentUser.current && !loaded && !errorMessage">
+    <div class="skeleton-kpi-row">
+      <div class="skeleton-block skeleton-block--kpi" *ngFor="let i of [1, 2, 3, 4, 5]"></div>
+    </div>
+    <div class="skeleton-block skeleton-block--card" *ngFor="let i of [1, 2, 3]"></div>
+  </div>
 
   <ng-container *ngIf="currentUser.current">
     <!-- ============ Need to Confirm / Need Identification (default sub-view, REQ-RDT-NAV-02a)

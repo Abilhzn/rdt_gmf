@@ -1,7 +1,7 @@
 <div class="page-card">
   <div class="view-header-row">
     <div class="context-badge">{{ badgeText }}</div>
-    <button class="btn btn--primary" type="button" [disabled]="submittingDecisions" (click)="submitDecisions()" *ngIf="pendingRows.length && !isInvestigation">{{ submittingDecisions ? 'Menyimpan...' : 'Submit' }}</button>
+    <button class="btn btn--primary" type="button" [class.btn--busy]="submittingDecisions" [disabled]="submittingDecisions" (click)="submitDecisions()" *ngIf="pendingRows.length && !isInvestigation">{{ submittingDecisions ? 'Menyimpan...' : 'Submit' }}</button>
   </div>
 
   <p class="alert alert--error" *ngIf="statusError">{{ statusError }}</p>
@@ -203,7 +203,7 @@
           Keterangan (opsional)
           <rdt-mention-input [(ngModel)]="batchNote" [rows]="2" [autoGrow]="false" extraClass="batch-note" placeholder="Catatan tambahan untuk keputusan ini..."></rdt-mention-input>
         </label>
-        <button class="btn btn--primary" type="button" [disabled]="!canSubmitAll() || submittingAllResolutions" (click)="submitAllResolutions()">
+        <button class="btn btn--primary" type="button" [class.btn--busy]="submittingAllResolutions" [disabled]="!canSubmitAll() || submittingAllResolutions" (click)="submitAllResolutions()">
           {{ submittingAllResolutions ? 'Menyimpan...' : 'Confirm All (' + stagedCount + ')' }}
         </button>
       </div>

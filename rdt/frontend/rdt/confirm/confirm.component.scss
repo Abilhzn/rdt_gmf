@@ -60,8 +60,29 @@ $radius-md: 8px;
   font-weight: 700;
   cursor: pointer;
   border: none;
+  transition: background 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 
   &--primary { background: $accent; color: #fff; box-shadow: $shadow-sm; &:hover { background: #004a73; } }
+  // Micro-interaction (audit "kaku" 17 Agu): busy state used to be a bare text swap
+  // ("Menyimpan...") with zero visual feedback — spinner ring replaces the label instead, same
+  // button width so it doesn't jump. Scoped to &--primary (spinner border assumes white on
+  // $accent).
+  &--primary.btn--busy {
+    position: relative;
+    color: transparent;
+    pointer-events: none;
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 14px; height: 14px;
+      margin: -7px 0 0 -7px;
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: btn-spin 0.6s linear infinite;
+    }
+  }
   // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
   // penanda visual sebagai gantinya. Shadow tetap boleh untuk card/container biasa.
   &--ghost {
@@ -187,7 +208,7 @@ input[type='checkbox'] {
   border-collapse: collapse;
   font-size: 12px;
 
-  th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; transition: background 120ms ease; }
   thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: 11px; text-transform: uppercase; }
   &__num { text-align: right; font-variant-numeric: tabular-nums; }
   &__remark { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
@@ -389,3 +410,13 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
 }
 
 // Pager styling now lives in shared/pagination.component.scss (REQ-RDT-NAV-07).
+
+@keyframes btn-spin {
+  100% { transform: rotate(360deg); }
+}
+
+// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+@media (prefers-reduced-motion: reduce) {
+  .btn, tbody tr td { transition: none; }
+  .btn--busy::after { animation: none; }
+}

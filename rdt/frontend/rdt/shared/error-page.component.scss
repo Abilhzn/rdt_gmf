@@ -63,6 +63,7 @@ $radius-md: 8px;
   cursor: pointer;
   border: none;
   text-decoration: none;
+  transition: background 120ms ease, border-color 120ms ease;
 
   &--primary { background: $accent; color: #fff; box-shadow: 0 4px 7.5px rgba(0, 0, 0, 0.5); &:hover { background: #004a73; } }
   &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }

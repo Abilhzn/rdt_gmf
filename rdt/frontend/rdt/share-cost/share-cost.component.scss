@@ -43,6 +43,7 @@ $radius-md: 8px;
   font-weight: 700;
   cursor: pointer;
   border: none;
+  transition: background 120ms ease, border-color 120ms ease;
 
   &--primary { background: $accent; color: #fff; &:hover { background: #004a73; } &:disabled { background: $line; cursor: default; } }
   &--ghost {

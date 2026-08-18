@@ -154,6 +154,7 @@ $danger-600: #b3261e;
   font-size: 11px;
   cursor: pointer;
   padding: 0;
+  transition: background 120ms ease, color 120ms ease;
 
   &:hover { background: rgba(0, 0, 0, 0.08); color: $ink; }
 }
@@ -180,6 +181,7 @@ $danger-600: #b3261e;
   font-size: 16px;
   font-weight: 500;
   border-radius: $radius-md;
+  transition: background 120ms ease;
 
   &:hover { background: rgba(0, 0, 0, 0.05); }
   &.active { font-weight: 700; }
@@ -241,6 +243,7 @@ $danger-600: #b3261e;
   border: 1px solid $line;
   cursor: pointer;
   font-family: inherit;
+  transition: border-color 120ms ease;
 
   &:hover { border-color: $accent; }
 

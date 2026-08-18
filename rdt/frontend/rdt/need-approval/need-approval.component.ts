@@ -30,6 +30,11 @@ import { extractErrorMessage } from '../shared/error-message.util';
 export class NeedApprovalComponent implements OnInit {
   waiting: WaitingEntry[] = [];
   errorMessage = '';
+  // Audit "kaku" 17 Agu: this page had NO loading flag at all — "Belum ada pasangan yang siap
+  // di-repost" showed immediately on every load, indistinguishable from genuinely empty. Same
+  // gap the 12 Agu loading-state checklist already fixed elsewhere (home/repost-history), just
+  // missed here — fixed the same way (skeleton while true, empty-state text gated on !loading).
+  loading = true;
 
   // Transparency + confirm form: at most one pair expanded at a time, keyed
   // "dinas_inisiasi dinas_target".
@@ -62,9 +67,10 @@ export class NeedApprovalComponent implements OnInit {
 
   load(): void {
     this.errorMessage = '';
+    this.loading = true;
     this.exportBatches.getWaiting().subscribe({
-      next: (waiting) => { this.waiting = waiting; },
-      error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat antrian'); },
+      next: (waiting) => { this.waiting = waiting; this.loading = false; },
+      error: (err) => { this.errorMessage = extractErrorMessage(err, 'Gagal memuat antrian'); this.loading = false; },
     });
   }
 

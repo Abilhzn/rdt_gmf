@@ -94,6 +94,7 @@ $ok-600: #1e7f4f;
   font-weight: 700;
   cursor: pointer;
   border: none;
+  transition: background 120ms ease, border-color 120ms ease;
 
   &--primary { background: $accent; color: #fff; box-shadow: $shadow-sm; &:hover { background: #004a73; } }
   // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.

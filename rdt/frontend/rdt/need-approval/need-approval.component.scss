@@ -44,11 +44,30 @@ $radius-md: 8px;
   font-weight: 700;
   cursor: pointer;
   border: none;
+  transition: background 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 
   &--primary {
     background: $accent; color: #fff; box-shadow: $shadow-sm;
     &:hover { background: #004a73; }
     &:disabled { background: $line; color: $ink-600; cursor: not-allowed; box-shadow: none; }
+  }
+  // Micro-interaction (audit "kaku" 17 Agu): spinner ring replaces the label during a busy
+  // action instead of a bare disabled state — same pattern as repost-budgeting/confirm.
+  &--primary.btn--busy {
+    position: relative;
+    color: transparent;
+    pointer-events: none;
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 14px; height: 14px;
+      margin: -7px 0 0 -7px;
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: btn-spin 0.6s linear infinite;
+    }
   }
   // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
   &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
@@ -68,6 +87,12 @@ $radius-md: 8px;
   align-items: center;
   padding: 6px 0;
   border-bottom: 1px dashed $line;
+  border-radius: $radius-md;
+  transition: background 120ms ease;
+
+  // Audit "kaku" 17 Agu: pure scanning aid (row isn't itself a click target, the buttons inside
+  // are) — same reasoning REQ-RDT-SAP-14's tbody tr:hover already applies to Confirmation's table.
+  &:hover { background: $page-bg; }
 
   &__id { width: 60px; font-weight: 700; }
   &__period { width: 220px; }
@@ -165,4 +190,31 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   thead th { background: #fff; font-weight: 700; color: $ink; font-size: 11px; text-transform: uppercase; }
   &__num { text-align: right; font-variant-numeric: tabular-nums; }
   &__remark { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+@keyframes btn-spin {
+  100% { transform: rotate(360deg); }
+}
+
+// ---------- loading skeleton (audit "kaku" 17 Agu) ----------
+// Plain shimmering bars, same row height as a real .batch-row — no library, just a moving
+// gradient. Row count (3) is a rough guess at "typical" list length, not tied to real data.
+.skeleton-list { display: flex; flex-direction: column; gap: 10px; }
+.skeleton-row {
+  height: 20px;
+  border-radius: $radius-md;
+  background: linear-gradient(90deg, $page-bg 25%, #e4e4e4 37%, $page-bg 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+@media (prefers-reduced-motion: reduce) {
+  .btn, .batch-row { transition: none; }
+  .btn--busy::after { animation: none; }
+  .skeleton-row { animation: none; background: $page-bg; }
 }

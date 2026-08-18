@@ -70,6 +70,7 @@ $radius-md: 8px;
     background: #fff;
     color: $ink;
     border: 1px solid $line;
+    transition: border-color 120ms ease;
     &:hover { border-color: $accent; }
   }
 }
@@ -98,6 +99,7 @@ $radius-md: 8px;
   border: 1px solid $line;
   display: flex;
   align-items: stretch;
+  transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
 
   &__main {
     flex: 1 1 auto;
@@ -116,8 +118,13 @@ $radius-md: 8px;
     }
   }
   // Hover feedback moves to the outer card so it still fires correctly even though the click
-  // handler itself lives on __main.
-  &:has(.pair-card__main--clickable):hover { border-color: $accent; }
+  // handler itself lives on __main. Small lift (translateY) + shadow on top of the border-color
+  // swap — makes the "this is clickable" affordance readable at a glance, not just a color shift.
+  &:has(.pair-card__main--clickable):hover {
+    border-color: $accent;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  }
 
   // Desain rapih (5 Agu): referensi pemilik proyek gak punya garis pembatas di bawah judul —
   // pembeda header/body cukup lewat jarak (margin), bukan border, biar kartu kelihatan lebih
@@ -190,6 +197,7 @@ $radius-md: 8px;
     padding: 5px 12px;
     cursor: pointer;
     font-family: inherit;
+    transition: background 120ms ease;
 
     &:hover { background: rgba(0, 98, 152, 0.08); }
   }
@@ -434,6 +442,7 @@ $radius-md: 8px;
     background: #fff;
     color: $ink-600;
     cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease;
 
     svg { width: 16px; height: 16px; }
 
@@ -467,4 +476,29 @@ $radius-md: 8px;
   // only ever emitted 'investigation'/'reposted' before, so every other row had no status at all.
   &--pending { background: $amber-bg; color: $amber; }
   &--waiting-repost { background: rgba(0, 98, 152, 0.14); color: $accent; }
+}
+
+// ---------- loading skeleton (audit "kaku" 17 Agu) ----------
+// Rough KPI-row + pair-card shapes, not pixel-exact — just enough so the page doesn't look
+// abruptly empty before real data lands.
+.skeleton-dashboard { display: flex; flex-direction: column; gap: 12px; }
+.skeleton-kpi-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.skeleton-block {
+  border-radius: $radius-lg;
+  background: linear-gradient(90deg, $bar-track 25%, #dcdfe3 37%, $bar-track 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+
+  &--kpi { flex: 1 1 240px; height: 74px; }
+  &--card { height: 96px; }
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+@media (prefers-reduced-motion: reduce) {
+  .btn, .pair-card, .pair-card__chain-badge, .rollup-table__detail-btn { transition: none; }
+  .skeleton-block { animation: none; background: $bar-track; }
 }

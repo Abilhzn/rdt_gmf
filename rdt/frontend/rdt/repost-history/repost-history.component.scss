@@ -83,6 +83,7 @@ $radius-md: 8px;
   font-weight: 700;
   cursor: pointer;
   border: none;
+  transition: background 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 
   &--primary {
     background: $accent; color: #fff; box-shadow: $shadow-sm;
@@ -119,6 +120,11 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   align-items: center;
   padding: 6px 0;
   border-bottom: 1px dashed $line;
+  border-radius: $radius-md;
+  transition: background 120ms ease;
+
+  // Audit "kaku" 17 Agu: pure scanning aid, same as need-approval's own .batch-row:hover.
+  &:hover { background: $page-bg; }
 
   &__id { width: 60px; font-weight: 700; }
   &__period { width: 260px; }
@@ -147,6 +153,7 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   padding: 8px 16px;
   margin-bottom: -1px;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 
   &:hover { color: $ink; }
 
@@ -183,3 +190,23 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
 
 // REQ-RDT-SAP-14 (11 Agu): the .deadline-* styles that used to live here (Setting Periode panel)
 // moved to setting-periode.component.scss along with the markup/logic — see that component.
+
+// ---------- loading skeleton (audit "kaku" 17 Agu) ----------
+.skeleton-list { display: flex; flex-direction: column; gap: 10px; }
+.skeleton-row {
+  height: 20px;
+  border-radius: $radius-md;
+  background: linear-gradient(90deg, $page-bg 25%, #e4e4e4 37%, $page-bg 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+@media (prefers-reduced-motion: reduce) {
+  .btn, .batch-row, .month-tab { transition: none; }
+  .skeleton-row { animation: none; background: $page-bg; }
+}

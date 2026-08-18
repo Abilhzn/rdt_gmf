@@ -173,6 +173,27 @@ $radius-md: 8px;
 
   &:disabled { opacity: 0.55; cursor: not-allowed; }
 
+  // Micro-interaction (audit "kaku" 17 Agu): busy state used to be a bare text swap ("Menyimpan...")
+  // with zero visual feedback — small spinner ring replaces the label instead, same width so the
+  // button doesn't jump. Only meaningful on a solid-color button (spinner border assumes white on
+  // $accent), so scoped to &--primary.
+  &--primary.btn--busy {
+    position: relative;
+    color: transparent;
+    pointer-events: none;
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 14px; height: 14px;
+      margin: -7px 0 0 -7px;
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: btn-spin 0.6s linear infinite;
+    }
+  }
+
   &--primary {
     background: $accent;
     color: #fff;
@@ -203,6 +224,10 @@ $radius-md: 8px;
     outline: 2px solid $accent;
     outline-offset: 2px;
   }
+}
+
+@keyframes btn-spin {
+  100% { transform: rotate(360deg); }
 }
 
 // ---------- alerts ----------
@@ -413,4 +438,5 @@ thead .reviewer-note-col {
 // ---------- reduced motion ----------
 @media (prefers-reduced-motion: reduce) {
   .btn, .dropzone { transition: none; }
+  .btn--busy::after { animation: none; }
 }
