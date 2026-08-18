@@ -31,6 +31,8 @@ ada di `rdt/CLAUDE.md`.
 | 8 | 12 Agu 2026 | [08_2026-08-12.md](08_2026-08-12.md) | **`CHECKLIST_LAUNCH.md` diselesaikan end-to-end**: security headers/rate-limit/session TTL, validasi teks bebas, audit secrets, backup/restore tooling, monitoring/health/timeout, re-audit integritas data, 404/403 + a11y + WCAG contrast, dokumentasi per-service, loading-state + error-message audit (2 regresi self-caught & diperbaiki: admin editors, lalu DinasService/TransactionService), `/graphify` dijalankan atas seluruh repo + 2 trace eksploratif (nemu 1 gap modal-error belum diperbaiki, ditunda) |
 | 9 | 12 Agu 2026 | [09_2026-08-12.md](09_2026-08-12.md) | **SESI DITUTUP.** Plugin `ponytail` diinstall, **REQ-RDT-SAP-15** (breakdown per pasangan di Summary Progress All Dinas, full reuse `buildChainAwareProgress`+`#pairCard`), debug "icon unclickable" (root cause: proses backend lama belum di-restart, bukan bug kode), fix gap modal-error `DashboardDetailComponent.submitComment()` yang ditunda sesi 8, cleanup backlog (`_tmp_check.md` dihapus, `graphify-out/` di-gitignore) — commit `2c19d31`/`4ca58be`/`ca7416c`/`a163f2f`, semua sudah di-push ke `origin/lenovo` |
 | 10 | 12 Agu 2026 | [10_2026-08-12.md](10_2026-08-12.md) | `ponytail-audit` (tidak ada yang perlu dipangkas) + review efisiensi N+1/`trackBy` (sudah dibatch dengan benar, tidak ada perubahan), data-engineering pass: index baru `idx_txn_inisiasi_status` (`019_txn_inisiasi_status_index.sql`, belum di-commit), restart backend+dev-shell (sukses, health OK) tapi verifikasi UI lewat Chrome MCP terblokir (ekstensi belum konek) |
+| 11 | 14 Agu 2026 | [11_2026-08-14.md](11_2026-08-14.md) | Verifikasi ulang SAP-21/22 (ketemu: stale backend process, bukan bug — root cause & fix didokumentasikan), **REQ-RDT-SAP-23** (hapus preview tabel di "Confirm Reposted", sudah benar dari sebelumnya) + **REQ-RDT-UI-11 revisi** (Catatan Reviewer 80px→48px), commit gabungan `c9d6cbc`, data sintetis fitur Share-Cost (`tools/seedShareCostSynthetic.js`, 4 transaksi PENDING `dinas_target='TAB'`) |
+| 12 | 17–18 Agu 2026 | [12_2026-08-18.md](12_2026-08-18.md) | **SRS 3.13** (periode auto-derive, deadline reminder banner, overdue dibalik jadi sticky + konflik Override Deadline ditemukan&dihapus, filter Riwayat Repost disederhanakan), audit+eksekusi UI "kaku" (hover/transisi/busy-spinner/skeleton, native CSS), koreksi navigasi Setting Periode (2 sub-halaman → 1 flat page), audit+eksekusi tipografi (SCSS partial pertama di repo, type scale + treatment numerik), audit+eksekusi copy (generic "Error:"/English leftover → kontekstual Indonesia) — 5 commit, semua di-push |
 
 ## Garis besar evolusi arsitektur
 
@@ -46,6 +48,28 @@ ada di `rdt/CLAUDE.md`.
   currency, symmetry, sticky columns) dan REQ-RDT-SAP-14 (deadline +
   snapshot periode_efektif) — fitur bisnis besar terakhir sebelum sesi ini
   ditutup.
+
+## Status akhir per 18 Agu 2026 (akhir sesi 12)
+
+- Branch aktif: `lenovo`, commit terakhir di-push `09bd490`. Sejak sesi 10
+  (di bawah, masih akurat untuk kondisi 12 Agu): sesi 11 menyelesaikan
+  SAP-23 + UI-11 revisi (`c9d6cbc`); sesi 12 mengerjakan **SRS 3.13**
+  lengkap (periode auto-derive, deadline reminder, overdue sticky, filter
+  Riwayat Repost) + audit&eksekusi UI-kaku/navigasi-Setting-Periode/
+  tipografi/copy — 5 commit (`683d43c`..`09bd490`), lihat
+  [12_2026-08-18.md](12_2026-08-18.md) untuk rincian.
+- **Konflik "Override Deadline" vs sticky-overdue** ditemukan 2x (sesi 12,
+  Bagian 0 dan Bagian 2) — endpoint `POST /period-deadlines/
+  override-reevaluate` dan tombolnya di UI sudah dihapus total per
+  keputusan project owner, jangan di-restore tanpa keputusan baru.
+- `shared/_typography.scss` — SCSS partial PERTAMA di repo ini (sesi 12).
+  Konvensi lama "tiap komponen duplikat `$variable` sendiri, gak ada
+  `@import`/`@use`" **tidak lagi berlaku mutlak** — deliberate exception
+  buat type-scale/numeric-treatment tokens, `@use`'d di 8 komponen.
+- Bug extension Chrome (browser automation) berulang kali muncul sesi 12
+  ("Frame with ID 0 is showing error page" khusus `localhost:4200`,
+  situs lain normal) — belum diketahui akar masalahnya, dicatat di
+  [12_2026-08-18.md](12_2026-08-18.md) kalau kejadian lagi.
 
 ## Status akhir per 12 Agu 2026 (akhir sesi 10)
 
