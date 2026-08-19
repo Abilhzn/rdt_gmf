@@ -9,16 +9,12 @@ export interface MentionOption {
   label: string;
 }
 
-// REQ-RDT-COMMENT-03 (diperluas 3 Agu): "satu implementasi @mention dipakai ulang di semua field
-// [notes/deskripsi], bukan ditulis beda-beda per tempat." Before this, RepostBudgetingComponent
-// and DashboardDetailComponent each had their own copy of the exact same
-// mentionOptions/onInput/onKeydown/insertMention logic (drifting independently on every future
-// edit); Confirmation's descriptions and Catatan Reviewer had NO mention support at all. This
-// service is the single source of mentionable options (dinas + directory users) and the single
+// Satu implementasi @mention dipakai ulang di semua field notes/deskripsi, bukan ditulis beda-beda
+// per tempat. Single source of mentionable options (dinas + directory users) and the single
 // resolution rule for turning a raw "@token" into a real account — mirrors backend's
-// rules/mentionRules.js's resolveMentionedUserIds exactly (a token is either a literal directory
-// user_id, or a dinas code that fans out — here we just need "is this real", not "who to notify",
-// so we resolve to ONE display label rather than a user_id list).
+// rules/mentionRules.js's resolveMentionedUserIds (a token is either a literal directory user_id,
+// or a dinas code that fans out — here we just need "is this real", so we resolve to ONE display
+// label rather than a user_id list).
 @Injectable({ providedIn: 'root' })
 export class MentionService {
   mentionOptions: MentionOption[] = [];
@@ -46,9 +42,7 @@ export class MentionService {
   // Same two-form resolution as mentionRules.js's resolveMentionedUserIds: a literal directory
   // user_id, or a dinas code (case-insensitive) matched against mentionOptions' dinas entries.
   // Returns null for a token that doesn't resolve to anything real — that's how the caller knows
-  // to render it as plain text instead of a linked chip (REQ-RDT-COMMENT-03, diperjelas 3 Agu:
-  // "Kalau backend udah resolve mention ke user_id yang valid, frontend WAJIB render itu sebagai
-  // elemen ter-link" — the inverse holds too, an unresolved token stays plain text).
+  // to render it as plain text instead of a linked chip.
   resolve(token: string): { label: string } | null {
     const entry = this.directory[token];
     if (entry) return { label: `${entry.display_name} (${entry.dinas})` };

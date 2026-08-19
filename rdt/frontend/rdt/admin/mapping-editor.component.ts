@@ -3,13 +3,8 @@ import { AdminService } from '../services/admin.service';
 import { ModalService } from '../services/modal.service';
 import { extractErrorMessage } from '../shared/error-message.util';
 
-// Checklist section 3 (12 Agu, loading-state/error-message audit): this used to call
-// `fetch('/api/mapping')` directly with NO auth header at all — broke outright once checklist
-// 1.1's fix added requireUser/requireRole('TAB') to that endpoint. Rewritten onto AdminService
-// (proper HttpClient + CurrentUserService.authHeaders(), same pattern every other feature uses),
-// ModalService instead of native alert() (consistent with the rest of the app), a real loading
-// state (there wasn't one before — a slow network made this look frozen, no feedback at all),
-// and extractErrorMessage so a save/load failure shows the actual backend reason.
+// Uses AdminService (proper HttpClient + auth headers), ModalService instead of native alert(),
+// a loading state, and extractErrorMessage so a save/load failure shows the actual backend reason.
 @Component({
   selector: 'rdt-mapping-editor',
   standalone: false,

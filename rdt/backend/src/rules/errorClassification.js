@@ -1,10 +1,6 @@
-// REQ-RDT-LEDGER-05 / REQ-RDT-AUDIT-02 (audit finding, 13 Agu): every ledger-mutating route wraps
-// its work in BEGIN...ROLLBACK, but the ROLLBACK path never told the user WHY (raw `String(err)`)
-// or logged the failure anywhere — only successful CONFIRM/DECLINE/etc actions ever hit
-// rdt.audit_log. This classifies a caught error into the 3 categories SRS 3.2 names (konflik
-// konkurensi / data tidak valid / koneksi terputus) from the Postgres error code / Node error
-// code a caller already has on `err`, so routes can both report a useful category to the user and
-// log it consistently. Pure function — no DB/Express dependency — so it's unit-testable on its own.
+// Classifies a caught error into konflik konkurensi / data tidak valid / koneksi terputus from its
+// Postgres/Node error code, so ledger-mutating routes can report a useful category on ROLLBACK
+// and log it consistently. Pure function, no DB/Express dependency.
 
 const CATEGORY = {
   CONCURRENCY_CONFLICT: 'KONFLIK_KONKURENSI',

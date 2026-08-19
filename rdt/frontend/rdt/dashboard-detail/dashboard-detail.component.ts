@@ -14,14 +14,12 @@ interface ThreadRow {
   depth: number;
 }
 
-// REQ-RDT-NAV-03/REQ-RDT-COMMENT-01/02/03 — drill-down for one (initiator, target) dinas pair:
-// progress circle for that pair specifically, plus a forum-style comment thread (parent/child
-// replies, @mention autocomplete/notifications/linked render — see shared/mention-input.component
-// .ts and shared/mention-text.component.ts, REQ-RDT-COMMENT-03 diperluas 3 Agu: one shared
-// implementation, no longer this component's own copy). This view is reached only by clicking
-// a Dashboard card (see HomeComponent), not a sidebar item, so it isn't in PAGE_TITLES/nav —
-// nested under HomeModule's routes precisely so
-// the "Dashboard" sidebar link + page title stay active/correct here too (see home.module.ts).
+// Drill-down for one (initiator, target) dinas pair: progress circle for that pair, plus a
+// forum-style comment thread (parent/child replies, @mention autocomplete/notifications/linked
+// render — see shared/mention-input.component.ts and shared/mention-text.component.ts). Reached
+// only by clicking a Dashboard card (see HomeComponent), not a sidebar item, so it isn't in
+// PAGE_TITLES/nav — nested under HomeModule's routes so the "Dashboard" sidebar link + page title
+// stay active/correct here too (see home.module.ts).
 @Component({
   selector: 'rdt-dashboard-detail',
   standalone: false,
@@ -41,15 +39,12 @@ export class DashboardDetailComponent implements OnInit {
   commentBody = '';
   submitting = false;
 
-  /** REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): whether the per-hop breakdown panel under the
-   * header breadcrumb is open — resets whenever a different pair is loaded (see ngOnInit). */
+  /** Whether the per-hop breakdown panel under the header breadcrumb is open — resets whenever a
+   * different pair is loaded (see ngOnInit). */
   chainExpanded = false;
 
-  // REQ-RDT-NAV-09 (audit finding, 13 Agu): this page's "Transaksi yang pernah di-redirect"
-  // table was the one DT table in the app with no per-column multi-value filter — every other
-  // table showing DT data (Repost Review, Confirmation, transparansi Need Approval, Riwayat
-  // Repost) already has one via rdt-multi-value-filter + matchesAllColumnFilters, this brings
-  // Dashboard-Detailing in line rather than leaving it the odd one out.
+  // Per-column multi-value filter for "Transaksi yang pernah di-redirect" — same
+  // rdt-multi-value-filter + matchesAllColumnFilters every other DT table in the app uses.
   columnFilters: Record<string, string[]> = {};
 
   onColumnFilterChange(key: string, values: string[]): void {
@@ -89,9 +84,8 @@ export class DashboardDetailComponent implements OnInit {
     });
   }
 
-  // REQ-RDT-UI-05 "Rincian per-hop": only worth a badge when there's an actual multi-hop redirect
-  // to break down — same >2 threshold as home.component's chain-badge, and as breadcrumb's own
-  // "did the backend send a real chain, not just the 2-point fallback" check above.
+  // Only worth a badge when there's an actual multi-hop redirect to break down — same >2 threshold
+  // as home.component's chain-badge.
   get hasChainDetail(): boolean {
     return (this.progress?.chain?.length || 0) > 2;
   }
@@ -100,9 +94,8 @@ export class DashboardDetailComponent implements OnInit {
     this.chainExpanded = !this.chainExpanded;
   }
 
-  // REQ-RDT-LEDGER-10 (29 Jul): the 'INVESTIGATION' sentinel (see dashboard.js's
-  // fetchInvestigationCounts) shouldn't leak its raw code into the UI — same label the
-  // Confirmation sub-nav and Dashboard pair cards already use.
+  // The 'INVESTIGATION' sentinel shouldn't leak its raw code into the UI — same label the
+  // Confirmation sub-nav and Dashboard pair cards use.
   get targetLabel(): string {
     return this.targetDinas === 'INVESTIGATION' ? 'Investigation/Ask TA' : this.targetDinas;
   }
@@ -112,20 +105,16 @@ export class DashboardDetailComponent implements OnInit {
     return `${this.threadRows.length} comment · ${total} transaksi`;
   }
 
-  // REQ-RDT-NAV-03 (31 Jul, presentation feedback): render the FULL redirect path (e.g.
-  // "TJ → TC → TL"), not just the two endpoints — backend already tracks the chain via
-  // audit_log's REASSIGN/REJECT_REDIRECT history (see dashboard.js's buildChainAwareProgress),
-  // this just renders it. Falls back to the plain [initiator, target] pair when the backend
-  // didn't send a chain (no redirect happened, or the card blends multiple different paths).
+  // Renders the FULL redirect path (e.g. "TJ → TC → TL"), not just the two endpoints — backend
+  // tracks the chain via audit_log's REASSIGN/REJECT_REDIRECT history. Falls back to the plain
+  // [initiator, target] pair when the backend didn't send a chain.
   get breadcrumb(): string[] {
     if (this.progress?.chain?.length) return this.progress.chain;
     return [this.initiatorDinas, this.targetLabel];
   }
 
-  // REQ-RDT-NAV-03 (3 Agu, re-flagged still-open): every transaction whose OWN chain has more
-  // than the plain 2-point [initiator, target] — i.e. it was actually redirected at least once —
-  // regardless of whether the header breadcrumb above could show a single representative chain
-  // for the whole pair.
+  // Every transaction whose OWN chain has more than the plain 2-point [initiator, target] — i.e.
+  // it was actually redirected at least once — regardless of what the header breadcrumb shows.
   get redirectedTransactions(): PairTransaction[] {
     return this.transactions.filter((t) => (t.chain?.length || 0) > 2);
   }
@@ -178,20 +167,12 @@ export class DashboardDetailComponent implements OnInit {
     return '#f2b400';
   }
 
-  // B2 (3 Agu): card clicks now land here first (see HomeComponent.onCardClick) instead of
-  // jumping straight to Confirmation — this is the one-click path onward to actually act (the
-  // checkbox+Submit flow), shown only while there's something PENDING on this pair to act on.
-  // Same relative-routing hop HomeComponent's now-removed goToConfirmFrom used to do (this
-  // component is ALSO nested inside HomeModule, per the class header comment, so the same
-  // "count URL segments, not routeConfig entries" quirk applies here too).
-  //
-  // BUG FIX (5 Agu, live report — "403 di /rdt/confirm?from=TJ&target=TMM"): open>0 alone isn't
-  // enough — this page is reachable by BOTH the initiator (viewing their own outgoing pair) and
-  // the confirming dinas, but Confirm is the confirming dinas's ACTION page
-  // (middleware/auth.js's requireDinasAccess 403s anyone else). An initiator clicking their own
-  // pending pair here used to get a "Confirm Reposted" button that 403'd the moment they clicked
-  // it — now the button itself only appears when the viewer is actually authorized to act:
-  // role TAB, or their own dinas matches targetDinas (mirrors requireDinasAccess's own rule).
+  // One-click path onward to actually act (the checkbox+Submit flow on Confirm), shown only while
+  // there's something PENDING. open>0 alone isn't enough: this page is reachable by BOTH the
+  // initiator (viewing their own outgoing pair) and the confirming dinas, but Confirm is the
+  // confirming dinas's ACTION page (auth.js's requireDinasAccess 403s anyone else) — so the button
+  // only appears when the viewer is actually authorized: role TAB, or their own dinas matches
+  // targetDinas (mirrors requireDinasAccess's own rule).
   get canGoToConfirm(): boolean {
     if (!this.progress || this.progress.open <= 0) return false;
     const user = this.currentUser.current;
@@ -209,11 +190,9 @@ export class DashboardDetailComponent implements OnInit {
   }
 
   backToDashboard(): void {
-    // Three '../' — relative '../' pops ONE URL SEGMENT at a time, not one routeConfig entry
-    // (verified empirically): this route's path 'detail/:initiator/:target' consumes 3 segments
-    // ('detail', the initiator param, the target param), so all 3 must be popped to land back on
-    // HomeComponent's '' route ('/rdt/dashboard'). One or two '../' undershoots into an invalid,
-    // partially-popped URL.
+    // Three '../' — relative '../' pops ONE URL SEGMENT at a time, not one routeConfig entry: this
+    // route's path 'detail/:initiator/:target' consumes 3 segments, so all 3 must be popped to
+    // land back on HomeComponent's '' route ('/rdt/dashboard').
     this.router.navigate(['../../../'], { relativeTo: this.route });
   }
 
@@ -237,12 +216,9 @@ export class DashboardDetailComponent implements OnInit {
         this.clearReplyTarget();
         this.load();
       },
-      // Mutating-action error pattern (see confirm.component.ts's resolveBorne/resolveReassign,
-      // share-cost.component.ts's splitRow, repost-history.component.ts's addSubdoc): modal.alert,
-      // not the inline `errorMessage` banner — that banner is reserved for load()'s GET failure
-      // above. Was previously the load()-error pattern here by mistake (graphify trace, 12 Agu) —
-      // easy to miss since the banner renders at the TOP of the page, far from the comment box at
-      // the bottom, unlike the modal every other mutating call site here already uses.
+      // Mutating-action error pattern (see confirm.component.ts's resolveBorne/resolveReassign):
+      // modal.alert, not the inline `errorMessage` banner — that banner is reserved for load()'s
+      // GET failure above, and is easy to miss from the comment box at the bottom of the page.
       error: async (err) => {
         this.submitting = false;
         await this.modal.alert('Gagal mengirim komentar: ' + extractErrorMessage(err, String(err)));

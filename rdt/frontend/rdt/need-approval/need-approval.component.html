@@ -1,12 +1,7 @@
 <div class="page-card">
   <p class="note">
-    Antrian per pasangan (dinas pengaju → dinas tujuan) — sebuah entri muncul begitu SEMUA
-    transaksi pasangan ITU selesai (CONFIRMED/BORNE_BY_INITIATOR, tidak ada PENDING/DECLINED/
-    NEEDS_REVIEW tersisa). Pasangan lain dari dinas pengaju yang sama TIDAK saling menunggu — tiap
-    pasangan diproses begitu siap. File Excel (53 kolom kontrak penuh) sudah bisa diunduh dari
-    sini SEKARANG, tidak perlu Confirm dulu — download, posting manual ke SAP, lalu balik ke sini
-    dan Confirm sekalian masukkan nomor subdoc hasil posting-nya. Buka transparansi untuk melihat
-    detail lengkap pasangan itu sebelum confirm. Hanya role TAB yang bisa bertindak di sini.
+    Antrian per pasangan dinas yang siap di-repost. Download file, posting manual ke SAP, lalu
+    Confirm dan masukkan nomor subdoc hasil posting. Hanya role TAB yang bisa bertindak di sini.
   </p>
   <div class="card__actions">
     <button class="btn btn--ghost" type="button" (click)="load()">Muat ulang</button>

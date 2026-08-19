@@ -40,28 +40,24 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   statusFilter: TransactionStatus | 'ALL' = 'ALL';
   dinasFilter = 'ALL';
   /** searchText is what the input shows (updates instantly, keystroke-by-keystroke); the actual
-   * table filtering reads debouncedSearchText, which only catches up 500ms after typing stops
-   * (project owner request, 5 Agu: 500ms debounce on every search-like field) -- keeps the box
-   * itself feeling responsive while avoiding a full table refilter/re-render on every keystroke. */
+   * table filtering reads debouncedSearchText, which only catches up 500ms after typing stops —
+   * keeps the box responsive while avoiding a full table refilter/re-render on every keystroke. */
   searchText = '';
   debouncedSearchText = '';
   private readonly searchInput$ = new Subject<string>();
-  /** REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account —
-   * keyed by PreviewColumn.key, AND antar kolom aktif, OR di dalam satu kolom (lihat
-   * matchesAllColumnFilters). */
+  /** Satu filter multi-value per KOLOM, bukan cuma Account — keyed by PreviewColumn.key, AND antar
+   * kolom aktif, OR di dalam satu kolom (lihat matchesAllColumnFilters). */
   columnFilters: Record<string, string[]> = {};
 
-  /** REQ-RDT-NAV-04 (1 Agu): kolom preview HARUS sama persis dengan yang ikut ter-repost — satu
-   * sumber (CONTRACT_FIELDS, via GET /api/contract-fields) dipakai bareng oleh preview ini dan
-   * proses export sebenarnya (exportBatches.js), bukan di-hardcode terpisah. In PCLC dirender
-   * lewat kolom "Nominal" yang sudah ada (format angka + highlight negatif) di posisi yang sama,
-   * bukan dua kolom terpisah untuk nilai yang sama. */
+  /** Kolom preview HARUS sama persis dengan yang ikut ter-repost — satu sumber (CONTRACT_FIELDS,
+   * via GET /api/contract-fields) dipakai bareng oleh preview ini dan proses export sebenarnya,
+   * bukan di-hardcode terpisah. In PCLC dirender lewat kolom "Nominal" yang sudah ada, bukan dua
+   * kolom terpisah untuk nilai yang sama. */
   contractFields: ContractField[] = [];
   previewColumns: PreviewColumn[] = [];
 
-  /** REQ-RDT-NAV-07 (direvisi 5 Agu, 100->50): pagination sederhana client-side, 50
-   * baris/halaman, pager reusable (shared/pagination.component.ts) yang juga dipakai di
-   * Confirmation. */
+  /** Pagination sederhana client-side, 50 baris/halaman, pager reusable
+   * (shared/pagination.component.ts) yang juga dipakai di Confirmation. */
   page = 1;
   readonly pageSize = 50;
 
@@ -80,19 +76,12 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
     });
   }
 
-  // REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "tampilkan SEMUA kolom" 1/3 Agu): preview kolom
-  // dipersempit ke 11 kolom tetap + Notes, SAMA di setiap fitur preview (Repost, Confirmation,
-  // transparansi Need Approval) — bukan lagi "setiap kolom kontrak" (dulu 62). Urutan persis SRS
-  // 3.8: Sub Group, Dinas Pengaju, Account, Profit Ctr, Ref.Doc., Period, Text, Material,
-  // Value (In PCLC), Group (nama baru utk `category`, dulu "Kategori"), Remark. CURATED_KEYS
+  // Preview kolom dipersempit ke 11 kolom tetap + Notes, SAMA di setiap fitur preview (Repost,
+  // Confirmation, transparansi Need Approval) — bukan "setiap kolom kontrak". CURATED_KEYS
   // difilter dari CONTRACT_FIELDS (bukan hardcode urutan manual) supaya kalau backend mengubah
-  // urutan/label field itu sendiri, preview ikut — tapi field MANA yang muncul sekarang memang
-  // daftar tetap, bukan lagi "semua". PENTING: ini TIDAK mengubah REQ-RDT-SAP-06 — file export ke
-  // SAP (exportBatches.js's streamContractExport) tetap 53 kolom kontrak penuh, artifact terpisah.
-  // "Dinas target"/"Status" (bukan bagian dari 53 kolom kontrak, jadi tidak kena pembatasan ini)
-  // tetap perlu terlihat di halaman Review INI secara khusus — itu justru yang sedang dicek PIC
-  // sebelum repost (routing benar? baris valid?) — dipindah jadi kolom tetap sendiri di
-  // luar previewColumns (lihat template), bukan dihapus.
+  // urutan/label field, preview ikut. Ini TIDAK mengubah export ke SAP — file export tetap 53
+  // kolom kontrak penuh, artifact terpisah. "Dinas target"/"Status" dipindah jadi kolom tetap
+  // sendiri di luar previewColumns (lihat template), bukan dihapus.
   private static readonly CURATED_CONTRACT_KEYS = ['account', 'profit_ctr', 'ref_doc', 'period', 'text_desc', 'material', 'in_pclc'];
   private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
     const contractCols: PreviewColumn[] = fields
@@ -206,13 +195,8 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
   async commit(): Promise<void> {
     if (!this.rows.length) return;
     this.phase = 'committing';
-    // REQ-RDT-NAV-04 (5 Agu, project owner confirmation): reviewer_note now persists (migration
-    // 015 + index.js's /api/persist cols list) — it USED to be stripped here deliberately while
-    // "where should this be stored" was still an open question (see transaction.model.ts's old
-    // comment, now updated). Sending it as-is now — Confirmation's sticky "Notes" column reads
-    // this same field.
-    // REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode is no longer chosen here at all — the
-    // server derives it (bulan sebelum bulan upload berjalan) in POST /api/persist.
+    // reviewer_note persists as-is now (migration 015) — Confirmation's sticky "Notes" column
+    // reads this same field. periode is not chosen here — the server derives it in POST /api/persist.
     this.txService
       .persistToDatabase(this.rows, this.aggregation, this.selectedFile, this.description)
       .subscribe({

@@ -1,18 +1,7 @@
-// REQ-RDT-EXT-03 — duplicate transaction detection.
-//
-// Design note (empirically validated against contoh_input/06. DT TB - Jun 2026.xlsx):
-// a strict 7-field natural key (document_no+ref_doc+account+cost_ctr+profit_ctr+item+in_pclc)
-// already matches 9 pairs of rows *within that single, already-verified file* — e.g. the same
-// document_no/ref_doc posting a partial-quantity split across two consecutive rows with
-// identical amounts. Those are legitimate distinct postings already baked into the SRS pivot
-// totals that test/parser.test.js asserts against; treating them as duplicates would silently
-// diverge from the verified ground truth.
-//
-// So duplicate detection here is intentionally scoped to CROSS-UPLOAD matches only (does this
-// natural key already exist among previously-persisted rdt.transactions rows, from a different
-// upload) rather than within-file/within-batch matches. That maps to the real failure mode this
-// requirement guards against: a dinas accidentally re-uploading the same month, or two uploads
-// covering an overlapping period — not legitimate repeated postings inside one correct file.
+// Duplicate transaction detection, scoped to CROSS-UPLOAD matches only (not within-file/batch):
+// a strict natural key can legitimately repeat within one verified file (e.g. a partial-quantity
+// split across two rows), so within-file matches are not duplicates. This only flags the real
+// failure mode: a dinas re-uploading the same month, or two uploads with an overlapping period.
 
 function normalize(v) {
   if (v === null || v === undefined) return '';

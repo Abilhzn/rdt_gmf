@@ -7,27 +7,16 @@ import { Notification } from '../services/notification.model';
 import { DashboardService } from '../services/dashboard.service';
 import { ExportBatchService } from '../services/export-batch.service';
 
-// REQ-RDT-NAV-10 (31 Jul, presentation feedback): display-label renames. Only the UNAMBIGUOUS
-// rows from the SRS table are applied here — two rows are explicitly flagged "perlu diklarifikasi,
-// jangan ditebak" (whether the TAB dashboard's "Need to Confirm" sub-view and the TAB Confirmation
-// nav item both become "Need Identification", risking two different nav items with the same
-// name) and are deliberately left UNCHANGED pending the project owner's answer.
+// Display-label per route. 'repost'/'confirm'/'need-approval' are role-aware (lihat
+// NavigationEnd handler di bawah), jadi tidak masuk sini.
 const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
-  // 'repost'/'confirm'/'need-approval' are role-aware now (see the NavigationEnd handler below) —
-  // no longer static lookups.
-  // SRS 3.10 (Share-Cost, 3 Agu): TAB-only page, lives under the "Need Identification" sub-nav
-  // (see shell.component.html) — fixed title, no PIC-facing variant exists.
   'share-cost': 'Share-Cost',
-  // SRS 3.13 "Struktur navigasi disederhanakan lagi" (18 Agu): back to a fixed title — the
-  // sub-page-dependent title (REQ-RDT-SAP-20, 13 Agu split) no longer applies, one flat page now.
   'setting-periode': 'Setting Periode',
 };
 
-// REQ-RDT-NAV-01 — persistent sidebar (logo + Dashboard/Repost/Confirmation/Need Approval)
-// wrapping <router-outlet>. "Guidance Application"/"Feedback Application" are inert placeholders in the
-// updated Figma (plain non-clickable divs there too) — no spec/annotation exists for them,
-// so they're rendered disabled rather than routed anywhere invented.
+// Persistent sidebar wrapping <router-outlet>. "Guidance Application"/"Feedback Application"
+// sengaja non-clickable — placeholder tanpa spec.
 @Component({
   selector: 'rdt-shell',
   standalone: false,
@@ -42,40 +31,19 @@ export class ShellComponent implements OnInit {
   unreadCount = 0;
   notifications: Notification[] = [];
 
-  // REQ-RDT-NAV-02a: sidebar badge count + which Dashboard sub-link is active — 0/'need' until
-  // the first fetch resolves (ngOnInit) or until the user is on some other page (undefined stays
-  // 'need' as a harmless default, matching HomeComponent's own default).
   needToConfirmCount = 0;
   dashboardSubview: 'need' | 'own' = 'need';
 
-  // SRS 3.13 (14 Agu, point 2): TAB's periode-wide deadline shown as a reminder banner on EVERY
-  // dinas-facing page (not just TAB's own), sourced from routes/periodDeadlines.js's
-  // GET /current-reminder (the one non-TAB-gated route on that router). null while loading or when
-  // no default deadline is set for the current auto-periode — banner just doesn't render then.
+  // Reminder banner deadline periode berjalan, dari GET /current-reminder (satu-satunya route
+  // non-TAB-gated di periodDeadlines.js). null = belum ada deadline default untuk periode ini.
   deadlineReminder: { periode: string; deadline_at: string } | null = null;
-  // REQ-RDT-LEDGER-10 restructure (29 Jul): Confirmation's TAB-only sub-nav. Originally
-  // TA/Corp/Investigation; REQ-RDT-AUTH-05 (corrected 31 Jul) removed 'TA' from this sub-nav —
-  // TA has its own dedicated PIC and its own confirmation queue like any other dinas now, it is
-  // NOT one of TAB's staffed no-PIC queues (that's just 'Corp'). Defaults to 'Corp'.
+  // Sub-nav Confirmation TAB-only. 'TA' tidak masuk sini — TA punya PIC dan queue-nya sendiri,
+  // bukan bagian dari queue tanpa-PIC milik TAB (itu cuma 'Corp').
   confirmSubTarget: 'Corp' | 'INVESTIGATION' = 'Corp';
 
-  // REQ-RDT-UI-06 (DIBATALKAN 8 Agu, "setelah dicoba beneran jalan" — audit 13 Agu sempat
-  // menerapkan ulang pola hover-collapse/pin dari revisi 5 Agu yang sudah dibatalkan itu, REVERT
-  // total di sini): sidebar sekarang FIXED lebar penuh selamanya, tidak collapse jadi ikon-doang,
-  // tidak butuh hover/pin sama sekali — semua label teks selalu tampil. Ternyata bikin masalah
-  // yang sama kayak accordion sidebar (REQ-RDT-UI-12 draf awal) yang juga sudah dibatalkan: non-IT
-  // end-user bisa gak sadar ada isi sidebar yang ketutup. Lebar tetap sedikit lebih ramping dari
-  // versi paling awal (lihat .sidebar di shell.component.scss), tapi STATIS — bukan dinamis.
-
-  // REQ-RDT-UI-12 (8 Agu, DIKLARIFIKASI — beda dari accordion strict yang sempat DIBATALKAN):
-  // tree-view kayak VS Code file explorer, bukan sidebar collapse (REQ-RDT-UI-06, itu urusan
-  // LEBAR sidebar/beda fitur sama sekali) — tiap nav-group (Dashboard, Confirmation) punya panah
-  // toggle SENDIRI, independen satu sama lain (Set, bukan satu boolean "yang lagi terbuka").
-  //
-  // Kosong secara default = SEMUA expanded (persis requirement "default wajib expanded, sistem
-  // gak collapse apapun otomatis") — cuma nambah entry begitu USER eksplisit klik collapse.
-  // 'dashboard' dan 'confirm' adalah key-nya, sama persis dengan routeConfig.path segment yang
-  // NavigationEnd handler di bawah sudah baca buat pageTitle/dashboardSubview/confirmSubTarget.
+  // Tree-view toggle per nav-group (Dashboard, Confirmation), independen satu sama lain — bukan
+  // sidebar-width collapse (itu sudah dihapus total, sidebar sekarang fixed-width selalu).
+  // Kosong = semua expanded by default; entry ditambah begitu user eksplisit collapse satu grup.
   private navGroupManuallyCollapsed = new Set<string>();
   // Grup yang lagi berisi halaman yang SEDANG dibuka user — di-set di NavigationEnd handler.
   // null kalau user lagi di halaman yang bukan bagian dari nav-group manapun (mis. Repost).
@@ -121,22 +89,12 @@ export class ShellComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Reads the matched route CONFIG (this.route.firstChild.routeConfig.path — e.g. 'repost'),
-    // not this.router.url string-split — the latter assumed RdtModule sits at the app root, so
-    // it broke (silently fell back to "Dashboard") as soon as the host platform mounts it under
-    // any prefix (dev-shell mounts it at '/rdt', see LoginComponent's note on this same class of
-    // bug elsewhere).
+    // Reads the matched route CONFIG (routeConfig.path), not router.url string-split — the host
+    // platform can mount this module under any prefix (dev-shell uses '/rdt').
     //
-    // Bug found 13 Agu (REQ-RDT-UI-12 verification): ShellComponent is ITSELF created as part of
-    // the very first navigation into '/rdt/...' (select-platform -> dashboard) — Router emits
-    // NavigationEnd for that navigation only AFTER the whole route-tree's components (including
-    // this one) already exist, but an Observable subscription added here, now, in ngOnInit
-    // necessarily starts AFTER that emission already happened. So the FIRST NavigationEnd was
-    // silently missed every time — pageTitle/dashboardSubview/confirmSubTarget/activeNavGroup all
-    // sat on their class-field defaults until the user's NEXT navigation (a sidebar click)
-    // happened to self-correct it, easy to miss visually since the defaults look plausible. Fixed
-    // by running the same sync once eagerly (current route snapshot, already fully resolved by
-    // the time ngOnInit runs) in addition to subscribing for every future NavigationEnd.
+    // Run once eagerly here too: the very first NavigationEnd (select-platform -> dashboard)
+    // fires before this subscription exists, so relying on the subscription alone misses the
+    // initial route and leaves pageTitle/dashboardSubview/etc on stale defaults until the next click.
     this.syncFromRoute();
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => this.syncFromRoute());
     this.loadNotifCount();
@@ -144,9 +102,7 @@ export class ShellComponent implements OnInit {
     this.loadDeadlineReminder();
   }
 
-  // SRS 3.13 point 2 — loaded once at shell mount (login), same lifecycle as the notif count and
-  // dashboard badge just above; the reminder is a single periode-wide value, not per-route, so it
-  // doesn't need re-fetching on every navigation like syncFromRoute's per-page state does.
+  // Loaded once at shell mount — single periode-wide value, tidak perlu re-fetch per navigasi.
   private loadDeadlineReminder(): void {
     if (!this.currentUser.current) { this.deadlineReminder = null; return; }
     this.exportBatches.getCurrentDeadlineReminder().subscribe({
@@ -157,44 +113,25 @@ export class ShellComponent implements OnInit {
 
   private syncFromRoute(): void {
     const segment = this.route.firstChild?.snapshot.routeConfig?.path;
-    // REQ-RDT-UI-12: which nav-group (if any) the CURRENTLY OPEN page belongs to — read by
-    // isNavGroupExpanded() to force that group open regardless of any manual collapse.
-    // 'dashboard'/'confirm' are the remaining tree-view groups (the ones with a nav-subnav) —
-    // 'setting-periode' left this list 18 Agu (SRS 3.13 "Struktur navigasi disederhanakan lagi" —
-    // flattened back to one page, no sub-nav to force-open anymore).
+    // Nav-group (kalau ada) yang lagi dibuka user — dipakai isNavGroupExpanded() buat force-open.
     this.activeNavGroup = segment === 'dashboard' || segment === 'confirm' ? segment : null;
-    // REQ-RDT-SAP-12 (31 Jul, expanded): this page is TAB's own archive OR a dinas's own
-    // archive of the same underlying data, so its title follows who's looking — same dynamic
-    // pattern as Dashboard's "Repost Every PIC" vs "Own Repost" sub-link just below.
     const isTab = this.currentUser.current?.role === 'TAB';
-    // REQ-RDT-NAV-10: "Riwayat Repost (dinas)" -> "Repost History" (general table) — TAB's own
-    // page keeps its existing "Riwayat Repost TAB" label, not covered by that rename row.
+    // Label per-role: TAB lihat title berbeda dari PIC biasa di beberapa halaman.
     if (segment === 'repost-history') {
       this.pageTitle = isTab ? 'Riwayat Repost TAB' : `Repost History ${this.currentUser.current?.dinas || ''}`;
     } else if (segment === 'repost') {
-      // "Repost (nav item)" -> "Upload Detail Transaction" (general table). TAB never reaches
-      // this route at all now — see canSeeRepost below — but keep a harmless fallback.
       this.pageTitle = 'Upload Detail Transaction';
     } else if (segment === 'confirm') {
-      // "Confirmation (nav item)" -> "Detail Confirmation" for a plain PIC; TERJAWAB 1 Agu for
-      // TAB -> "Need Identification" (also absorbs the Dashboard "Need to Confirm" sub-view —
-      // see dashboardSubview handling below).
       this.pageTitle = isTab ? 'Need Identification' : 'Detail Confirmation';
     } else if (segment === 'need-approval') {
-      // "Need Approval" -> "Wait to Repost" (TAB-only table; this route is TAB-only already).
       this.pageTitle = 'Wait to Repost';
     } else {
       this.pageTitle = (segment && PAGE_TITLES[segment]) || 'Dashboard';
     }
-    // REQ-RDT-NAV-02a: which Dashboard sub-link reads bold — HomeComponent owns the ?sub=
-    // query param, read here too so the sidebar (a sibling, not an ancestor of HomeComponent)
-    // can reflect it. Also a natural opportunistic refresh point for the badge count, refreshed
-    // on every Dashboard load.
+    // Dashboard sub-view aktif — HomeComponent owns ?sub=, sidebar (sibling, bukan ancestor)
+    // baca ulang di sini biar bisa nge-bold link yang sesuai.
     if (segment === 'dashboard') {
       const sub = this.route.firstChild?.firstChild?.snapshot.queryParamMap.get('sub');
-      // REQ-RDT-NAV-10 (1 Agu sore, reversed): TAB's "Need Identification" Dashboard sub-view
-      // is back (see home.component.ts's isTabRole) — an explicit ?sub= always wins; with none,
-      // TAB still defaults to 'own' (Summary Progress All Dinas). Unchanged for a plain PIC.
       this.dashboardSubview = sub === 'need' ? 'need' : sub === 'own' ? 'own' : isTab ? 'own' : 'need';
       this.loadDashboardBadge();
     } else if (segment === 'confirm') {
@@ -203,8 +140,7 @@ export class ShellComponent implements OnInit {
     }
   }
 
-  // REQ-RDT-NAV-02a: lightweight count-only call (not getSummary()'s full aggregation) —
-  // guaranteed call is ngOnInit (shell mount = login), refreshed opportunistically above.
+  // Lightweight count-only call (bukan getSummary()'s full aggregation).
   private loadDashboardBadge(): void {
     if (!this.currentUser.current) { this.needToConfirmCount = 0; return; }
     this.dashboardSvc.getNeedToConfirmCount().subscribe({
@@ -213,35 +149,26 @@ export class ShellComponent implements OnInit {
     });
   }
 
-  // REQ-RDT-NAV-10 (31 Jul): "Repost (nav item, versi TAB) -> Dihapus — TAB tidak originate
-  // repost sendiri" — Repost used to have no role gate at all (every remaining role, PIC/TAB, was
-  // allowed); now hidden specifically for TAB, unchanged for PIC.
+  // TAB tidak originate repost sendiri.
   get canSeeRepost(): boolean {
     return this.currentUser.current?.role !== 'TAB';
   }
 
-  // Need Approval is TAB-only (project owner correction, 24 Jul 2026 — SM_TA/GH_TA roles
-  // removed entirely, role TAB alone now approves every submission once 100% confirmed,
-  // including Corp's).
+  // TAB-only — role TAB satu-satunya yang approve submission (SM_TA/GH_TA sudah dihapus).
   get canSeeNeedApproval(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 
-  // REQ-RDT-LEDGER-10 restructure (29 Jul): Corp/Investigation sub-nav under Confirmation is
-  // TAB-only, same gate Need Approval already used — a plain PIC only ever has their own single
-  // queue, no sub-nav needed (backend's requireRole('TAB') on /api/investigation is the real
-  // enforcement either way, this is just UI-level nav visibility).
+  // UI-level gate saja — backend's requireRole('TAB') on /api/investigation yang enforce beneran.
   get canSeeConfirmSubnav(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 
-  // REQ-RDT-SAP-14 (11 Agu, user request: "taruh di sidebar-nya TAB") — moved out of the Riwayat
-  // Repost TAB <details> panel into its own nav item, same TAB-only gate it already had there.
   get canSeeSettingPeriode(): boolean {
     return this.currentUser.current?.role === 'TAB';
   }
 
-  // ---------- notifications (REQ-RDT-COMMENT-03) ----------
+  // ---------- notifications ----------
   private loadNotifCount(): void {
     this.notificationsSvc.list().subscribe({
       next: (res) => { this.unreadCount = res.unreadCount; },
@@ -270,10 +197,7 @@ export class ShellComponent implements OnInit {
     });
   }
 
-  // Clicking a notification jumps straight to
-  // its dinas pair's Dashboard-Detailing thread. 'dashboard' is a DIRECT CHILD of ShellComponent
-  // here (see rdt-routing.module.ts), so no '../' — 'detail/...' is then nested further inside
-  // HomeModule's own routes (see home.module.ts).
+  // Klik notifikasi -> langsung ke thread Dashboard-Detailing pasangan dinas terkait.
   goToNotifDetail(n: Notification): void {
     this.showNotifMenu = false;
     this.router.navigate(['dashboard', 'detail', n.dinas_inisiasi, n.dinas_target], { relativeTo: this.route });
@@ -285,10 +209,6 @@ export class ShellComponent implements OnInit {
       this.showNotifMenu = false;
       this.unreadCount = 0;
       this.notifications = [];
-      // 'login', not '../login' or '/login' — ShellComponent's own route is path '' (0 URL
-      // segments, same as HomeComponent's, see its goToDetail note on this exact quirk), so
-      // it resolves siblings directly with no '../' hop. Mirrors goToNotifDetail just above,
-      // which already gets this right by not using '../' either.
       this.router.navigate(['login'], { relativeTo: this.route });
     });
   }

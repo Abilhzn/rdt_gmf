@@ -4,9 +4,8 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
-// SRS section 3.10 (Share-Cost oleh TAB, "seadanya" version, asumsi dikunci 3 Agu): split satu
-// baris PENDING jadi beberapa baris PENDING dengan dinas_target/nominal berbeda-beda. Lihat
-// backend/src/routes/shareCost.js's header comment untuk rincian asumsi yang dikunci.
+// Split satu baris PENDING jadi beberapa baris PENDING dengan dinas_target/nominal berbeda-beda.
+// Lihat backend/src/routes/shareCost.js's header comment untuk rincian asumsi.
 
 export interface SplitCandidate {
   id: number;

@@ -32,7 +32,10 @@ const SESSION_TTL_MS = (Number(process.env.SESSION_TTL_HOURS) || 8) * 60 * 60 * 
 // lives in the data_user service, not a local file.
 async function verifyCredentials(username, password) {
   if (!username || !password) return null;
-  const credentials = loadJSON('credentials.seed.json');
+  let credentials = loadJSON('credentials.seed.json');
+  // Handoff builds ship credentials.seed.json redacted (no entries) — fall back to generating
+  // the same synthetic scheme in memory instead of requiring it to be regenerated on disk first.
+  if (Object.keys(credentials).length === 0) credentials = require('../tools/generateCredentials').build();
   const expected = credentials[username];
   if (!expected || expected !== password) return null;
   const entry = await getEmployee(username);

@@ -8,16 +8,12 @@ import { SelectPlatformComponent } from '@auth/auth/select-platform.component';
 import { RdtGuard } from './guards/rdt.guard';
 import { RoleGuard } from './guards/role.guard';
 
-// REQ-RDT-NAV-01/05/08 — restructured from the old single-page-at-root layout into
 // Dashboard/Repost/Confirmation/Need Approval siblings under a persistent ShellComponent
-// (sidebar + topbar). '' redirects
-// to 'dashboard' since Dashboard is now the landing page under the shell. "Guidance
-// Application"/"Feedback Application" from the updated Figma sidebar are inert placeholders
-// (no spec/annotation exists for them) — not routed.
+// (sidebar + topbar). '' redirects to 'dashboard', the landing page under the shell.
 //
-// login/select-platform sit OUTSIDE the shell (no sidebar/topbar there). RdtGuard on the shell route redirects
-// to /login whenever there's no active session — including on a plain refresh, since the
-// session is deliberately in-memory only (see CurrentUserService).
+// login/select-platform sit OUTSIDE the shell (no sidebar/topbar there). RdtGuard on the shell
+// route redirects to /login whenever there's no active session — including on a plain refresh,
+// since the session is deliberately in-memory only (see CurrentUserService).
 const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'select-platform', component: SelectPlatformComponent },
@@ -30,24 +26,19 @@ const routes: Routes = [
       { path: 'dashboard', loadChildren: () => import('./home/home.module').then(m => m.HomeModule) },
       { path: 'repost', component: RepostBudgetingComponent },
       { path: 'confirm', loadChildren: () => import('./confirm/confirm.module').then(m => m.ConfirmModule) },
-      // Checklist section 3 (12 Agu): RoleGuard added to every TAB-only route — see its own
-      // header comment for why (client-side UX gap, backend enforcement was already solid).
+      // RoleGuard on every TAB-only route — see its own header comment for why.
       { path: 'need-approval', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./need-approval/need-approval.module').then(m => m.NeedApprovalModule) },
       { path: 'share-cost', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./share-cost/share-cost.module').then(m => m.ShareCostModule) },
       { path: 'repost-history', loadChildren: () => import('./repost-history/repost-history.module').then(m => m.RepostHistoryModule) },
-      // REQ-RDT-SAP-14 (11 Agu): moved out of the Riwayat Repost TAB <details> panel into its own
-      // sidebar nav item + route, TAB-only (see shell.component.html/ts).
       { path: 'setting-periode', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./setting-periode/setting-periode.module').then(m => m.SettingPeriodeModule) },
       { path: 'admin', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule) },
-      // Checklist section 3 (12 Agu): informative 403, RoleGuard above redirects here instead of
-      // silently letting a role-mismatched user sit in a broken page.
+      // Informative 403 — RoleGuard above redirects here instead of leaving a role-mismatched
+      // user in a broken page.
       { path: 'forbidden', component: ErrorPageComponent, data: { code: 403 } },
     ],
   },
-  // Checklist section 3 (12 Agu): informative 404 for anything under /rdt/... that isn't a real
-  // route — previously just silently failed to navigate, no feedback at all. Outside the shell
-  // (a bad URL might not correspond to any valid in-shell state) but still reachable without
-  // login, same as /login itself.
+  // Informative 404 for anything under /rdt/... that isn't a real route. Outside the shell (a bad
+  // URL might not correspond to any valid in-shell state) but still reachable without login.
   { path: '**', component: ErrorPageComponent, data: { code: 404 } },
 ];
 

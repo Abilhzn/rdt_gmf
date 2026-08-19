@@ -1,38 +1,29 @@
-// REQ-RDT-SAP-03..06 (SRS.md 3.3, SUPERSEDED 30 Jul) — Need Approval per PASANGAN (dinas_inisiasi,
-// dinas_target), replacing the 29 Jul per-dinas_inisiasi model (migration 006), which itself
-// replaced the 24 Jul global-batch model and the 27 Jul per-pasangan-no-approval draft. The 29 Jul
-// model was corrected by the TAB team itself in a live meeting: waiting for EVERY pair of one
-// initiator to resolve before any of them could be processed penalized a fast-confirming target
-// dinas whenever a sibling pair from the same initiator was slow. The unit of approval is exactly
-// one pair, processed independently the moment IT is ready — other pairs from the same initiator
+// Need Approval per PASANGAN (dinas_inisiasi, dinas_target). The unit of approval is exactly one
+// pair, processed independently the moment IT is ready — other pairs from the same initiator
 // never block or get blocked by it.
 //
-// Design (same computed-state approach as 006, just re-scoped):
+// Design:
 //   - WAITING is a COMPUTED state, never stored. No rdt.export_batches row exists until TAB
 //     actually confirms that specific pair — every row that exists IS a confirmed entry (no
 //     status column).
-//   - No EXPORTED state either. Download is a stateless, repeatable action, and (REQ-RDT-SAP-05
-//     revised 31 Jul) available even BEFORE a batch/confirm exists — see GET /export-pair below.
+//   - No EXPORTED state either. Download is a stateless, repeatable action, available even BEFORE
+//     a batch/confirm exists — see GET /export-pair below.
 //   - "Blocking" statuses for readiness (PENDING/DECLINED/NEEDS_REVIEW) and "attachable" statuses
-//     (CONFIRMED/BORNE_BY_INITIATOR) mirror the OLD gate's exact behavior, just re-scoped from
-//     one dinas_inisiasi's unbatched rows to one (dinas_inisiasi, dinas_target) pair's unbatched
-//     rows. EXCLUDED/INVALID rows are deliberately excluded from both sets, same as before.
+//     (CONFIRMED/BORNE_BY_INITIATOR) — EXCLUDED/INVALID rows are deliberately excluded from both sets.
 //
-// closing_description still fans out as a comment + notification (SRS 3.3 "SUDAH TERJAWAB 29 Jul"),
-// but simpler now than under the 006 model: since one batch = exactly one pair, there's only ever
-// one target dinas to notify per confirm, so the old per-target loop collapses to a single
-// comment + notification block. Comment anchors to the pair's most-recently-attached transaction,
-// same convention dashboard.js's own top-level comments use — same thread each target PIC already
-// reads, no frontend work needed for PICs to see it. Recipients are resolved directly from the
-// directory by dinas match rather than round-tripping through @mention parsing, since the
-// recipient dinas here is already known deterministically.
+// closing_description fans out as a comment + notification. One batch = exactly one pair, so
+// there's only ever one target dinas to notify per confirm — a single comment + notification
+// block. Comment anchors to the pair's most-recently-attached transaction, same convention
+// dashboard.js's own top-level comments use — same thread each target PIC already reads, no
+// frontend work needed for PICs to see it. Recipients are resolved directly from the directory by
+// dinas match rather than round-tripping through @mention parsing, since the recipient dinas here
+// is already known deterministically.
 //
-// REQ-RDT-SAP-05 REVISED 31 Jul (presentation feedback) — the flow above is otherwise unchanged,
-// but two things moved: (1) download no longer waits for TAB to click Confirm at all — it's
-// available the instant a pair is "ready" (GET /export-pair), (2) POST /confirm itself now ALSO
-// takes the first subdoc_number in the same call ("posting to SAP happened, here's the resulting
-// number" IS what Confirm means now) instead of that being a separate POST /:batchId/subdocs call
-// afterward. See POST /confirm's own header comment for the full consequence chain.
+// Download no longer waits for TAB to click Confirm at all — it's available the instant a pair is
+// "ready" (GET /export-pair). POST /confirm itself ALSO takes the first subdoc_number in the same
+// call ("posting to SAP happened, here's the resulting number" IS what Confirm means now) instead
+// of that being a separate POST /:batchId/subdocs call afterward. See POST /confirm's own header
+// comment for the full consequence chain.
 
 const express = require('express');
 const ExcelJS = require('exceljs');
@@ -45,22 +36,20 @@ const { deriveStateLabel } = require('../rules/stateLabel');
 const { resolveMentionedUserIds, filterMentionsToPair } = require('../rules/mentionRules');
 const { validateFreeText } = require('../rules/textValidation');
 const { logRollbackAudit } = require('../logger');
-// REQ-RDT-SAP-14 (revisi open question, 5 Agu malam): computeEffectivePeriod is now called at
-// SNAPSHOT time in routes/confirmation.js, not here — GET /history below just reads the already-
-// locked rdt.transactions.periode_efektif column.
+// computeEffectivePeriod is called at SNAPSHOT time in routes/confirmation.js, not here —
+// GET /history below just reads the already-locked rdt.transactions.periode_efektif column.
 
 const router = express.Router();
 // requireRole('TAB') applied per-route below, NOT at the router level — GET /history is
-// deliberately open to any authenticated user (REQ-RDT-SAP-12, 31 Jul expanded): the initiating
-// dinas's own PIC can see their own repost/subdoc status there, auto-scoped server-side, while
-// every other route here stays TAB-only.
+// deliberately open to any authenticated user: the initiating dinas's own PIC can see their own
+// repost/subdoc status there, auto-scoped server-side, while every other route here stays TAB-only.
 router.use(requireUser);
 
 const BLOCKING_STATUSES = ['PENDING', 'DECLINED', 'NEEDS_REVIEW'];
 const ATTACHABLE_STATUSES = ['CONFIRMED', 'BORNE_BY_INITIATOR'];
 
-// req/userId are only used for the REQ-RDT-LEDGER-05/AUDIT-02 rollback-logging call below —
-// callers that don't have a userId yet (none currently) can pass null, logRollbackAudit handles it.
+// req/userId are only used for the rollback-logging call below — callers that don't have a
+// userId yet (none currently) can pass null, logRollbackAudit handles it.
 async function withTransaction(req, userId, fn) {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
@@ -78,20 +67,18 @@ async function withTransaction(req, userId, fn) {
   }
 }
 
-// GET /api/export-batches/waiting — REQ-RDT-SAP-03 (revisi 30 Jul). One entry PER PASANGAN
-// (dinas_inisiasi, dinas_target) whose currently-unbatched rows are all resolved — no
-// PENDING/DECLINED/NEEDS_REVIEW left for THAT PAIR specifically. Other pairs from the same
-// dinas_inisiasi never block or get blocked by this one.
+// GET /api/export-batches/waiting — one entry PER PASANGAN (dinas_inisiasi, dinas_target) whose
+// currently-unbatched rows are all resolved — no PENDING/DECLINED/NEEDS_REVIEW left for THAT PAIR
+// specifically. Other pairs from the same dinas_inisiasi never block or get blocked by this one.
 router.get('/waiting', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    // REQ-RDT-SAP-21 (DIBALIK 14 Agu, SRS 3.13): overdue pairs used to be excluded here; now they
-    // stay in the list with an `overdue` flag (permanent/sticky — see isOverdue below, it's based
-    // on periode_efektif ever having shifted, which snapshotPeriodeEfektif never un-writes). Same
-    // declared-vs-effective tracking dashboard.js's buildChainAwareProgress/
-    // buildNeedToConfirmProgress already use.
+    // Overdue pairs stay in the list with an `overdue` flag (permanent/sticky — see isOverdue
+    // below, it's based on periode_efektif ever having shifted, which snapshotPeriodeEfektif
+    // never un-writes). Same declared-vs-effective tracking dashboard.js's
+    // buildChainAwareProgress/buildNeedToConfirmProgress use.
     const r = await client.query(
       `SELECT t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, u.period AS declared_period, t.periode_efektif
        FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
@@ -108,11 +95,10 @@ router.get('/waiting', requireRole('TAB'), async (req, res) => {
       if (t.declared_period) byPair[key].periodCounts[t.declared_period] = (byPair[key].periodCounts[t.declared_period] || 0) + 1;
       if (t.periode_efektif && (!byPair[key].maxPeriodeEfektif || t.periode_efektif > byPair[key].maxPeriodeEfektif)) byPair[key].maxPeriodeEfektif = t.periode_efektif;
     }
-    // REQ-RDT-SAP-21 (DIBALIK 14 Agu): most-common declared period wins (same pattern as
-    // dashboard.js/exportBatches.js's own GET /history), overdue = MAX(periode_efektif) shifted
-    // away from it. Sticky by construction: periode_efektif is a one-way snapshot
-    // (confirmation.js's snapshotPeriodeEfektif), so once it has shifted for any row in this pair,
-    // this flag stays true for that pair regardless of new deadlines set later.
+    // Most-common declared period wins (same pattern as dashboard.js / GET /history below),
+    // overdue = MAX(periode_efektif) shifted away from it. Sticky by construction: periode_efektif
+    // is a one-way snapshot (confirmation.js's snapshotPeriodeEfektif), so once it has shifted for
+    // any row in this pair, this flag stays true for that pair regardless of new deadlines set later.
     const isOverdue = (p) => {
       let declaredPeriod = null;
       let bestCount = 0;
@@ -122,9 +108,8 @@ router.get('/waiting', requireRole('TAB'), async (req, res) => {
       return !!(declaredPeriod && p.maxPeriodeEfektif && p.maxPeriodeEfektif !== declaredPeriod);
     };
     // Every entry here is, by construction, fully resolved with no export_batches row yet -- the
-    // exact "Waiting to repost" state (REQ-RDT-SAP-07), constant across all rows in this list.
-    // REQ-RDT-SAP-21 (DIBALIK 14 Agu): overdue pairs no longer filtered out — they stay in
-    // "Wait to Repost" with `overdue: true` so TAB can still act on them (REQ-RDT-SAP-22 tag).
+    // exact "Waiting to repost" state, constant across all rows in this list. Overdue pairs are
+    // not filtered out — they stay in "Wait to Repost" with `overdue: true` so TAB can still act on them.
     const waiting = Object.values(byPair)
       .filter((p) => !p.blocked && p.total > 0)
       .sort((a, b) => (a.dinas_inisiasi + a.dinas_target).localeCompare(b.dinas_inisiasi + b.dinas_target))
@@ -134,16 +119,15 @@ router.get('/waiting', requireRole('TAB'), async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// GET /api/export-batches/confirmed — REMOVED 31 Jul (REQ-RDT-SAP-05 revision). Used to list
-// batches confirmed but not yet given a subdoc; under the merged POST /confirm below (creates a
-// batch WITH its first subdoc atomically), that intermediate state can no longer occur, so this
-// endpoint had nothing left to ever return. See POST /confirm's header comment for the full
-// consequence chain, and GET /history for where every confirmed batch now shows up immediately.
+// GET /api/export-batches/confirmed — removed. Used to list batches confirmed but not yet given a
+// subdoc; under the merged POST /confirm below (creates a batch WITH its first subdoc
+// atomically), that intermediate state can no longer occur. See POST /confirm's header comment,
+// and GET /history for where every confirmed batch now shows up immediately.
 
-// GET /api/export-batches/:batchId/lines — REQ-RDT-SAP-11. Every transaction attached to this
-// batch, each annotated with which subdoc (if any) already covers it — lets TAB see/pick which
-// rows go in a new subdoc before calling POST below, instead of the subdoc list being a bare set
-// of numbers with no line-item context.
+// GET /api/export-batches/:batchId/lines — every transaction attached to this batch, each
+// annotated with which subdoc (if any) already covers it — lets TAB see/pick which rows go in a
+// new subdoc before calling POST below, instead of the subdoc list being a bare set of numbers
+// with no line-item context.
 router.get('/:batchId/lines', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const { batchId } = req.params;
@@ -163,17 +147,16 @@ router.get('/:batchId/lines', requireRole('TAB'), async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// POST /api/export-batches/:batchId/subdocs — REQ-RDT-SAP-08/11. Body: { subdoc_number,
-// transaction_ids? }. Adds one SAP reference number to a confirmed batch — can be called more
-// than once per batch (one pair may split into several subdocs when it exceeds SAP's ~300 line
-// item cap). transaction_ids is optional: defaults to every transaction in this batch not yet
-// covered by an earlier subdoc (the common case — one subdoc for the whole pair). When given,
-// every id must belong to this batch and not already be covered by another subdoc (defensive,
-// same re-check-server-side pattern as the confirm gate above) — otherwise TAB could silently
-// double-count a line across two subdoc numbers. Under the current flow (REQ-RDT-SAP-05, revised
-// 31 Jul) every batch already gets its first subdoc atomically at POST /confirm time — this route
-// is now reached only for the SAP-08 overflow case (a pair over SAP's ~300-line cap needing more
-// than one subdoc), called from the Riwayat Repost TAB page's "+ Tambah subdoc" control.
+// POST /api/export-batches/:batchId/subdocs — body: { subdoc_number, transaction_ids? }. Adds one
+// SAP reference number to a confirmed batch — can be called more than once per batch (one pair
+// may split into several subdocs when it exceeds SAP's ~300 line item cap). transaction_ids is
+// optional: defaults to every transaction in this batch not yet covered by an earlier subdoc (the
+// common case — one subdoc for the whole pair). When given, every id must belong to this batch
+// and not already be covered by another subdoc — otherwise TAB could silently double-count a line
+// across two subdoc numbers. Every batch already gets its first subdoc atomically at POST
+// /confirm time — this route is now reached only for the overflow case (a pair over SAP's
+// ~300-line cap needing more than one subdoc), called from the Riwayat Repost TAB page's
+// "+ Tambah subdoc" control.
 router.post('/:batchId/subdocs', requireRole('TAB'), express.json(), async (req, res) => {
   const { batchId } = req.params;
   const subdocNumber = req.body && String(req.body.subdoc_number || '').trim();
@@ -226,25 +209,21 @@ router.post('/:batchId/subdocs', requireRole('TAB'), express.json(), async (req,
   } finally { try { await client.end(); } catch (e) {} }
 });
 
-// GET /api/export-batches/history — REQ-RDT-SAP-10/12 "Riwayat Repost TAB/Dinas". Every batch
-// that HAS at least one subdoc (the archive destination for REQ-RDT-SAP-09), optionally filtered
-// to a period via ?from=YYYY-MM-DD&to=YYYY-MM-DD against confirmed_at. This is the in-app
-// substitute for the deferred email notification (SAP-10) — PICs still get the existing in-app
-// notification + comment from POST /confirm itself, this page is a browsable log on top, not a
-// replacement.
+// GET /api/export-batches/history — "Riwayat Repost TAB/Dinas". Every batch that HAS at least
+// one subdoc, optionally filtered to a period. This is the in-app substitute for a deferred email
+// notification — PICs still get the existing in-app notification + comment from POST /confirm
+// itself, this page is a browsable log on top, not a replacement.
 //
-// SAP-12 (31 Jul, expanded per project owner idea): deliberately NOT requireRole('TAB') — the
-// dinas PENGAJU should see their own repost/subdoc history too, symmetric with TAB's view, using
-// the SAME table/endpoint rather than a separate feature (project owner: "satu sumber data, dua
-// sudut pandang"). TAB sees every dinas; anyone else is force-scoped to their own dinas_inisiasi
-// regardless of what they ask for — there's no dinas_inisiasi query param to accept from a
-// non-TAB caller, since letting them pass one would just be requireRole('TAB') with extra steps.
+// Deliberately NOT requireRole('TAB') — the dinas PENGAJU should see their own repost/subdoc
+// history too, symmetric with TAB's view, using the SAME table/endpoint rather than a separate
+// feature ("satu sumber data, dua sudut pandang"). TAB sees every dinas; anyone else is
+// force-scoped to their own dinas_inisiasi regardless of what they ask for — there's no
+// dinas_inisiasi query param to accept from a non-TAB caller.
 router.get('/history', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
-  // SRS 3.13 (14 Agu): date-range (from/to over confirmed_at) replaced with a single periode
-  // ('YYYY-MM') filter, matching the same declared/effective period the frontend's month-tabs
-  // already group by — applied after `period`/`period_efektif` are derived below (small per-dinas
-  // monthly row counts, filtering in JS here is simpler than reshaping the SQL joins for it).
+  // Single periode ('YYYY-MM') filter, matching the same declared/effective period the frontend's
+  // month-tabs group by — applied after `period`/`period_efektif` are derived below (small
+  // per-dinas monthly row counts, filtering in JS here is simpler than reshaping the SQL joins for it).
   const { periode } = req.query;
   const user = req.rdtUser;
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -260,9 +239,9 @@ router.get('/history', async (req, res) => {
     const batchIds = r.rows.map((b) => b.id);
     const subdocsByBatch = {};
     if (batchIds.length) {
-      // REQ-RDT-SAP-11: which transaction ids each subdoc number actually covers, not just the
-      // bare number — a batch split across several subdocs needs this to answer "which lines are
-      // in which subdoc" from the history view, not only from the TAB-only /:batchId/lines picker.
+      // Which transaction ids each subdoc number actually covers, not just the bare number — a
+      // batch split across several subdocs needs this to answer "which lines are in which subdoc"
+      // from the history view, not only from the TAB-only /:batchId/lines picker.
       const subdocsRes = await client.query(
         `SELECT s.id, s.batch_id, s.subdoc_number, s.created_at,
                 COALESCE(array_agg(t.id ORDER BY t.id) FILTER (WHERE t.id IS NOT NULL), '{}') AS transaction_ids
@@ -278,14 +257,12 @@ router.get('/history', async (req, res) => {
         subdocsByBatch[s.batch_id].push({ id: s.id, subdoc_number: s.subdoc_number, created_at: s.created_at, transaction_ids: s.transaction_ids });
       }
     }
-    // REQ-RDT-SAP-13 (3 Agu): rdt.export_batches has no period column of its own — a batch's
-    // "period" is derived from the uploads its transactions came from (rdt.uploads.period, set at
-    // Repost time — see index.js's POST /api/persist). A batch normally draws from exactly one
-    // upload/period; if it ever legitimately spans more than one (edge case, not the common path),
+    // rdt.export_batches has no period column of its own — a batch's "period" is derived from the
+    // uploads its transactions came from (rdt.uploads.period, set at Repost time). A batch
+    // normally draws from exactly one upload/period; if it ever legitimately spans more than one,
     // the most common period among its transactions wins — deterministic, not an arbitrary pick.
-    // This is the DECLARED period (what the data is actually FOR) — unchanged meaning from before,
-    // kept for audit/history purposes even though REQ-RDT-SAP-14 below archives by a possibly
-    // different EFEKTIF period.
+    // This is the DECLARED period (what the data is actually FOR), kept for audit/history purposes
+    // even though the block below archives by a possibly different EFEKTIF period.
     const periodByBatch = {};
     if (batchIds.length) {
       const periodRes = await client.query(
@@ -300,16 +277,14 @@ router.get('/history', async (req, res) => {
         if (!(row.batch_id in periodByBatch)) periodByBatch[row.batch_id] = row.period;
       }
     }
-    // REQ-RDT-SAP-14 (revisi open question, 5 Agu malam): period_efektif is now a SNAPSHOT, locked
-    // per-transaction the moment the dinas TARGET Confirms/Declines (routes/confirmation.js's
-    // snapshotPeriodeEfektif) — NOT recomputed here against whatever rdt.period_deadlines says
-    // right now. This is what makes it non-retroactive: editing a deadline later only affects
-    // confirm/reject actions that happen AFTER the edit, never rewrites an already-archived
-    // pasangan's period. A batch's displayed period_efektif is the MAX (latest-shifted / "worst
-    // case") among its transactions' individually-snapshotted values — mirrors how periodByBatch
-    // above already aggregates across a batch's transactions, just MAX instead of mode. NULL
-    // entries (legacy rows confirmed before this column existed, or rows with no declared period)
-    // are skipped by MAX automatically and fall back to the declared period below.
+    // period_efektif is a SNAPSHOT, locked per-transaction the moment the dinas TARGET
+    // Confirms/Declines (confirmation.js's snapshotPeriodeEfektif) — NOT recomputed here against
+    // whatever rdt.period_deadlines says right now. This is what makes it non-retroactive: editing
+    // a deadline later only affects confirm/reject actions that happen AFTER the edit, never
+    // rewrites an already-archived pasangan's period. A batch's displayed period_efektif is the
+    // MAX ("worst case") among its transactions' individually-snapshotted values — mirrors how
+    // periodByBatch above aggregates, just MAX instead of mode. NULL entries (legacy rows, or rows
+    // with no declared period) are skipped by MAX automatically and fall back to the declared period.
     const effectiveByBatch = {};
     if (batchIds.length) {
       const effRes = await client.query(
@@ -346,21 +321,18 @@ router.get('/history', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// GET /api/export-batches/transparency/:dinasInisiasi/:dinasTarget — REQ-RDT-SAP-04. Full detail
-// for ONE pair's currently-unbatched transactions (including a row that's now BORNE_BY_INITIATOR
-// having earlier been DECLINED, or one that arrived via reassignment — reassigned_from/
-// reassign_count surface that history), so TAB can review before confirming that pair.
+// GET /api/export-batches/transparency/:dinasInisiasi/:dinasTarget — full detail for ONE pair's
+// currently-unbatched transactions (including a row that's now BORNE_BY_INITIATOR having earlier
+// been DECLINED, or one that arrived via reassignment — reassigned_from/reassign_count surface
+// that history), so TAB can review before confirming that pair.
 router.get('/transparency/:dinasInisiasi/:dinasTarget', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const { dinasInisiasi, dinasTarget } = req.params;
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    // REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): preview harus tampilkan SEMUA
-    // kolom yang benar-benar ikut ter-repost, di SEMUA fitur preview — bukan cuma Review sebelum
-    // upload, termasuk transparansi Need Approval ini secara eksplisit disebut. `SELECT *` (bukan
-    // daftar kolom manual) supaya kalau kontrak 53-kolom berubah, ini otomatis ikut, sama seperti
-    // prinsip yang sudah dipakai repost-budgeting.component's previewColumns.
+    // `SELECT *` (bukan daftar kolom manual) supaya kalau kontrak 53-kolom berubah, ini otomatis
+    // ikut — preview harus tampilkan SEMUA kolom yang benar-benar ikut ter-repost.
     const r = await client.query(
       `SELECT *
        FROM rdt.transactions
@@ -374,24 +346,19 @@ router.get('/transparency/:dinasInisiasi/:dinasTarget', requireRole('TAB'), asyn
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// POST /api/export-batches/confirm — REQ-RDT-SAP-05 (REVISED 31 Jul, presentation feedback).
-// Body: { dinas_inisiasi, dinas_target, closing_description, subdoc_number, transaction_ids? }.
-// subdoc_number is MANDATORY — the real-world action this button represents is "I already
-// downloaded the file and posted it to SAP, here's the resulting subdoc number", not just a bare
-// approval. closing_description is OPTIONAL (flipped 12 Agu, project owner request — used to be
-// mandatory too, see migration 018) — but the NOTIFICATION to the target dinas always fires
-// either way (same-day follow-up correction): they may be waiting on it, so an unwritten note
-// falls back to a short system-generated comment instead of skipping notification. One atomic
-// transaction: re-checks readiness
-// server-side (defensive — same all-or-nothing-gate-on-both-sides pattern as investigation.js's
-// assign-all), creates the batch, sweeps in every currently attachable row for this pair, THEN
-// immediately attaches the first subdoc to those same rows — collapsing what used to be two
-// separate calls (POST /confirm, then POST /:batchId/subdocs) into one, per your explicit
-// instruction: "satu form, bukan dua langkah". transaction_ids is optional (mirrors
+// POST /api/export-batches/confirm — body: { dinas_inisiasi, dinas_target, closing_description,
+// subdoc_number, transaction_ids? }. subdoc_number is MANDATORY — the real-world action this
+// button represents is "I already downloaded the file and posted it to SAP, here's the resulting
+// subdoc number", not just a bare approval. closing_description is OPTIONAL, but the
+// NOTIFICATION to the target dinas always fires either way: they may be waiting on it, so an
+// unwritten note falls back to a short system-generated comment instead of skipping notification.
+// One atomic transaction: re-checks readiness server-side (defensive), creates the batch, sweeps
+// in every currently attachable row for this pair, THEN immediately attaches the first subdoc to
+// those same rows — one form, not two steps. transaction_ids is optional (mirrors
 // POST /:batchId/subdocs's own parameter) for the >300-line-item case: pass a subset if the first
 // subdoc should only cover part of the pair, leaving the rest to be covered by additional calls
-// to POST /:batchId/subdocs afterward (SAP-08, reachable from Riwayat Repost TAB once this batch
-// is archived there) — omitted, it defaults to every attached row, the common single-subdoc case.
+// to POST /:batchId/subdocs afterward — omitted, it defaults to every attached row, the common
+// single-subdoc case.
 //
 // CONSEQUENCE: a batch can no longer exist in a "confirmed, no subdoc yet" state — it's created
 // WITH its first subdoc already attached. GET /confirmed (the old "waiting for a subdoc" list)
@@ -405,9 +372,8 @@ router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => 
   const userId = req.rdtUser.id;
   if (!dinasInisiasi) return res.status(400).json({ ok: false, error: 'dinas_inisiasi is required' });
   if (!dinasTarget) return res.status(400).json({ ok: false, error: 'dinas_target is required' });
-  // Project owner request (12 Agu): closing_description flipped from mandatory to optional —
-  // was required (see migration 006/018's history), TAB can now confirm a repost with no
-  // closing note at all. Still length-capped when it IS given (checklist 1.3).
+  // closing_description is optional — TAB can confirm a repost with no closing note at all. Still
+  // length-capped when it IS given.
   const closingDescriptionCheck = validateFreeText(req.body && req.body.closing_description, { fieldLabel: 'closing_description' });
   if (!closingDescriptionCheck.ok) return res.status(400).json(closingDescriptionCheck);
   const closingDescription = closingDescriptionCheck.value;
@@ -460,15 +426,12 @@ router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => 
     const subdocId = subdocRes.rows[0].id;
     await client.query('UPDATE rdt.transactions SET subdoc_id=$1 WHERE id = ANY($2)', [subdocId, subdocTargetIds]);
 
-    // Exactly one target dinas per pair now, so this collapses to a single comment + notification
-    // block instead of the 006 model's per-target loop — anchor to the highest attached id,
-    // matching dashboard.js's own top-level-comment convention.
-    // Project owner request (12 Agu, REVISED same day): closing_description is optional, but the
-    // NOTIFICATION always fires regardless — the target dinas may be actively waiting on it to
-    // know their repost landed, they shouldn't miss that just because TAB left the note blank.
-    // A comment still needs SOME body (rdt.comments.body stays NOT NULL) to hang the notification
-    // off of, so an empty closing_description falls back to a short system-generated line instead
-    // of skipping the whole block.
+    // Exactly one target dinas per pair, so this is a single comment + notification block —
+    // anchor to the highest attached id, matching dashboard.js's own top-level-comment convention.
+    // closing_description is optional, but the NOTIFICATION always fires regardless — the target
+    // dinas may be actively waiting on it to know their repost landed. A comment still needs SOME
+    // body (rdt.comments.body stays NOT NULL), so an empty closing_description falls back to a
+    // short system-generated line instead of skipping the whole block.
     const commentBody = closingDescription || `Repost ${dinasInisiasi} → ${dinasTarget} dikonfirmasi oleh TAB (subdoc ${subdocNumber}).`;
     const notifiedUserIds = [];
     {
@@ -480,11 +443,9 @@ router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => 
         [anchorId, userId, commentBody]
       );
       const commentId = commentRes.rows[0].id;
-      // REQ-RDT-COMMENT-03 (diperluas 3 Agu): implicit dinasTarget recipients (this closing
-      // description IS addressed to them) PLUS anyone explicitly @mentioned — same union pattern
-      // as every other note field now.
-      // Privacy bug fix (4 Agu): a mention of a dinas outside THIS pair must not leak a notification
-      // that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
+      // Implicit dinasTarget recipients (this closing description IS addressed to them) PLUS
+      // anyone explicitly @mentioned. A mention of a dinas outside THIS pair must not leak a
+      // notification that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
       const mentioned = filterMentionsToPair(resolveMentionedUserIds(commentBody, directory), directory, [dinasInisiasi, dinasTarget]);
       const recipientIds = new Set(mentioned);
       Object.keys(directory).forEach((id) => {
@@ -514,11 +475,10 @@ router.post('/confirm', requireRole('TAB'), express.json(), async (req, res) => 
   res.json({ ok: true, batch_id: outcome.result.batch_id, attached_count: outcome.result.attached_count, notified_user_ids: outcome.result.notified_user_ids, subdoc_number: outcome.result.subdoc_number });
 });
 
-// REQ-RDT-SAP-06 auto-split (1 Agu, presentation feedback): SAP's line-item cap is the same
-// ~300 rows as REQ-RDT-SAP-08's subdoc limit — a pair whose CONFIRMED rows exceed it can't
-// physically be posted as one file, so it must download as several ≤300-row files instead of
-// one file TAB has to cut apart by hand. Rows arrive pre-sorted `ORDER BY id` from the caller,
-// and chunking preserves that order (simple slice, not a re-sort) — the exact same order
+// SAP's line-item cap is ~300 rows, same as the subdoc limit — a pair whose CONFIRMED rows exceed
+// it can't physically be posted as one file, so it must download as several ≤300-row files
+// instead of one file TAB has to cut apart by hand. Rows arrive pre-sorted `ORDER BY id` from the
+// caller, and chunking preserves that order (simple slice, not a re-sort) — the exact same order
 // GET /:batchId/lines shows the TAB-facing subdoc-entry picker in, so "file 1" lines up with
 // "subdoc 1" without TAB having to cross-reference anything.
 const MAX_ROWS_PER_FILE = 300;
@@ -531,11 +491,10 @@ function buildContractWorkbookBuffer(rows) {
   return workbook.xlsx.writeBuffer();
 }
 
-// Shared by both export routes below — full 53 contract columns (Account..Value Date),
-// CONFIRMED rows only (REQ-RDT-SAP-06). <=300 rows streams a single .xlsx exactly as before;
-// >300 rows streams a .zip of chunk-1.xlsx, chunk-2.xlsx, ... (jszip, already a dependency via
-// exceljs — no new library needed) so nothing downstream has to guess which case it got beyond
-// checking the file extension.
+// Shared by both export routes below — full 53 contract columns (Account..Value Date), CONFIRMED
+// rows only. <=300 rows streams a single .xlsx; >300 rows streams a .zip of chunk-1.xlsx,
+// chunk-2.xlsx, ... (jszip, already a dependency via exceljs) so nothing downstream has to guess
+// which case it got beyond checking the file extension.
 async function streamContractExport(res, rows, dinasInisiasi, dinasTarget) {
   const dateStr = new Date().toISOString().slice(0, 10);
   const baseName = `${dinasInisiasi}-${dinasTarget}_${dateStr}`;
@@ -561,12 +520,10 @@ async function streamContractExport(res, rows, dinasInisiasi, dinasTarget) {
   res.end(zipBuffer);
 }
 
-// GET /api/export-batches/export/:batchId — REQ-RDT-SAP-06. Full 53 contract columns
-// (Account..Value Date), CONFIRMED rows only, for this batch. No targetDinas param anymore — one
-// batch = one pair now, so the pair is read straight off the batch row instead of being passed in
-// separately (the old per-dinas model's GET /export-pairs picker is gone, nothing left to pick).
-// Kept alongside GET /export-pair/... below (REQ-RDT-SAP-05 revision, 31 Jul) for batches that
-// already exist — this route still works for anything reached from Riwayat Repost TAB.
+// GET /api/export-batches/export/:batchId — full 53 contract columns (Account..Value Date),
+// CONFIRMED rows only, for this batch. One batch = one pair, so the pair is read straight off the
+// batch row. Kept alongside GET /export-pair/... below for batches that already exist — this
+// route still works for anything reached from Riwayat Repost TAB.
 router.get('/export/:batchId', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const { batchId } = req.params;
@@ -590,13 +547,12 @@ router.get('/export/:batchId', requireRole('TAB'), async (req, res) => {
   } finally { try { await client.end(); } catch (e) {} }
 });
 
-// GET /api/export-batches/export-pair/:dinasInisiasi/:dinasTarget — REQ-RDT-SAP-05 (revised
-// 31 Jul, presentation feedback): the file download must be available the MOMENT a pair shows up
-// in GET /waiting, not gated behind TAB clicking Confirm first ("Waiting to repost" is already
-// the state — Confirm now means entering the first subdoc, see POST /confirm below). Same 53
-// contract columns / CONFIRMED-only filter as GET /export/:batchId, just read directly off the
-// pair's still-unbatched rows (export_batch_id IS NULL) instead of an existing batch row — no
-// state changes here at all, purely a read.
+// GET /api/export-batches/export-pair/:dinasInisiasi/:dinasTarget — the file download must be
+// available the MOMENT a pair shows up in GET /waiting, not gated behind TAB clicking Confirm
+// first ("Waiting to repost" is already the state — Confirm now means entering the first subdoc,
+// see POST /confirm below). Same 53 contract columns / CONFIRMED-only filter as
+// GET /export/:batchId, just read directly off the pair's still-unbatched rows (export_batch_id
+// IS NULL) instead of an existing batch row — no state changes here at all, purely a read.
 router.get('/export-pair/:dinasInisiasi/:dinasTarget', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const { dinasInisiasi, dinasTarget } = req.params;

@@ -9,21 +9,16 @@ const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
-// Mounted at /api/share-cost in index.js. SRS section 3.10, "seadanya" version (locked
-// assumptions 3 Agu): TAB can split ONE PENDING row into several PENDING rows with different
-// (dinas_target, nominal) pairs -- e.g. a 100rb row entirely under TH gets split into 35rb TH +
-// 65rb TU. Locked to PENDING-only (no ledger_entries exist yet for those rows, so nothing to
-// unwind) -- CONFIRMED rows would need a separate ledger-reversal design, out of scope here.
+// Mounted at /api/share-cost in index.js. TAB can split ONE PENDING row into several PENDING
+// rows with different (dinas_target, nominal) pairs — e.g. a 100rb row entirely under TH gets
+// split into 35rb TH + 65rb TU. Locked to PENDING-only (no ledger_entries exist yet for those
+// rows, so nothing to unwind) — CONFIRMED rows would need a separate ledger-reversal design.
 router.use(requireUser, requireRole('TAB'));
 
-// GET /api/share-cost/candidates?q=... — PENDING rows TAB can pick from.
-// PERSEMPIT SCOPE (4 Agu, revisi rencana pemilik proyek): originally unscoped ("any PENDING row
-// system-wide" — see git history for the old comment) — now ONLY rows whose dinas_target is
-// ALREADY DIRECTLY 'TAB' (not Corp, not a plain dinas, not an unassigned Ask TA/investigation
-// row) are share-cost candidates. 'TAB' is now a legitimate dinas_target VALUE a parsed Remarks
-// prefix can resolve to (see config/dinas.codes.json), not just a role — see section 3.10.
-// `q` optionally filters by account/ref_doc/remark substring (case-insensitive) so TAB can find
-// the one row they mean without paging through the entire TAB-targeted PENDING backlog.
+// GET /api/share-cost/candidates?q=... — PENDING rows TAB can pick from. Scoped to only rows
+// whose dinas_target is already directly 'TAB' ('TAB' is a legitimate dinas_target value a
+// parsed Remarks prefix can resolve to, not just a role). `q` optionally filters by
+// account/ref_doc/remark substring so TAB can find the one row they mean.
 router.get('/candidates', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const q = req.query.q ? String(req.query.q).trim() : '';
@@ -59,7 +54,6 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
   const splits = req.body && req.body.splits;
   const userId = req.rdtUser.id;
 
-  // Checklist 1.3 (12 Agu): was trusted with no length cap once past the non-empty check.
   const noteCheck = validateFreeText(req.body && req.body.note, { required: true, fieldLabel: 'note (alasan split)' });
   if (!noteCheck.ok) return res.status(400).json(noteCheck);
   const trimmedNote = noteCheck.value;
@@ -88,12 +82,9 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
       throw new Error('hanya baris PENDING yang bisa di-split (baris ini: ' + original.status_konfirmasi + ')');
     }
 
-    // BUG FIX (5 Agu, live report — "assign ke Corp gagal 500, FK violation"): this used to
-    // validate against an all-uppercased Set but then insert the RAW (not-necessarily-matching-
-    // case) s.dinas_target below — rdt.dinas stores a few codes mixed-case ('Corp'), so a
-    // lowercase/mismatched-case submission passed this check yet still violated the FK at INSERT
-    // time. buildValidCodeMap resolves each split's target to its actual stored-case code ONCE
-    // here, reused at INSERT time below instead of re-deriving (and re-risking) the case there.
+    // rdt.dinas stores a few codes mixed-case ('Corp') — buildValidCodeMap resolves each split's
+    // target to its actual stored-case code ONCE here, reused at INSERT time below, so a
+    // mismatched-case submission can't pass validation yet still violate the FK on insert.
     const validRes = await client.query('SELECT code FROM rdt.dinas WHERE is_active = true');
     const validCodes = buildValidCodeMap(validRes.rows);
     for (const s of splits) {
@@ -104,8 +95,8 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
       s.dinas_target = matchedCode;
     }
 
-    // Validasi wajib (SRS 3.10): SUM nominal seluruh baris hasil split HARUS PERSIS SAMA dengan
-    // nominal baris asli -- dibandingkan dalam sen (integer) supaya tidak salah karena floating point.
+    // SUM nominal seluruh baris hasil split HARUS PERSIS SAMA dengan nominal baris asli --
+    // dibandingkan dalam sen (integer) supaya tidak salah karena floating point.
     const originalCents = Math.round(Number(original.nominal) * 100);
     const sumCents = splits.reduce((acc, s) => acc + Math.round(s.nominal * 100), 0);
     if (sumCents !== originalCents) {
@@ -149,11 +140,9 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
       [userId, original.id, 'SPLIT_BY_TAB', 'PENDING', 'SPLIT_VOID', JSON.stringify({ split_into: newIds, note: trimmedNote, splits }), req.ip]
     );
 
-    // Notifikasi ke dinas asal (SRS 3.10): komentar otomatis di thread pasangan ASLI
-    // (dinas_inisiasi -> dinas_target lama), dikirim SETELAH split selesai -- dinas yang tadinya
-    // memegang seluruh nominal perlu tahu klaimnya baru saja diubah. Reuses the shared
-    // @mention parse+notify system (REQ-RDT-COMMENT-03), same pattern as investigation.js's
-    // postPairComment.
+    // Notifikasi ke dinas asal: komentar otomatis di thread pasangan ASLI (dinas_inisiasi ->
+    // dinas_target lama), dikirim setelah split selesai. Reuses the shared @mention parse+notify
+    // system, same pattern as investigation.js's postPairComment.
     const parentRes = await client.query(
       `SELECT c.id, c.transaction_id FROM rdt.comments c
        JOIN rdt.transactions t ON t.id = c.transaction_id
@@ -170,9 +159,9 @@ router.post('/:transactionId/split', express.json(), async (req, res) => {
     );
     const commentId = commentRes.rows[0].id;
     const directory = await loadDirectory();
-    // Privacy bug fix (4 Agu): this comment is posted on the ORIGINAL pair's thread — a mention
-    // of a NEW split-target dinas (or any other dinas outside this pair) must not leak a
-    // notification revealing this pair to them. See mentionRules.js's filterMentionsToPair.
+    // This comment is posted on the ORIGINAL pair's thread — a mention of a NEW split-target
+    // dinas must not leak a notification revealing this pair to them. See mentionRules.js's
+    // filterMentionsToPair.
     const mentioned = filterMentionsToPair(resolveMentionedUserIds(commentBody, directory), directory, [original.dinas_inisiasi, original.dinas_target]);
     const recipientIds = new Set(mentioned);
     Object.keys(directory).forEach((id) => {

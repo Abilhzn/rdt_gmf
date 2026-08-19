@@ -1,15 +1,10 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
 
-// REQ-RDT-NAV-09 (31 Jul, "filter multi-value ala SAP") — Excel-style: a small funnel button
-// sits in the column header itself (next to the header text, not a separate box above the whole
-// table); clicking it opens a popup with the paste textarea, positioned under that column.
-// Project owner correction (31 Jul): the earlier "one paste box above the table" layout wasn't
-// what was asked for — this is per-column, like Excel's own column filter buttons.
-//
-// One instance per filterable column. Same "write it once, reuse everywhere" rationale as
-// PaginationComponent (REQ-RDT-NAV-07) — see that component's header comment for why. This
-// component only owns the button + popup + parsing; each page keeps its own filtering (different
-// columns, different row shapes) using matchesAnyFilterValue below against the values this emits.
+// Excel-style: a small funnel button sits in the column header itself; clicking it opens a popup
+// with the paste textarea, positioned under that column. One instance per filterable column, same
+// "write it once, reuse everywhere" rationale as PaginationComponent. This component only owns the
+// button + popup + parsing; each page keeps its own filtering (different columns, different row
+// shapes) using matchesAnyFilterValue below against the values this emits.
 @Component({
   selector: 'rdt-multi-value-filter',
   standalone: false,
@@ -67,7 +62,7 @@ export class MultiValueFilterComponent {
 }
 
 // Parsing: split on newline AND comma (SAP-style paste can come as either), trim whitespace off
-// each value, drop empties, dedupe — REQ-RDT-NAV-09's exact wording.
+// each value, drop empties, dedupe.
 export function parseMultiValueFilter(raw: string): string[] {
   const parts = String(raw || '')
     .split(/[\n,]+/)
@@ -86,12 +81,11 @@ export function matchesAnyFilterValue(cellValue: string | number | null | undefi
   return values.some((v) => v.trim().toUpperCase() === normalized);
 }
 
-// REQ-RDT-NAV-09 (diperluas 1 Agu): one filter box per COLUMN, not just one (e.g. Account) —
-// combine as AND across columns (a row must satisfy every column that has an active filter),
-// OR within one column (matchesAnyFilterValue's existing rule, untouched). `filters` is keyed by
-// whatever column-key convention the caller uses; `getCellValue` reads that key off a row. Every
-// table that adopts per-column filtering shares this one function instead of hand-rolling its
-// own AND-loop — same "write it once" rationale as matchesAnyFilterValue itself.
+// One filter box per COLUMN — combine as AND across columns (a row must satisfy every column that
+// has an active filter), OR within one column (matchesAnyFilterValue's existing rule). `filters`
+// is keyed by whatever column-key convention the caller uses; `getCellValue` reads that key off a
+// row. Every table that adopts per-column filtering shares this one function instead of
+// hand-rolling its own AND-loop.
 export function matchesAllColumnFilters<T>(
   row: T,
   filters: Record<string, string[]>,

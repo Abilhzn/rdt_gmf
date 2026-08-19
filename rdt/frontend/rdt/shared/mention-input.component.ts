@@ -4,13 +4,10 @@ import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { MentionOption, MentionService } from '../services/mention.service';
 
-// REQ-RDT-COMMENT-03 (diperluas 3 Agu): the ONE @mention-capable textarea, used everywhere a
-// note/description field needs mention autocomplete — replaces the duplicated onDescriptionInput/
-// onCommentKeydown/insertMention copies that used to live separately in
-// RepostBudgetingComponent and DashboardDetailComponent, and adds the same capability to
-// Confirmation's Confirm/Reject description, TAB's closing description (Need Approval), the
-// Investigation assign note, and Catatan Reviewer — none of which had it before. ControlValueAccessor
-// so it drops into existing [(ngModel)] bindings unchanged at every call site.
+// The ONE @mention-capable textarea, used everywhere a note/description field needs mention
+// autocomplete (Repost, Dashboard-Detailing comments, Confirmation, Need Approval's closing
+// description, Investigation assign note, Catatan Reviewer). ControlValueAccessor so it drops
+// into existing [(ngModel)] bindings unchanged at every call site.
 @Component({
   selector: 'rdt-mention-input',
   standalone: false,
@@ -47,11 +44,10 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
    * width/padding (repost-desc, reviewer-note-input, batch-note, ...) instead of every field in
    * the app looking identical. */
   @Input() extraClass = '';
-  /** Feedback tambahan 7 Agu: defaults to the existing grow-to-fit-content behavior (added 3 Agu
-   * specifically for Catatan Reviewer's "no scroll, ever" requirement) — but the `.batch-note`
-   * call sites (Confirmation/Need Approval/Share-Cost's "Deskripsi (opsional)" and friends) want
-   * the OPPOSITE: a fixed box matching the surrounding layout, with internal scroll for long text.
-   * Set `false` at those call sites; every other existing use is untouched by default. */
+  /** Defaults to grow-to-fit-content (Catatan Reviewer's "no scroll, ever" requirement) — but the
+   * `.batch-note` call sites (Confirmation/Need Approval/Share-Cost's "Deskripsi (opsional)" and
+   * friends) want the OPPOSITE: a fixed box with internal scroll for long text. Set `false` at
+   * those call sites; every other existing use is untouched by default. */
   @Input() autoGrow = true;
   @ViewChild('inputEl') inputEl?: ElementRef<HTMLTextAreaElement>;
 
@@ -63,12 +59,10 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
   private onChangeFn: (v: string) => void = () => {};
   private onTouchedFn: () => void = () => {};
 
-  // 500ms debounce on the autocomplete lookup itself (project owner request, 5 Agu: debounce
-  // "fitur search apapun, terutama mention/tagging"). Typing into the textarea (this.value,
-  // autoGrow, onChangeFn) stays fully instant -- only the token->suggestions query and the popup
+  // 500ms debounce on the autocomplete lookup itself. Typing into the textarea (this.value,
+  // autoGrow, onChangeFn) stays fully instant — only the token->suggestions query and the popup
   // update are delayed. HIDING the popup (no "@token" under the cursor anymore) is deliberately
-  // NOT debounced below, so the list disappears immediately once it's no longer relevant instead
-  // of lingering for up to 500ms after the user has already moved on.
+  // NOT debounced, so the list disappears immediately once it's no longer relevant.
   private readonly mentionQuery$ = new Subject<string>();
   private mentionQuerySub?: Subscription;
 
@@ -86,11 +80,9 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
 
   writeValue(v: string): void {
     this.value = v || '';
-    // A pre-filled value (writeValue can run before ngAfterViewInit, e.g. an already-typed
-    // Catatan Reviewer note surviving a page filter change) needs the same auto-grow as typing —
-    // inputEl may not exist yet on the very first call, ngAfterViewInit below covers that case.
-    // Skip when empty: an empty textarea has nothing to measure, and forcing an inline height at
-    // that point risks fighting the [rows] attribute's own natural sizing for no benefit.
+    // A pre-filled value (writeValue can run before ngAfterViewInit) needs the same auto-grow as
+    // typing — inputEl may not exist yet on the very first call, ngAfterViewInit below covers
+    // that case. Skip when empty: nothing to measure, and it would fight [rows]'s natural sizing.
     if (this.autoGrow && this.inputEl && this.value) setTimeout(() => this.autoGrow_(this.inputEl!.nativeElement));
   }
   registerOnChange(fn: (v: string) => void): void { this.onChangeFn = fn; }
@@ -100,11 +92,10 @@ export class MentionInputComponent implements ControlValueAccessor, AfterViewIni
     if (this.autoGrow && this.inputEl && this.value) this.autoGrow_(this.inputEl.nativeElement);
   }
 
-  // REQ-RDT-NAV-04 (3 Agu, "Catatan Reviewer" bug): field must be fully readable with NO scroll —
-  // a fixed row-count textarea with overflow:hidden either clips long text or needs a scrollbar,
-  // both violate that. Auto-growing the height to fit content on every keystroke (the standard
-  // "shadow textarea" trick, minus the shadow element since we can just measure scrollHeight
-  // directly) means overflow:hidden never actually hides anything.
+  // Field must be fully readable with NO scroll — a fixed row-count textarea with
+  // overflow:hidden either clips long text or needs a scrollbar. Auto-growing the height to fit
+  // content on every keystroke (measuring scrollHeight directly) means overflow:hidden never
+  // actually hides anything.
   private autoGrow_(el: HTMLTextAreaElement): void {
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';

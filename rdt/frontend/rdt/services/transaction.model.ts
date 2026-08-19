@@ -18,21 +18,18 @@ export interface Transaction {
   invalid_reason?: string;
   reason_if_invalid?: string;
   raw_payload?: Record<string, any>;
-  /** REQ-RDT-NAV-04 (1 Agu, diperjelas): the file's real "Sub Group" column, raw — NOT derived,
-   * and independent of `category` (which may ALSO read this same column as a GL fallback for
-   * dinas whose sheet has no literal "GL" column — see excelParser.js's buildDetailRow). null
-   * for any dinas whose sheet has no "Sub Group" column at all (e.g. TB). */
+  /** The file's real "Sub Group" column, raw — NOT derived, and independent of `category` (which
+   * may ALSO read this same column as a GL fallback for dinas whose sheet has no literal "GL"
+   * column). null for any dinas whose sheet has no "Sub Group" column at all (e.g. TB). */
   sub_group?: string | number | null;
-  /** REQ-RDT-EXT-09 point 3: 'DETAIL_ROW' = a real individual transaction line; 'PIVOT_DERIVED' =
-   * a synthetic one-row-per-pivot-cell aggregate (no per-row document/cost-center/Sub Group data
-   * exists at all for these — that's expected, not a mapping bug, see repost-budgeting.component
-   * .html's granularity badge). */
+  /** 'DETAIL_ROW' = a real individual transaction line; 'PIVOT_DERIVED' = a synthetic
+   * one-row-per-pivot-cell aggregate (no per-row document/cost-center/Sub Group data exists at
+   * all for these — expected, not a mapping bug, see repost-budgeting.component.html's
+   * granularity badge). */
   granularity?: 'DETAIL_ROW' | 'PIVOT_DERIVED';
-  /** REQ-RDT-NAV-04 (31 Jul, presentation feedback): free-text note a reviewer can attach to a
-   * row while still on the Review-before-upload step. PERSISTS now (5 Agu, project owner
-   * confirmation + migration 015) — used to be frontend-only/stripped before POST /api/persist
-   * while where-to-store-it was still an open question; it's now a real rdt.transactions column,
-   * and Confirmation's sticky "Notes" column (SRS 3.11) reads this same field. */
+  /** Free-text note a reviewer can attach to a row while still on the Review-before-upload step —
+   * a real rdt.transactions column, and Confirmation's sticky "Notes" column reads this same
+   * field. */
   reviewer_note?: string;
 }
 

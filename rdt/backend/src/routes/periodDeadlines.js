@@ -1,8 +1,7 @@
-// REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): TAB sets a confirmation deadline PER PASANGAN
-// (dinas_inisiasi x dinas_target) x periode, instead of one global rule. Mounted at
-// /api/period-deadlines in index.js. TAB-only throughout (except GET /current-reminder below —
-// see its own comment), same gating as the rest of exportBatches.js/investigation.js — setting a
-// deadline that shifts a pair's effective repost period is TAB's call.
+// TAB sets a confirmation deadline PER PASANGAN (dinas_inisiasi x dinas_target) x periode,
+// instead of one global rule. Mounted at /api/period-deadlines in index.js. TAB-only throughout
+// (except GET /current-reminder below — see its own comment) — setting a deadline that shifts a
+// pair's effective repost period is TAB's call.
 //
 // See rules/periodEffective.js for how these rows actually get consumed (routes/exportBatches.js's
 // GET /history) — this file is just CRUD for the deadline table itself.
@@ -16,13 +15,11 @@ const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
-// SRS 3.13 (14 Agu, point 2): the deadline TAB sets must show as a reminder on EVERY dinas's
-// repost pages, not just TAB's own — so this one route is requireUser only, registered before the
-// requireRole('TAB') gate below applies to the rest of the router. Returns the periode-wide
-// default deadline (rdt.period_default_deadlines) for the CURRENT auto-periode (same value
-// POST /api/persist now derives, see rules/periodEffective.js's currentAutoPeriode) — deliberately
-// not per-pasangan-specific: a banner reminder doesn't need that precision, and every non-TAB
-// caller here is a PIC who doesn't know their own dinas_inisiasi/dinas_target pairing set upfront.
+// The deadline TAB sets must show as a reminder on EVERY dinas's repost pages, not just TAB's
+// own — so this one route is requireUser only, registered before the requireRole('TAB') gate
+// below applies to the rest of the router. Returns the periode-wide default deadline for the
+// CURRENT auto-periode — deliberately not per-pasangan-specific: a banner reminder doesn't need
+// that precision, and every non-TAB caller here is a PIC who doesn't know their own pairing set upfront.
 router.get('/current-reminder', requireUser, async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const periode = currentAutoPeriode();
@@ -86,11 +83,10 @@ router.get('/', async (req, res) => {
 //
 // Upsert (ON CONFLICT on the pasangan+periode UNIQUE constraint) -- setting again for the same
 // triple UPDATES the existing deadline rather than erroring or creating a duplicate. Since
-// periode_efektif is now a SNAPSHOT taken once at the dinas target's Confirm/Reject moment (see
-// rules/periodEffective.js / routes/confirmation.js's snapshotPeriodeEfektif — the earlier
-// "computed live" design was overturned, project owner confirmed 5 Agu malam), changing a
-// deadline here only affects confirm/reject actions that happen AFTER the change — it never
-// rewrites an already-snapshotted pasangan.
+// periode_efektif is a SNAPSHOT taken once at the dinas target's Confirm/Reject moment (see
+// rules/periodEffective.js / confirmation.js's snapshotPeriodeEfektif), changing a deadline here
+// only affects confirm/reject actions that happen AFTER the change — it never rewrites an
+// already-snapshotted pasangan.
 router.post('/', express.json(), async (req, res) => {
   const { dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget } = req.body || {};
   if (!dinasInisiasi || !dinasTarget) return res.status(400).json({ ok: false, error: 'dinas_inisiasi and dinas_target are required' });
@@ -123,8 +119,8 @@ router.post('/', express.json(), async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// GET /api/period-deadlines/default — every periode-wide default TAB has ever set (REQ-RDT-SAP-16),
-// for the "Setting Deadline" page's own overview list — separate shape from GET / above (no
+// GET /api/period-deadlines/default — every periode-wide default TAB has ever set, for the
+// "Setting Deadline" page's own overview list — separate shape from GET / above (no
 // dinas_inisiasi/dinas_target, just periode).
 router.get('/default', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
@@ -137,19 +133,15 @@ router.get('/default', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// POST /api/period-deadlines/default — body { periode, deadline_at }. REQ-RDT-SAP-16 (8 Agu,
-// "pembalikan alur deadline"): sets a default for the periode ITSELF, before any dinas has even
-// uploaded for it. Consumed by routes/confirmation.js's snapshotPeriodeEfektif as the fallback
-// when no per-pasangan override exists yet (see rules/periodEffective.js's pickDeadline) — a pair
-// that shows up for this periode later automatically "inherits" this deadline.
+// POST /api/period-deadlines/default — body { periode, deadline_at }. Sets a default for the
+// periode ITSELF, before any dinas has even uploaded for it. Consumed by confirmation.js's
+// snapshotPeriodeEfektif as the fallback when no per-pasangan override exists yet (see
+// rules/periodEffective.js's pickDeadline) — a pair that shows up for this periode later
+// automatically "inherits" this deadline.
 //
-// REQ-RDT-SAP-20 (8 Agu, "auto-backfill DIPERJELAS" — merged 13 Agu): this used to ONLY set the
-// default (forward-looking) — sweeping it onto pasangan that ALREADY have a non-terminal
-// transaction in this periode was a SEPARATE action (POST /bulk, "Terapkan ke Pasangan Aktif").
-// SRS 3.12 now requires ONE action to do both, so the sweep (identical SQL /bulk used to run) is
-// folded in here, same transaction as the default upsert — no partial-success state where the
-// default lands but the sweep doesn't (or vice versa). POST /bulk itself is removed; this is its
-// only remaining caller.
+// Also sweeps the same deadline onto pasangan that ALREADY have a non-terminal transaction in
+// this periode, in the same transaction as the default upsert — no partial-success state where
+// the default lands but the sweep doesn't (or vice versa).
 router.post('/default', express.json(), async (req, res) => {
   const validation = validatePeriodAndDeadline(req.body || {});
   if (!validation.ok) return res.status(400).json({ ok: false, error: validation.error });
@@ -172,10 +164,9 @@ router.post('/default', express.json(), async (req, res) => {
         [periode, deadlineAt.toISOString(), userId]
       );
 
-      // Sweep onto pasangan that ALREADY have a non-terminal transaction in this periode — same
-      // query POST /bulk used to run on its own. $2::timestamptz explicit cast — without it,
-      // Postgres can't infer the bind parameter's type from this SELECT-list position (unlike a
-      // plain INSERT...VALUES) and rejects it as text vs the deadline_at column's timestamptz type.
+      // Sweep onto pasangan that ALREADY have a non-terminal transaction in this periode.
+      // $2::timestamptz explicit cast — without it, Postgres can't infer the bind parameter's
+      // type from this SELECT-list position and rejects it as text vs deadline_at's timestamptz type.
       const sweptRes = await client.query(
         `INSERT INTO rdt.period_deadlines (dinas_inisiasi, dinas_target, periode, deadline_at, set_by_user_id)
          SELECT DISTINCT t.dinas_inisiasi, t.dinas_target, $1, $2::timestamptz, $3
@@ -198,12 +189,10 @@ router.post('/default', express.json(), async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// DELETE /api/period-deadlines/default/:periode — REQ-RDT-SAP-19 (8 Agu): a default deadline can
-// be removed, but ONLY while its deadline_at is still in the future — once it's passed, deleting
-// it would rewrite history (pasangan that already snapshotted their periode_efektif against it
-// stay snapshotted regardless — see routes/confirmation.js's snapshotPeriodeEfektif — but leaving
-// the row in place keeps the audit trail honest about what deadline was actually in effect when
-// that happened).
+// DELETE /api/period-deadlines/default/:periode — a default deadline can be removed, but ONLY
+// while its deadline_at is still in the future — once it's passed, deleting it would rewrite
+// history (pasangan that already snapshotted their periode_efektif stay snapshotted regardless,
+// but leaving the row in place keeps the audit trail honest about what was in effect).
 router.delete('/default/:periode', async (req, res) => {
   const { periode } = req.params;
   if (!PERIODE_RE.test(periode)) return res.status(400).json({ ok: false, error: "periode must be 'YYYY-MM'" });
@@ -222,10 +211,9 @@ router.delete('/default/:periode', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// Scoped to un-batched pasangan only (export_batch_id IS NULL) — per project owner decision
-// (7 Agu planning): a pasangan already reposted/archived to Riwayat Repost can never appear here,
-// keeping this strictly pre-export and consistent with the non-retroactive periode_efektif
-// snapshot rule (see routes/confirmation.js's snapshotPeriodeEfektif).
+// Scoped to un-batched pasangan only (export_batch_id IS NULL) — a pasangan already
+// reposted/archived to Riwayat Repost can never appear here, keeping this strictly pre-export and
+// consistent with the non-retroactive periode_efektif snapshot rule.
 async function findOverduePairs(client, periode) {
   const r = await client.query(
     `SELECT t.dinas_inisiasi, t.dinas_target,
@@ -245,11 +233,8 @@ async function findOverduePairs(client, periode) {
 
 // GET /api/period-deadlines/overdue?periode=YYYY-MM — pasangan that are 100% confirmed for this
 // periode but whose confirm/decline happened AFTER the deadline (periode_efektif already
-// shifted), and are still un-batched. Informational only — REQ-RDT-SAP-21 (DIBALIK 14 Agu, SRS
-// 3.13): the old "override-reevaluate"/un-stick action is GONE, and so is the "periode N+1 sudah
-// di-set -> list balik kosong" reset that only existed to close that workflow — the cap is
-// permanent now, so this list no longer hides an overdue pair once TAB moves on to the next
-// periode's deadline.
+// shifted), and are still un-batched. Informational only — there is no un-stick/override action;
+// the cap is permanent, so this list never hides an overdue pair once TAB moves on.
 router.get('/overdue', async (req, res) => {
   const periode = req.query.periode;
   if (!periode || !PERIODE_RE.test(periode)) return res.status(400).json({ ok: false, error: "periode must be 'YYYY-MM'" });
@@ -267,13 +252,10 @@ router.get('/overdue', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// GET /api/period-deadlines/active-pairs?periode=YYYY-MM — SRS 3.12 sub-halaman 2 ("'Repost'
-// Active"), Opsi A (union, project owner's pick 13 Agu): pasangan yang MASIH punya baris belum
+// GET /api/period-deadlines/active-pairs?periode=YYYY-MM — pasangan yang MASIH punya baris belum
 // resolved (PENDING/DECLINED/NEEDS_REVIEW) di periode ini, un-batched. Deliberately a SEPARATE
-// query/endpoint from GET /overdue above rather than one merged query — each stays single-purpose
-// (this file's existing convention), the frontend combines both arrays into one table with a
-// status column ("Masih Aktif" here, "Overdue" from GET /overdue, both informational only per
-// SRS 3.13).
+// query/endpoint from GET /overdue above rather than one merged query — each stays single-purpose,
+// the frontend combines both arrays into one table with a status column.
 router.get('/active-pairs', async (req, res) => {
   const periode = req.query.periode;
   if (!periode || !PERIODE_RE.test(periode)) return res.status(400).json({ ok: false, error: "periode must be 'YYYY-MM'" });
@@ -297,11 +279,7 @@ router.get('/active-pairs', async (req, res) => {
   finally { try { await client.end(); } catch (e) {} }
 });
 
-// POST /api/period-deadlines/override-reevaluate — REMOVED 14 Agu (SRS 3.13, REQ-RDT-SAP-21
-// dibalik): this used to be the one deliberate exception that rewrote periode_efektif back so an
-// overdue pasangan could stop being overdue. That directly contradicted the new "cap Overdue
-// permanen/sticky" rule, so the whole re-open workflow (this endpoint, GET /overdue's
-// periode-N+1 reset gate, and the "Override Deadline" button in the 'Repost Active' page) is
-// gone — GET /overdue above is informational-only now, nothing here can un-mark a pair.
+// POST /api/period-deadlines/override-reevaluate — removed. There is no action that rewrites
+// periode_efektif back to un-stick an overdue pasangan — GET /overdue above is informational only.
 
 module.exports = router;

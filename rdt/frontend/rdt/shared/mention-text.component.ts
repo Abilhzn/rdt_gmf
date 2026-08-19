@@ -7,13 +7,10 @@ interface Segment {
   label?: string;
 }
 
-// REQ-RDT-COMMENT-03 (diperjelas 3 Agu): "mention yang di-resolve ke akun beneran HARUS dirender
-// sebagai elemen yang nunjuk ke akun itu ... BUKAN cuma teks '@nama' polos." This is that render —
-// used wherever a comment/description body is displayed (thread comments, closing_description in
-// Repost History, etc). An "@token" that resolves to a real dinas/user (MentionService.resolve,
+// Renders a comment/description body wherever it's displayed (thread comments, closing_description
+// in Repost History, etc). An "@token" that resolves to a real dinas/user (MentionService.resolve,
 // same rule backend's mentionRules.js uses to decide who gets notified) becomes a styled chip with
-// the resolved name as a tooltip; a token that doesn't resolve to anything real stays plain text —
-// same as backend never notifying a garbage/typo'd mention.
+// the resolved name as a tooltip; a token that doesn't resolve to anything real stays plain text.
 @Component({
   selector: 'rdt-mention-text',
   standalone: false,

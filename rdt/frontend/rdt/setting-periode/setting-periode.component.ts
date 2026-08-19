@@ -9,16 +9,10 @@ import {
 import { ModalService } from '../services/modal.service';
 import { extractErrorMessage } from '../shared/error-message.util';
 
-// SRS 3.13, "Struktur navigasi disederhanakan lagi" (14 Agu): section 3.12's split into 2
-// sub-pages ("Setting Deadline" + "'Repost' Active", each its own sidebar sub-item) is DIBATALKAN
-// — back to ONE flat page/nav-item, form on top + the active/overdue table below it, no
-// navigation required between them. This component folds SettingDeadlineComponent +
-// RepostActiveComponent (both now deleted) back into one — logic unchanged from either, just
-// merged into a single class. "Override Deadline" per row (SRS text for this section still
-// mentions it) stays OMITTED per project owner's explicit 18 Agu confirmation: it directly
-// contradicts REQ-RDT-SAP-21's sticky-overdue rule from the same section 3.13, so the OVERDUE rows
-// below remain informational-only (see repost-active.component's old header comment, same
-// reasoning, just carried over here).
+// One flat page/nav-item: form on top + the active/overdue table below it, no navigation required
+// between them. Folds the former SettingDeadlineComponent + RepostActiveComponent into one class,
+// logic unchanged. "Override Deadline" per row stays OMITTED — it would contradict the
+// sticky-overdue rule, so OVERDUE rows below remain informational-only.
 export interface ActiveRow {
   dinas_inisiasi: string;
   dinas_target: string;
@@ -77,8 +71,7 @@ export class SettingPeriodeComponent implements OnInit {
     });
   }
 
-  // REQ-RDT-SAP-19 — deletable only before the deadline itself passes, same guard the backend
-  // enforces (routes/periodDeadlines.js DELETE /default/:periode).
+  // Deletable only before the deadline itself passes, same guard the backend enforces.
   canDelete(row: PeriodDefaultDeadline): boolean {
     return new Date(row.deadline_at).getTime() > Date.now();
   }
@@ -96,8 +89,8 @@ export class SettingPeriodeComponent implements OnInit {
     });
   }
 
-  // REQ-RDT-SAP-20 — one action: sweeps existing active pasangan immediately AND sets the default
-  // for pasangan that show up later, both in the same request.
+  // One action: sweeps existing active pasangan immediately AND sets the default for pasangan
+  // that show up later, both in the same request.
   async submitDefaultDeadline(): Promise<void> {
     const { periode, deadline_at } = this.defaultDeadlineForm;
     if (!periode || !deadline_at) return;

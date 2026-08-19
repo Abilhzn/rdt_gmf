@@ -3,15 +3,10 @@
 
 const REASSIGN_CAP = 3;
 
-// BUG FIX (5 Agu, live report — "assign ke Corp gagal 500, FK violation"): every caller used to
-// build validCodes as a Set of UPPERCASED codes, and validateReassignTarget returned that SAME
-// uppercased string as the value callers then INSERT into transactions.dinas_target. That's fine
-// for a normal 2-letter dinas code (already stored uppercase, e.g. 'TC'), but rdt.dinas
-// deliberately stores a few codes mixed-case ('Corp' — see dinas.codes.json/schema.sql's seed
-// comments) — uppercasing 'Corp' to 'CORP' before the INSERT violates transactions_dinas_target_
-// fkey since no row with THAT exact case exists. buildValidCodeMap preserves the actual stored
-// case (uppercase key for case-INSENSITIVE lookup, original-case value for the INSERT) so this
-// class of bug can't recur at any call site that uses it.
+// rdt.dinas deliberately stores a few codes mixed-case ('Corp') — uppercasing before INSERT would
+// violate transactions_dinas_target_fkey since no row with that exact case exists. buildValidCodeMap
+// preserves the actual stored case (uppercase key for case-insensitive lookup, original-case value
+// for the INSERT) so callers never re-case a code before writing it.
 function buildValidCodeMap(rows) {
   const map = new Map();
   for (const row of rows) {
@@ -25,9 +20,7 @@ function buildValidCodeMap(rows) {
 // validCodes: Map<uppercased code, actual stored-case code> — see buildValidCodeMap above.
 // dinasInisiasi / currentDinasTarget: the transaction's existing values.
 // Returns { ok: true, newTargetUpper } or { ok: false, error, httpStatus }. `newTargetUpper` is a
-// legacy field name kept for every existing call site's `validation.newTargetUpper` destructuring
-// — despite the name, its VALUE is now the target's actual stored case, not necessarily uppercase
-// (e.g. 'Corp', not 'CORP') — that's the whole point of this fix.
+// legacy field name — its value is the target's actual stored case, not necessarily uppercase.
 function validateReassignTarget({ newTarget, validCodes, dinasInisiasi, currentDinasTarget, reassignCount }) {
   if (reassignCount >= REASSIGN_CAP) {
     return { ok: false, httpStatus: 400, error: `reassign_count already at cap (${REASSIGN_CAP}) — this transaction must be resolved with action=BORNE` };

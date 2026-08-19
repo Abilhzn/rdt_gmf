@@ -128,14 +128,11 @@
             </label>
           </div>
 
-          <!-- REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "SEMUA kolom" 1 Agu): kolom preview
-               dipersempit ke 11 kolom tetap (Sub Group, Dinas Pengaju, Account, Profit Ctr,
+          <!-- Kolom preview: 11 kolom tetap (Sub Group, Dinas Pengaju, Account, Profit Ctr,
                Ref.Doc., Period, Text, Material, Value (In PCLC), Group, Remark), sumber dari GET
-               /api/contract-fields (bukan hardcode label manual) tapi difilter ke daftar tetap —
-               lihat buildPreviewColumns. "Dinas target"/Status TIDAK termasuk 53 kolom kontrak
-               jadi tidak kena pembatasan ini, tetap kolom sendiri di sini karena PIC memang perlu
-               cek keduanya sebelum repost. Catatan Reviewer tetap paling kanan, editable,
-               frontend-only. REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
+               /api/contract-fields difilter ke daftar tetap — lihat buildPreviewColumns. Catatan
+               Reviewer tetap paling kanan, editable, frontend-only. Filter multi-value di SETIAP
+               kolom. -->
           <div class="table-scroll">
             <table class="rows">
               <thead>
@@ -147,15 +144,12 @@
                       (valuesChange)="onColumnFilterChange(col.key, $event)"
                     ></rdt-multi-value-filter>
                   </th>
-                  <!-- REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu): "Dinas target"/"Status" bukan bagian dari
-                       11 kolom preview kontrak yang dipersempit (lihat buildPreviewColumns) — tapi
-                       tetap kolom tetap sendiri DI SINI karena justru itu yang PIC cek sebelum
-                       repost (routing benar? baris valid?), bukan sekadar data preview generik. -->
+                  <!-- "Dinas target"/"Status" bukan bagian dari 11 kolom preview kontrak, tapi
+                       tetap kolom sendiri di sini karena itu yang PIC cek sebelum repost. -->
                   <th>Dinas target</th>
                   <th>Status</th>
-                  <!-- REQ-RDT-UI-08/NAV-04 (4 Agu, 3rd report of the same bug): pin this column
-                       via position: sticky so it stays reachable without scrolling the whole
-                       preview table horizontally every time — see .reviewer-note-col below. -->
+                  <!-- Pinned via position: sticky so it stays reachable without scrolling the whole
+                       preview table horizontally — see .reviewer-note-col below. -->
                   <th class="reviewer-note-col">Catatan Reviewer</th>
                 </tr>
               </thead>
@@ -166,13 +160,10 @@
                       {{ r.nominal | number: '1.2-2' }}
                     </td>
                     <td *ngIf="col.key === 'remark'" class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
-                    <!-- REQ-RDT-EXT-09 point 3: PIVOT_DERIVED rows are a synthetic one-row-per-
-                         pivot-cell aggregate with NO per-row Sub Group/document/cost-center data —
-                         flagging this next to Sub Group explains why the rest of the row is blank
-                         on these rows specifically, instead of reading as a data bug. REQ-RDT-UI-08
-                         (4 Agu) removed the Sheet column this badge used to sit next to — Sub Group
-                         is the next-best anchor since it's the column the comment above already
-                         points at as "would otherwise look buggy". -->
+                    <!-- PIVOT_DERIVED rows are a synthetic one-row-per-pivot-cell aggregate with NO
+                         per-row Sub Group/document/cost-center data — flagging this next to Sub
+                         Group explains why the rest of the row is blank on these rows specifically,
+                         instead of reading as a data bug. -->
                     <td *ngIf="col.key === 'sub_group'">
                       {{ getCellValue(r, col.key) ?? '—' }}
                       <span *ngIf="r.granularity === 'PIVOT_DERIVED'" class="granularity-badge" title="Baris agregat dari pivot, bukan baris transaksi individual — Sub Group dan kolom detail lain tidak tersedia untuk baris ini.">Agregat Pivot</span>
@@ -186,16 +177,9 @@
                     <span [class]="statusClass(r.status_konfirmasi)">{{ r.status_konfirmasi }}</span>
                   </td>
                   <td class="reviewer-note-col">
-                    <!-- REQ-RDT-NAV-04 (3 Agu): was a fixed-width single-line <input> — text
-                         longer than the visible width just scrolled sideways inside the box
-                         instead of being readable. A wrapping, non-resizable textarea reads in
-                         full at a glance instead.
-                         REQ-RDT-COMMENT-03 (diperluas 3 Agu): Catatan Reviewer now gets @mention
-                         too, same shared component as every other note field. -->
-                    <!-- REQ-RDT-UI-11 (8 Agu, generalizes the earlier Catatan Reviewer fix): fixed
-                         + BIG with internal scroll, not grow-to-fit (autoGrow's default) — that
-                         earlier fix was "fixed but stingy", this widens/heightens it and adds
-                         scroll instead of relying on the box just never scrolling. -->
+                    <!-- Wrapping, non-resizable textarea with @mention support (shared component,
+                         same as every other note field) — fixed + BIG with internal scroll, not
+                         grow-to-fit. -->
                     <rdt-mention-input
                       [(ngModel)]="r.reviewer_note"
                       [rows]="2"
@@ -212,7 +196,7 @@
             </table>
           </div>
 
-          <!-- REQ-RDT-NAV-07: reusable Google-style pager, shared with Confirmation. -->
+          <!-- Reusable Google-style pager, shared with Confirmation. -->
           <rdt-pagination [page]="page" [totalItems]="filteredRows.length" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></rdt-pagination>
         </section>
       </ng-container>
@@ -221,14 +205,12 @@
     <!-- ===== Confirm-to-Repost: sticky side panel (Figma: Confirm/Cancel) ===== -->
     <aside class="repost-side" *ngIf="phase === 'parsed' || phase === 'committing' || phase === 'committed'">
       <h3>Confirm to Repost</h3>
-      <!-- REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode picker dihapus — periode DT
-           sekarang selalu implisit (bulan sebelum bulan upload berjalan), server yang menentukan
-           di POST /api/persist, tidak ada lagi pilihan manual di sini. -->
+      <!-- Periode DT selalu implisit (bulan sebelum bulan upload berjalan) — server yang
+           menentukan di POST /api/persist, tidak ada pilihan manual di sini. -->
       <label class="repost-desc-label">
         Keterangan (opsional)
-        <!-- REQ-RDT-COMMENT-03 (diperluas 3 Agu): satu implementasi @mention dipakai ulang, lihat
-             shared/mention-input.component.ts — tidak lagi duplikat sendiri di sini. -->
-        <!-- REQ-RDT-UI-11 (8 Agu): fixed + BIG, internal scroll — not grow-to-fit-content. -->
+        <!-- Satu implementasi @mention dipakai ulang, lihat shared/mention-input.component.ts.
+             Fixed + BIG, internal scroll — not grow-to-fit-content. -->
         <rdt-mention-input
           [(ngModel)]="description"
           [rows]="3"

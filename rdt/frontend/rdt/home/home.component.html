@@ -282,16 +282,12 @@
       <h3 *ngIf="!isGlobalView">Report Submission — {{ (currentUser.user$ | async)?.display_name || '[User]' }}</h3>
       <h3 *ngIf="isGlobalView">Summary Progress All Dinas</h3>
       <p class="note" *ngIf="!isGlobalView">
-        Progress konfirmasi dari dinas-dinas yang Anda ajukan (mention). Jika Anda belum
-        mengajukan repost apapun, bagian ini kosong. Notifikasi di bawah bar muncul jika
-        dinas tersebut menolak (declined) sebagian pengajuan Anda dan masih perlu tindak
-        lanjut (Tanggung Sendiri / Ajukan ulang).
+        Progress konfirmasi dari dinas yang Anda ajukan. Notifikasi muncul jika ada pengajuan yang
+        ditolak dan perlu tindak lanjut.
       </p>
       <p class="note" *ngIf="isGlobalView">
-        Progress pengajuan dari SETIAP dinas yang pernah repost, lintas seluruh sistem —
-        bukan cuma pengajuan Anda sendiri (Anda login sebagai TAB, yang tidak mengajukan
-        repost). Klik salah satu kartu untuk melihat siapa yang belum konfirmasi / urusannya
-        belum selesai.
+        Progress pengajuan dari setiap dinas, seluruh sistem. Klik salah satu kartu untuk melihat
+        detail yang belum selesai.
       </p>
 
       <ng-container *ngTemplateOutlet="kpiRow"></ng-container>

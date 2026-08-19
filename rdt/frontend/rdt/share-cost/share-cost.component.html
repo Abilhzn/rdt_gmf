@@ -1,12 +1,8 @@
 <div class="page-card">
   <p class="note">
-    Split satu baris PENDING jadi beberapa baris dengan dinas_target &amp; nominal berbeda-beda
-    (jumlah nominal hasil split harus persis sama dengan baris asli). Baris asli akan ditandai
-    SPLIT_VOID dan tidak lagi dihitung di agregasi manapun; baris hasil split masuk alur
-    konfirmasi normal dari awal (dinas baru yang confirm/decline). Hanya untuk baris PENDING —
-    baris yang sudah CONFIRMED tidak bisa di-split di versi ini. Kandidat pencarian di bawah
-    ini dibatasi ke baris yang dinas_target-nya sudah langsung "TAB" (bukan Corp, bukan dinas
-    biasa) — bukan sembarang baris PENDING di sistem.
+    Split satu baris PENDING jadi beberapa baris dengan dinas target &amp; nominal berbeda-beda —
+    total nominal hasil split harus sama persis dengan baris asli. Hanya baris PENDING dengan
+    dinas target TAB yang bisa di-split.
   </p>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 

@@ -5,22 +5,18 @@ export interface ChainHopVm {
   to: string;
   resolved: number;
   total: number;
-  /** SIMETRI (5 Agu): true for every hop except the current/active one. An earlier hop is a
-   * SETTLED, instantaneous fact (that dinas rejected-and-redirected, or the initiator reassigned
-   * after a decline) — it never had a "some confirmed, some pending" state of its own, so showing
-   * it with the same progress-bar language as the live hop was misleading (a fabricated 100% that
-   * implied N real confirmations happened there). Only the current hop (isRedirected=false) has
-   * real resolved/total numbers worth a bar. */
+  /** True for every hop except the current/active one. An earlier hop is a SETTLED, instantaneous
+   * fact — it never had a "some confirmed, some pending" state of its own, so showing it with the
+   * same progress-bar language as the live hop would be misleading. Only the current hop
+   * (isRedirected=false) has real resolved/total numbers worth a bar. */
   isRedirected: boolean;
 }
 
-// REQ-RDT-UI-05 "Rincian per-hop" (4 Agu, project owner-approved): renders the actual per-hop
-// breakdown rows shared by every place a redirect/reassign chain (chain.length > 2) needs to show
-// more than just breadcrumb text — Dashboard pair-cards, Dashboard-Detailing's header badge, and
-// Confirm's per-row popover all reuse this instead of 3 copies of the same hop math/truncation.
-// Only the SURROUNDING chrome (sideways panel + divider vs a floating popover) differs per
-// caller — that stays in each caller's own template since it depends on layout context (a flex
-// card row has room to widen sideways, a table cell doesn't).
+// Renders the actual per-hop breakdown rows shared by every place a redirect/reassign chain
+// (chain.length > 2) needs to show more than just breadcrumb text — Dashboard pair-cards,
+// Dashboard-Detailing's header badge, and Confirm's per-row popover all reuse this instead of 3
+// copies of the same hop math/truncation. Only the SURROUNDING chrome (sideways panel + divider
+// vs a floating popover) differs per caller — that stays in each caller's own template.
 @Component({
   selector: 'rdt-chain-hop-detail',
   standalone: false,
@@ -30,9 +26,8 @@ export interface ChainHopVm {
 export class ChainHopDetailComponent {
   @Input() chain: string[] = [];
   /** Omit both when there's no meaningful in-progress fraction to show — e.g. a SINGLE
-   * transaction's own chain (Confirm's per-row popover): it already fully traversed every hop to
-   * reach its current dinas, nothing about it is "5 of 12 done". Falls back to a plain
-   * checkmarked path instead of progress bars when either is undefined. */
+   * transaction's own chain: it already fully traversed every hop to reach its current dinas.
+   * Falls back to a plain checkmarked path instead of progress bars when either is undefined. */
   @Input() resolved?: number;
   @Input() total?: number;
   @Input() title = 'Rincian per-hop';
@@ -43,14 +38,12 @@ export class ChainHopDetailComponent {
     return this.total !== undefined && this.resolved !== undefined;
   }
 
-  // SIMETRI (5 Agu, project owner report — "cuma dari satu sudut pandang"): every hop gets an
-  // status appropriate to what ACTUALLY happened there, instead of every early hop faking the
-  // LAST hop's own resolved/total numbers. chain is only ever populated past 2 points when EVERY
-  // transaction under the card agrees on the exact same full path (buildChainAwareProgress's
-  // chainConsistent check), so chain-membership alone already proves every early hop was a
-  // completed redirect (isRedirected=true, no bar) — the LAST hop (current target) is the only
-  // one still actively accumulating confirmations, so it's the only one that gets the real
-  // resolved/total bar.
+  // Every hop gets a status appropriate to what ACTUALLY happened there, instead of every early
+  // hop faking the LAST hop's own resolved/total numbers. chain is only ever populated past 2
+  // points when EVERY transaction under the card agrees on the exact same full path, so
+  // chain-membership alone already proves every early hop was a completed redirect
+  // (isRedirected=true, no bar) — the LAST hop (current target) is the only one still actively
+  // accumulating confirmations, so it's the only one that gets the real resolved/total bar.
   get hops(): ChainHopVm[] {
     if (!this.chain || this.chain.length < 3) return [];
     const total = this.total || 0;
@@ -63,10 +56,9 @@ export class ChainHopDetailComponent {
     return hops;
   }
 
-  // Long chains (5+ hops, i.e. > 4 individual hops): always show the FIRST hop (where the chain
-  // started) and the LAST hop (the only one still in progress) — collapse everything in between
-  // behind a "+N hop lainnya" toggle instead of letting the panel grow unbounded or need its own
-  // scrollbar (project owner's explicit concern, 4 Agu).
+  // Long chains (5+ hops): always show the FIRST hop (where the chain started) and the LAST hop
+  // (the only one still in progress) — collapse everything in between behind a "+N hop lainnya"
+  // toggle instead of letting the panel grow unbounded.
   get visibleHops(): ChainHopVm[] {
     const all = this.hops;
     if (all.length <= 4 || this.hopsExpanded) return all;

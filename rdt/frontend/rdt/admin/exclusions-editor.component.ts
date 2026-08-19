@@ -3,9 +3,7 @@ import { AdminService, ExclusionsConfig } from '../services/admin.service';
 import { ModalService } from '../services/modal.service';
 import { extractErrorMessage } from '../shared/error-message.util';
 
-// Checklist section 3 (12 Agu, loading-state/error-message audit) — same fix as
-// mapping-editor.component.ts, see its own header comment for the full story (unauthenticated
-// fetch() broke once checklist 1.1 added real auth to this endpoint).
+// Same pattern as mapping-editor.component.ts — see its own header comment.
 @Component({
   selector: 'rdt-exclusions-editor',
   standalone: false,

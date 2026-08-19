@@ -9,21 +9,17 @@ const { logRollbackAudit } = require('../logger');
 
 const router = express.Router();
 
-// Mounted at /api/investigation in index.js. REQ-RDT-LEDGER-10: rows whose dinas signal was the
-// exact literal "Ask TA" land in status NEEDS_INVESTIGATION with dinas_target still null — this
-// is a queue only role TAB can see/act on, deliberately a NEW route (not routes/confirmation.js)
-// because the action here is "assign the real dinas_target" (an investigation outcome), not
-// Confirm/Decline — even though the underlying mechanics borrow reassignmentRules' target
-// validation, same as routes/reassignment.js does.
+// Mounted at /api/investigation in index.js. Rows whose dinas signal was the exact literal "Ask
+// TA" land in status NEEDS_INVESTIGATION with dinas_target still null — a queue only role TAB
+// can see/act on, a separate route from confirmation.js because the action here is "assign the
+// real dinas_target" (an investigation outcome), not Confirm/Decline — though the mechanics
+// borrow reassignmentRules' target validation, same as routes/reassignment.js does.
 router.use(requireUser, requireRole('TAB'));
 
-// REQ-RDT-LEDGER-10 comment support (29 Jul, project owner request): "kasih kolom komentar biar
-// ngasih keterangan kenapa di-assign ke dinas yang diajukan" — same reply-to-latest-top-level-
-// or-new-top-level convention used by POST /api/persist (Repost) and
-// POST /api/confirmation/:dinas/submit, just inlined here rather than shared (matches how those
-// two routes each keep their own copy rather than a shared helper module). Posted on the NEWLY
-// assigned (dinas_inisiasi, dinas_target) pair's thread, not the "Ask TA" investigation context —
-// once assigned, that's the pair the explanation is actually about.
+// Comment support: same reply-to-latest-top-level-or-new-top-level convention used by
+// POST /api/persist and POST /api/confirmation/:dinas/submit, just inlined here rather than
+// shared. Posted on the NEWLY assigned (dinas_inisiasi, dinas_target) pair's thread — once
+// assigned, that's the pair the explanation is actually about.
 async function postPairComment(client, dinasInisiasi, dinasTarget, fallbackTransactionId, authorUserId, body) {
   const parentRes = await client.query(
     `SELECT c.id, c.transaction_id FROM rdt.comments c
@@ -37,14 +33,12 @@ async function postPairComment(client, dinasInisiasi, dinasTarget, fallbackTrans
     `INSERT INTO rdt.comments (transaction_id, parent_comment_id, author_user_id, body) VALUES ($1, $2, $3, $4) RETURNING id`,
     [parent ? parent.transaction_id : fallbackTransactionId, parent ? parent.id : null, authorUserId, body]
   );
-  // REQ-RDT-COMMENT-03 (diperluas 3 Agu, gap found in sweep): this never notified anyone before —
-  // not even the newly-assigned dinasTarget the comment is addressed to. Same union pattern as
-  // every other note field now: implicit recipient (the dinas TAB just routed this to) plus
+  // Notifies the newly-assigned dinasTarget implicitly (the dinas TAB just routed this to) plus
   // anyone explicitly @mentioned.
   const commentId = commentRes.rows[0].id;
   const directory = await loadDirectory();
-  // Privacy bug fix (4 Agu): a mention of a dinas outside THIS pair must not leak a notification
-  // that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
+  // A mention of a dinas outside THIS pair must not leak a notification that reveals this pair's
+  // existence to them — see mentionRules.js's filterMentionsToPair.
   const mentioned = filterMentionsToPair(resolveMentionedUserIds(body, directory), directory, [dinasInisiasi, dinasTarget]);
   const recipientIds = new Set(mentioned);
   Object.keys(directory).forEach((id) => {
@@ -78,21 +72,17 @@ router.get('/', async (req, res) => {
 
 // POST /api/investigation/:transactionId/assign — body: { dinas_target }.
 //
-// REQ-RDT-LEDGER-10 REVERSAL (5 Agu, DIBALIK from the 30 Jul "still needs normal confirm" call):
-// this used to move the row to PENDING under the newly-determined dinas_target so it entered the
-// NORMAL confirm flow there. Now it's the FINAL word — the project owner confirmed the dinas
-// determination already happened through discussion OUTSIDE this system (WhatsApp etc.) before
-// TAB ever clicks Assign here, so a second Ya/Tidak round-trip through the assigned dinas would
-// just be re-litigating a decision that's already settled. The row goes straight to CONFIRMED,
-// atomically with its ledger pair (DEBIT the assigned dinas, CREDIT the initiator) — same
-// mechanics as routes/confirmation.js's 'YA' path, just triggered by TAB's assignment instead of
-// the target dinas's own click. The assigned dinas can still SEE the transaction (it's a normal
-// row with their code as dinas_target — every existing read path, e.g. Dashboard-Detailing's
-// getPairTransactions, already shows every status, not just PENDING), just no action needed.
+// TAB's assignment here is the FINAL word — the dinas determination already happened through
+// discussion outside this system before TAB clicks Assign, so a second Ya/Tidak round-trip
+// through the assigned dinas would just re-litigate a decision that's already settled. The row
+// goes straight to CONFIRMED, atomically with its ledger pair (DEBIT the assigned dinas, CREDIT
+// the initiator) — same mechanics as confirmation.js's 'YA' path, just triggered by TAB's
+// assignment instead of the target dinas's own click. The assigned dinas can still SEE the
+// transaction via every existing read path, just no action needed.
 router.post('/:transactionId/assign', express.json(), async (req, res) => {
   const transactionId = req.params.transactionId;
   const newTarget = req.body && req.body.dinas_target;
-  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  // Length-capped free text.
   const descriptionCheck = validateFreeText(req.body && req.body.description, { fieldLabel: 'Deskripsi' });
   if (!descriptionCheck.ok) return res.status(400).json(descriptionCheck);
   const description = descriptionCheck.value;
@@ -152,17 +142,14 @@ router.post('/:transactionId/assign', express.json(), async (req, res) => {
 });
 
 // POST /api/investigation/assign-all — body: { items: [{ transaction_id, dinas_target }], description }.
-// REQ-RDT-LEDGER-10 batch action (29 Jul, project owner request), same "assign one-by-one or all
-// at once" shape as Confirmation's declined-row batch resolve (routes/reassignment.js's
-// resolveBatch) — but stricter: EVERY currently-open row must already have a chosen target
-// before this can run at all (all-or-nothing gate), not just the ones the caller happens to
-// include. The frontend enforces this by disabling the button; this is the defensive backend
-// mirror of that rule, not just a UI nicety. One description, if given, becomes one comment per
-// distinct (dinas_inisiasi, dinas_target) pair touched — mirrors POST /api/persist's per-pair
-// comment fan-out.
+// Same "assign one-by-one or all at once" shape as reassignment.js's batch resolve — but
+// stricter: EVERY item must already have a chosen target before this can run at all
+// (all-or-nothing gate). The frontend enforces this by disabling the button; this is the
+// defensive backend mirror, not just a UI nicety. One description, if given, becomes one comment
+// per distinct (dinas_inisiasi, dinas_target) pair touched — mirrors POST /api/persist's fan-out.
 router.post('/assign-all', express.json(), async (req, res) => {
   const items = req.body && req.body.items;
-  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  // Length-capped free text.
   const descriptionCheck = validateFreeText(req.body && req.body.description, { fieldLabel: 'Deskripsi' });
   if (!descriptionCheck.ok) return res.status(400).json(descriptionCheck);
   const description = descriptionCheck.value;
@@ -204,8 +191,7 @@ router.post('/assign-all', express.json(), async (req, res) => {
       if (!validation.ok) throw new Error(`id ${item.transaction_id}: ${validation.error}`);
       const newTargetUpper = validation.newTargetUpper;
 
-      // REQ-RDT-LEDGER-10 REVERSAL (5 Agu) — see single-assign route above for the full rationale:
-      // straight to CONFIRMED + ledger pair, not PENDING.
+      // Straight to CONFIRMED + ledger pair, not PENDING — see single-assign route above.
       await client.query(
         `UPDATE rdt.transactions
          SET dinas_target=$1, status_konfirmasi='CONFIRMED', reassigned_from='Ask TA',

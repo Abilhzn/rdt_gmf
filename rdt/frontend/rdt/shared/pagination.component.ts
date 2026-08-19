@@ -1,10 +1,8 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 
-// REQ-RDT-NAV-07: shared "Google-style" pager — at most 5 page numbers shown at once as a
-// sliding window centered on the current page, with a leading/trailing "…" (non-clickable,
-// just an indicator) when the window doesn't reach page 1 / the last page. Previously
-// implemented twice and inconsistently (repost-budgeting: prev/next + jump-to-page input,
-// no numbered buttons; confirm: numbered buttons with no truncation) — this replaces both.
+// Shared "Google-style" pager — at most 5 page numbers shown at once as a sliding window centered
+// on the current page, with a leading/trailing "…" (non-clickable, just an indicator) when the
+// window doesn't reach page 1 / the last page.
 @Component({
   selector: 'rdt-pagination',
   standalone: false,
@@ -14,8 +12,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 export class PaginationComponent {
   @Input() page = 1;
   @Input() totalItems = 0;
-  // REQ-RDT-NAV-07 (direvisi 5 Agu): default diturunkan dari 100 ke 50 — setiap pemanggil di
-  // bawah ini juga set pageSize=50 secara eksplisit sendiri, default di sini cuma jaga-jaga.
+  // Every caller sets pageSize=50 explicitly too; the default here is just a fallback.
   @Input() pageSize = 50;
   @Output() pageChange = new EventEmitter<number>();
 

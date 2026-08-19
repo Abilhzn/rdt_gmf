@@ -5,9 +5,8 @@ import { map } from 'rxjs/operators';
 import { ParseResponse, CommitResponse, Transaction, AggregationMatrix } from './transaction.model';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
-// REQ-RDT-NAV-04 (1 Agu): the exact 53-column contract used for the real SAP export
-// (exportBatches.js's CONTRACT_FIELDS) — fetched from the backend so the Repost Review preview
-// table has ONE shared source of columns instead of a second, separately hardcoded list.
+// The exact 53-column contract used for the real SAP export (exportBatches.js's CONTRACT_FIELDS)
+// — fetched from the backend so the Repost Review preview table has ONE shared source of columns.
 export interface ContractField {
   key: string;
   label: string;
@@ -41,18 +40,13 @@ export class TransactionService {
     return this.http.post<CommitResponse>(`${this.base}/commit`, { rows, aggregation });
   }
 
-  // Bug fix: rdt.uploads.original_filename is
-  // NOT NULL in the schema, but this never sent it — persisting a real file would 500 on
-  // that constraint. dinas_code/uploaded_by_user_id are now derived server-side from the
-  // X-User-Id header (never trusted from the body) — see index.js's /api/persist.
-  // `description` is item 6's optional free-text note on the Repost submit.
-  //
-  // REQ-RDT-EXT-08: now sent as multipart with the actual File object attached (field "file"),
-  // not just JSON — the server saves those bytes so REQ-RDT-LEDGER-09's download-with-live-
-  // formulas has something to serve later. rows/aggregation travel as JSON-stringified fields
-  // since multipart fields are plain strings; index.js's /api/persist parses them back.
-  // REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode tidak lagi dikirim dari sini sama sekali
-  // — server men-derive-nya sendiri (bulan sebelum bulan upload berjalan) di POST /api/persist.
+  // rdt.uploads.original_filename is NOT NULL in the schema — always send it. dinas_code/
+  // uploaded_by_user_id are derived server-side from the X-User-Id header (never trusted from the
+  // body). `description` is the optional free-text note on the Repost submit. Sent as multipart
+  // with the actual File object attached (field "file") — the server saves those bytes so
+  // download-with-live-formulas has something to serve later; rows/aggregation travel as
+  // JSON-stringified fields since multipart fields are plain strings. periode is not sent from
+  // here — the server derives it (bulan sebelum bulan upload berjalan) in POST /api/persist.
   persistToDatabase(rows: Transaction[], aggregation: AggregationMatrix, originalFile: File | null, description?: string): Observable<CommitResponse> {
     const user = this.currentUser.current;
     if (!user) return throwError(() => new Error('Pilih "Login sebagai" dulu.'));
@@ -66,13 +60,9 @@ export class TransactionService {
   }
 
   getContractFields(): Observable<ContractField[]> {
-    // Checklist 3 (12 Agu, caught during manual browser smoke test after service restart): this
-    // call went out with NO auth header at all — broke silently (previewColumns just stayed
-    // empty, no visible error to the user) once checklist 1.1 added requireUser to
-    // GET /api/contract-fields. Same regression class as admin/mapping-editor's fetch() bug,
-    // just missed during the original loading-state/error-message audit because this call
-    // doesn't have its own explicit error handler — see confirm.component.ts, need-approval,
-    // repost-budgeting, share-cost, all of which call this.
+    // Must send the auth header — GET /api/contract-fields requires it server-side. Without it
+    // this fails silently (previewColumns just stays empty, no visible error) since this call has
+    // no explicit error handler of its own — see confirm/need-approval/repost-budgeting/share-cost.
     return this.http
       .get<{ ok: boolean; fields: ContractField[]; error?: string }>(`${this.base}/contract-fields`, { headers: this.currentUser.authHeaders() })
       .pipe(map((res) => {

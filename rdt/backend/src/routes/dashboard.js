@@ -1,33 +1,21 @@
-// REQ-RDT-NAV-02 (Dashboard) — rebuilt to match the updated Figma (node 1:2, "Dashboard").
-// This is a PERSONALIZED view keyed off the logged-in user's own dinas (req.rdtUser.dinas) for
-// regular PIC users — see the annotations on the Figma frame itself:
+// Dashboard — this is a PERSONALIZED view keyed off the logged-in user's own dinas
+// (req.rdtUser.dinas) for regular PIC users:
+//   - as_initiator: one row per TARGET dinas that MY OWN dinas has submitted to, with the
+//     declined-notification scoped to that exact (me -> that target) relationship. Empty array
+//     if my dinas hasn't initiated anything.
+//   - need_to_confirm: distinct INITIATOR dinas with PENDING rows targeting my dinas. Empty
+//     array if nothing's waiting on me.
 //
-//   "Dashboard isinya progress pengkonfirmasian dari berbagai dinas yang di mention oleh
-//    pengaju. [...] klo misalkan ada dinas yang reject berapapun DT nya, itu diberikan
-//    pemberitahuan dibawah progress circle nya. Jika [User] tidak mengajukan repost, section
-//    ini kosong."
-//   -> as_initiator: one row per TARGET dinas that MY OWN dinas has submitted to, with the
-//      declined-notification scoped to that exact (me -> that target) relationship. Empty
-//      array if my dinas hasn't initiated anything.
+// TAB staff get a GLOBAL view instead: TAB doesn't originate reposts itself, so a personal
+// as_initiator view would always be empty for them — they see progress grouped by EVERY dinas
+// that has submitted anything, across the whole system.
 //
-//   "Menampilkan pengajuan dari dinas lain yang melibatkan [User] untuk mengkonfirmasi
-//    pengajuannya. Jika [User] tidak dibutuhkan untuk konfirm repost di dinas manapun,
-//    section ini kosong."
-//   -> need_to_confirm: distinct INITIATOR dinas with PENDING rows targeting my dinas. Empty
-//      array if nothing's waiting on me.
-//
-// TAB staff get a GLOBAL view instead (confirmed with project owner):
-// TAB doesn't originate reposts itself, so a personal as_initiator view would always be empty
-// for them — they see progress grouped by EVERY dinas that has submitted anything, across the
-// whole system ("orang TAB bisa ngeliat semua progres dari semua dinas/akun yg ngajuin").
-//
-// "Chain" resolution (confirmed with project owner): once a transaction is reassigned to a new
-// dinas_target, it stops being counted in its old target's group entirely under a naive
-// GROUP BY dinas_target — that read as broken ("kok ga 100% padahal udah confirmed di dinas
-// baru"). The rule: once a transaction resolves (CONFIRMED/BORNE_BY_INITIATOR) at its CURRENT
-// target, every dinas it was EVER targeted at (reconstructed from rdt.audit_log's
-// REASSIGN/REJECT_REDIRECT history) should also count it as resolved — "kek chain gitu
-// konsepnya". See buildChainAwareProgress below.
+// "Chain" resolution: once a transaction is reassigned to a new dinas_target, it stops being
+// counted in its old target's group entirely under a naive GROUP BY dinas_target — that reads as
+// broken ("100% padahal udah confirmed di dinas baru"). The rule: once a transaction resolves
+// (CONFIRMED/BORNE_BY_INITIATOR) at its CURRENT target, every dinas it was EVER targeted at
+// (reconstructed from rdt.audit_log's REASSIGN/REJECT_REDIRECT history) should also count it as
+// resolved. See buildChainAwareProgress below.
 
 const express = require('express');
 const { Client } = require('pg');
@@ -68,10 +56,9 @@ async function fetchReassignChainMap(client, transactionIds) {
   return chainMap;
 }
 
-// Shared by buildChainAwareProgress and buildNeedToConfirmProgress — Figma nodes 1:2/69:209
-// (28 Jul, project owner design-detail pass) show a "N reply" count on every dashboard pair
-// card, not just the percent ring. One batched query per call site rather than per-transaction,
-// so a dashboard load with dozens of transactions doesn't turn into dozens of round trips.
+// Shared by buildChainAwareProgress and buildNeedToConfirmProgress — a "N reply" count on every
+// dashboard pair card, not just the percent ring. One batched query per call site rather than
+// per-transaction, so a dashboard load with dozens of transactions doesn't turn into dozens of round trips.
 async function fetchReplyCounts(client, transactionIds) {
   if (!transactionIds.length) return {};
   const res = await client.query(
@@ -83,14 +70,12 @@ async function fetchReplyCounts(client, transactionIds) {
   return map;
 }
 
-// REQ-RDT-LEDGER-10 dashboard visibility (29 Jul, project owner request): NEEDS_INVESTIGATION
-// rows have dinas_target=NULL, so they never appear in any of the pair-grouped queries above —
-// invisible everywhere until now. Surfaced as a synthetic pseudo-card with the sentinel
+// NEEDS_INVESTIGATION rows have dinas_target=NULL, so they never appear in any of the
+// pair-grouped queries above. Surfaced as a synthetic pseudo-card with the sentinel
 // target_dinas='INVESTIGATION' (never a real dinas code, so it can't collide) wherever a real
-// dinas's own submissions would otherwise show, so (a) the uploading dinas can verify the
-// backend actually recognized their "Ask TA" rows (via Own Repost -> Dashboard-Detailing), and
-// (b) TAB sees it needs action (via Need to Confirm). percent is always 0 — by definition
-// nothing is "resolved" while still awaiting investigation.
+// dinas's own submissions would otherwise show, so (a) the uploading dinas can verify the backend
+// actually recognized their "Ask TA" rows, and (b) TAB sees it needs action. percent is always 0
+// — by definition nothing is "resolved" while still awaiting investigation.
 async function fetchInvestigationCounts(client, initiatorDinas) {
   const whereParts = [`status_konfirmasi = 'NEEDS_INVESTIGATION'`];
   const params = [];
@@ -125,19 +110,15 @@ async function fetchInvestigationCounts(client, initiatorDinas) {
 // falling back to its current dinas_target if it was never redirected — used for the personal
 // as_initiator view (one fixed initiatorDinas, so grouping by target alone already means "one
 // card per pair"). 'pair' groups by (dinas_inisiasi, original target) instead — used for TAB's
-// global as_initiator view (29 Jul restructure, replacing the old 'initiator'-only grouping that
-// deliberately blocked drill-down — see HomeComponent.goToDetail's old "scope cut, not an
-// oversight" note, now lifted): TAB has many initiators, so collapsing by initiator alone hid
+// global as_initiator view: TAB has many initiators, so collapsing by initiator alone would hide
 // which specific target dinas within each initiator's submissions was still outstanding.
 //
-// UPDATE (28 Jul, bug report): this used to bump EVERY dinas in the chain (both the original
-// target AND every redirect target) as separate top-level card keys — reported live as "abis
-// TM reject-redirect ke TL, TL-nya malah jadi kartu sendiri, padahal maunya nempel di kartu TM
-// yang udah ada comment section-nya". Percent/resolved still reflect the transaction's CURRENT
-// status either way (so the original card still correctly reaches 100% once resolved at the new
-// target) — only the GROUPING key changed, from "every chain member" to "just the original".
-// getPairTransactions (Dashboard-Detailing) already resolves the full chain when queried by the
-// original target, so the comment thread was never actually fragmented — only the card list was.
+// A transaction that gets reassigned bumps only its ORIGINAL target's card key, never each
+// intermediate redirect target as a separate card — a reassign shouldn't fragment the card/its
+// comment thread away from where the discussion already lives. Percent/resolved still reflect the
+// transaction's CURRENT status either way, so the original card still correctly reaches 100% once
+// resolved at the new target. getPairTransactions (Dashboard-Detailing) resolves the full chain
+// when queried by the original target.
 async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   const whereParts = ['dinas_target IS NOT NULL', 'status_konfirmasi = ANY($1)'];
   const params = [ACTIONABLE_STATUSES];
@@ -145,9 +126,8 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     whereParts.push(`dinas_inisiasi = $${params.length + 1}`);
     params.push(initiatorDinas);
   }
-  // REQ-RDT-SAP-22 (8 Agu): u.period (declared) + t.periode_efektif (snapshot) joined in here so
-  // bump() below can track overdue-ness per pair alongside everything else it already aggregates —
-  // same "declared vs effective" comparison exportBatches.js's GET /history already uses.
+  // u.period (declared) + t.periode_efektif (snapshot) joined in here so bump() below can track
+  // overdue-ness per pair, same "declared vs effective" comparison exportBatches.js's GET /history uses.
   const txRes = await client.query(
     `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, t.reassign_count, t.export_batch_id,
             u.period AS declared_period, t.periode_efektif
@@ -161,12 +141,11 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   const chainMap = await fetchReassignChainMap(client, reassignedIds);
   const replyCounts = await fetchReplyCounts(client, transactions.map((t) => t.id));
 
-  // REQ-RDT-SAP-12 (31 Jul, gap found in code review): as_initiator cards are keyed by the
-  // ORIGINAL target (pre-redirect), but export_batches rows are keyed by a pair's CURRENT target
-  // — a card can in principle span more than one batch if some of its transactions took
-  // different redirect paths. Tracked per card below (batchIds, pending count, whether any
-  // resolved transaction is still unbatched) so the label reflects the true combined state
-  // instead of guessing off a single mismatched key.
+  // as_initiator cards are keyed by the ORIGINAL target (pre-redirect), but export_batches rows
+  // are keyed by a pair's CURRENT target — a card can in principle span more than one batch if
+  // some of its transactions took different redirect paths. Tracked per card below (batchIds,
+  // pending count, whether any resolved transaction is still unbatched) so the label reflects the
+  // true combined state instead of guessing off a single mismatched key.
   const agg = {}; // key -> { dinasInisiasi, target, total, resolved, pending, declined_pending_action, reply_count, batchIds, hasUnbatchedResolved, chain, chainConsistent, periodCounts, maxPeriodeEfektif }
   const bump = (key, dinasInisiasi, target, status, replyCount, exportBatchId, fullChain, declaredPeriod, periodeEfektif) => {
     if (!agg[key]) agg[key] = { dinasInisiasi, target, total: 0, resolved: 0, pending: 0, declined_pending_action: 0, reply_count: 0, batchIds: new Set(), hasUnbatchedResolved: false, chain: fullChain, chainConsistent: true, periodCounts: {}, maxPeriodeEfektif: null };
@@ -181,17 +160,16 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
       if (exportBatchId) a.batchIds.add(exportBatchId);
       else a.hasUnbatchedResolved = true;
     }
-    // REQ-RDT-SAP-22: same "most common declared period wins, MAX(periode_efektif) is the worst-
-    // case effective period" pattern exportBatches.js's GET /history already uses per batch —
-    // here per pair instead. declaredPeriod is null for legacy rows with no upload period; NULL
-    // periode_efektif (row not yet Confirmed/Declined) simply doesn't move the MAX.
+    // Same "most common declared period wins, MAX(periode_efektif) is the worst-case effective
+    // period" pattern exportBatches.js's GET /history uses per batch — here per pair instead.
+    // declaredPeriod is null for legacy rows with no upload period; NULL periode_efektif (row not
+    // yet Confirmed/Declined) simply doesn't move the MAX.
     if (declaredPeriod) a.periodCounts[declaredPeriod] = (a.periodCounts[declaredPeriod] || 0) + 1;
     if (periodeEfektif && (!a.maxPeriodeEfektif || periodeEfektif > a.maxPeriodeEfektif)) a.maxPeriodeEfektif = periodeEfektif;
-    // REQ-RDT-NAV-03 (31 Jul, breadcrumb fix): a card can group transactions that took DIFFERENT
-    // redirect paths after sharing the same original target (e.g. one went TJ->TC->TL, another
-    // TJ->TC->TE) — only expose a single `chain` breadcrumb when every member transaction agrees
-    // on the exact same full path; otherwise leave it undefined so the frontend falls back to the
-    // plain dinas_inisiasi -> target two-point display rather than showing a misleading blend.
+    // A card can group transactions that took DIFFERENT redirect paths after sharing the same
+    // original target (e.g. one went TJ->TC->TL, another TJ->TC->TE) — only expose a single
+    // `chain` breadcrumb when every member transaction agrees on the exact same full path;
+    // otherwise leave it undefined so the frontend falls back to the plain two-point display.
     if (JSON.stringify(fullChain) !== JSON.stringify(a.chain)) a.chainConsistent = false;
   };
   for (const t of transactions) {
@@ -221,13 +199,11 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     }
   }
 
-  // Bug fix (7 Agu, REQ-RDT-SAP-09 live-verification): this function used to have NO
-  // export_batch_id filter at all — unlike GET /waiting and buildNeedToConfirmProgress below,
-  // which both correctly exclude archived rows, a fully-reposted pair just sat here forever with
-  // state_label "Reposted by TAB with subdoc ..." instead of disappearing into Riwayat Repost.
-  // Can't fix this with a plain WHERE export_batch_id IS NULL on the query above though — the
-  // hasUnbatchedResolved/batchIds tracking in bump() deliberately needs to SEE already-batched
-  // rows too, to keep showing a card that's only PARTIALLY reposted (some rows batched via an
+  // A fully-reposted pair must disappear into Riwayat Repost, not sit here forever with
+  // state_label "Reposted by TAB with subdoc ...". Can't fix this with a plain WHERE
+  // export_batch_id IS NULL on the query above though — the hasUnbatchedResolved/batchIds
+  // tracking in bump() deliberately needs to SEE already-batched rows too, to keep showing a card
+  // that's only PARTIALLY reposted (some rows batched via an
   // earlier subdoc, others newly resolved and not yet batched — the SAP-08 multi-subdoc-over-time
   // flow). So the filter has to happen here instead, after aggregation: drop a key only once it's
   // fully resolved AND every resolved row already has a batch (truly done, nothing left to ever
@@ -241,7 +217,7 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
     .map((key) => {
       const a = agg[key];
       const subdocNumbers = a.hasUnbatchedResolved ? [] : Array.from(a.batchIds).flatMap((id) => subdocsByBatch[id] || []);
-      // REQ-RDT-SAP-22: most-common declared period among this pair's transactions wins (mirrors
+      // Most-common declared period among this pair's transactions wins (mirrors
       // exportBatches.js's GET /history periodByBatch) — overdue = that period actually got
       // shifted by the worst-case (MAX) periode_efektif snapshot among them.
       let declaredPeriod = null;
@@ -253,18 +229,17 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
       const base = {
         total: a.total,
         resolved: a.resolved,
-        // REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): the segmented progress bar needs PENDING
-        // ("Open") as its own count, not just folded into `percent` — `resolved` already lumps
-        // CONFIRMED+BORNE_BY_INITIATOR together for that computation, so this is the missing piece.
+        // Segmented progress bar needs PENDING ("Open") as its own count, not just folded into
+        // `percent` — `resolved` already lumps CONFIRMED+BORNE_BY_INITIATOR together.
         open: a.pending,
         percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
         declined_pending_action: a.declined_pending_action,
         reply_count: a.reply_count,
         state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target, subdocNumbers }),
-        // REQ-RDT-NAV-03 (31 Jul): full redirect breadcrumb (e.g. ['TJ','TC','TL']), only present
-        // when every transaction under this card agrees on the same path — see bump()'s comment.
+        // Full redirect breadcrumb (e.g. ['TJ','TC','TL']), only present when every transaction
+        // under this card agrees on the same path — see bump()'s comment.
         chain: a.chainConsistent ? a.chain : undefined,
-        // REQ-RDT-SAP-22 (8 Agu): small red "Overdue" tag on this pair's card.
+        // Small red "Overdue" tag on this pair's card.
         overdue,
       };
       return groupBy === 'pair'
@@ -283,33 +258,23 @@ async function buildChainAwareProgress(client, { initiatorDinas, groupBy }) {
   return rows;
 }
 
-// "Need to Confirm" rich cards (28 Jul, Figma nodes 1:2/69:209): percent + reply count per
-// pair, not just the bare dinas-code list fetchNeedToConfirmDinas returns for the sidebar badge.
-// Same export-batch visibility rule as fetchNeedToConfirmDinas (stays listed until TAB confirms
-// the whole dinas via POST /api/export-batches/confirm — REQ-RDT-SAP-05, 29 Jul — not just until
-// PENDING hits zero: export_batch_id is only ever set at that confirm step, see
-// exportBatches.js) — no chain expansion needed here (dinas_inisiasi never changes on
-// reassignment, unlike dinas_target).
+// "Need to Confirm" rich cards: percent + reply count per pair, not just the bare dinas-code list
+// fetchNeedToConfirmDinas returns for the sidebar badge. Same export-batch visibility rule as
+// fetchNeedToConfirmDinas (stays listed until TAB confirms the whole dinas via
+// POST /api/export-batches/confirm, not just until PENDING hits zero) — no chain expansion needed
+// here (dinas_inisiasi never changes on reassignment, unlike dinas_target).
 //
-// UPDATE (28 Jul, bug report): grouping by dinas_inisiasi ALONE loses which of TAB's several
-// queues (their own 'TAB', plus 'Corp' which has no dedicated PIC — REQ-RDT-AUTH-04) a
-// submission actually sits in. That made "Ask TA"-targeted rows (see excelParser.js's
-// NEEDS_INVESTIGATION routing) show up merged into a generic "TJ" card with no indication of
-// which real queue held them, and the Confirmation page's queue picker had no way to auto-select
-// the right one — reported live as "muncul di dashboard tapi ga bisa di-confirm, defaultnya salah
-// antrian". Now grouped by (dinas_inisiasi, dinas_target) PAIR so every card names its real
-// target and the frontend can route straight to the correct queue.
-// (REQ-RDT-AUTH-05, corrected 31 Jul: dinas 'TA' itself has its own PIC and its own confirmation
-// queue like any other dinas — it was mistakenly folded into TAB's staffed queues 28 Jul, fixed
-// in needToConfirmTargetCodes above. Only 'Corp' genuinely has no dedicated PIC.)
-// includeInvestigation (29 Jul, project owner request): NEEDS_INVESTIGATION rows need TAB
-// action too ("itu bagian yang harus dikonfirmasi") — appended as pseudo-cards via
-// fetchInvestigationCounts, same sentinel target_dinas='INVESTIGATION' used everywhere else on
-// this page. Only ever true for the TAB call site (see /summary below) — a plain PIC's
-// Need-to-Confirm view has nothing to do with investigation, that's TAB's queue alone.
+// Grouped by (dinas_inisiasi, dinas_target) PAIR, not dinas_inisiasi alone, so every card names
+// its real target — TAB has several queues ('TAB' itself, plus 'Corp' which has no dedicated
+// PIC), and grouping by initiator alone would hide which queue a submission actually sits in.
+// Only 'Corp' genuinely has no dedicated PIC — 'TA' has its own PIC and its own confirmation queue.
+//
+// includeInvestigation: NEEDS_INVESTIGATION rows need TAB action too — appended as pseudo-cards
+// via fetchInvestigationCounts, same sentinel target_dinas='INVESTIGATION' used elsewhere on this
+// page. Only ever true for the TAB call site (see /summary below) — a plain PIC's Need-to-Confirm
+// view has nothing to do with investigation, that's TAB's queue alone.
 async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInvestigation) {
-  // REQ-RDT-SAP-22 (8 Agu): u.period + t.periode_efektif joined in — same overdue tracking as
-  // buildChainAwareProgress above.
+  // u.period + t.periode_efektif joined in — same overdue tracking as buildChainAwareProgress above.
   const txRes = await client.query(
     `SELECT t.id, t.dinas_inisiasi, t.dinas_target, t.status_konfirmasi, t.reassign_count,
             u.period AS declared_period, t.periode_efektif
@@ -322,12 +287,10 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
   );
   const transactions = txRes.rows;
   const replyCounts = await fetchReplyCounts(client, transactions.map((t) => t.id));
-  // A5 (3 Agu, chain arrow still missing everywhere except Dashboard-Detailing): this query groups
-  // by the CURRENT dinas_target, unlike buildChainAwareProgress's "group by ORIGINAL target"
-  // rule — but the card still needs each transaction's own intermediate hops to render a full
-  // breadcrumb instead of a plain 2-point dinas_inisiasi->dinas_target label. Same
-  // fetchReassignChainMap + "only expose chain when every transaction in the group agrees"
-  // pattern as buildChainAwareProgress, just keyed differently.
+  // This query groups by the CURRENT dinas_target, unlike buildChainAwareProgress's "group by
+  // ORIGINAL target" rule — but the card still needs each transaction's own intermediate hops to
+  // render a full breadcrumb instead of a plain 2-point label. Same fetchReassignChainMap +
+  // "only expose chain when every transaction in the group agrees" pattern, just keyed differently.
   const reassignedIds = transactions.filter((t) => t.reassign_count > 0).map((t) => t.id);
   const chainMap = await fetchReassignChainMap(client, reassignedIds);
 
@@ -341,22 +304,21 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
     if (t.status_konfirmasi === 'PENDING') a.pending += 1;
     if (t.status_konfirmasi === 'DECLINED') a.declined += 1;
     a.reply_count += replyCounts[t.id] || 0;
-    // REQ-RDT-SAP-22: same tracking as buildChainAwareProgress's bump() — see its comment.
+    // Same tracking as buildChainAwareProgress's bump() — see its comment.
     if (t.declared_period) a.periodCounts[t.declared_period] = (a.periodCounts[t.declared_period] || 0) + 1;
     if (t.periode_efektif && (!a.maxPeriodeEfektif || t.periode_efektif > a.maxPeriodeEfektif)) a.maxPeriodeEfektif = t.periode_efektif;
     const fullChain = [t.dinas_inisiasi, ...(chainMap[t.id] || []), t.dinas_target];
     if (!a.chainSeeded) { a.chain = fullChain; a.chainSeeded = true; }
     else if (JSON.stringify(fullChain) !== JSON.stringify(a.chain)) a.chainConsistent = false;
   }
-  // REQ-RDT-SAP-07 state label: this query is already scoped to export_batch_id IS NULL and keyed
-  // by the CURRENT dinas_target (no chain-collapsing like buildChainAwareProgress does), so it's
-  // safe to derive directly here — once TAB confirms a pair, export_batch_id gets set and the row
-  // falls out of this query entirely (existing 25 Jul behavior), so "Reposted with subdoc" never
-  // needs to appear on this endpoint.
+  // This query is already scoped to export_batch_id IS NULL and keyed by the CURRENT dinas_target
+  // (no chain-collapsing like buildChainAwareProgress does), so it's safe to derive the state
+  // label directly here — once TAB confirms a pair, export_batch_id gets set and the row falls
+  // out of this query entirely, so "Reposted with subdoc" never needs to appear on this endpoint.
   const rows = Object.keys(agg).sort().map((key) => {
     const a = agg[key];
-    // REQ-RDT-SAP-22: same "most common declared period wins, MAX(periode_efektif) is worst-case
-    // effective" pattern as buildChainAwareProgress above.
+    // Same "most common declared period wins, MAX(periode_efektif) is worst-case effective"
+    // pattern as buildChainAwareProgress above.
     let declaredPeriod = null;
     let bestCount = 0;
     for (const [p, c] of Object.entries(a.periodCounts)) {
@@ -368,19 +330,18 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
       target_dinas: a.target_dinas,
       total: a.total,
       resolved: a.resolved,
-      // REQ-RDT-NAV-02 (1 Agu sore, project owner request): TAB's "Need Identification" Dashboard
-      // sub-view reuses the same segmented-bar pair-card as Report Submission/Summary Progress —
-      // that card reads open/declined_pending_action off the row, same fields
-      // buildChainAwareProgress's rows already carry.
+      // TAB's "Need Identification" Dashboard sub-view reuses the same segmented-bar pair-card as
+      // Report Submission/Summary Progress — reads open/declined_pending_action off the row, same
+      // fields buildChainAwareProgress's rows already carry.
       open: a.pending,
       declined_pending_action: a.declined,
       percent: a.total > 0 ? Math.round((a.resolved / a.total) * 1000) / 10 : 0,
       reply_count: a.reply_count,
       state_label: deriveStateLabel({ pendingCount: a.pending, targetDinas: a.target_dinas }),
-      // A5 (3 Agu): full redirect breadcrumb, only present when every transaction under this
-      // card agrees on the exact same path — same rule buildChainAwareProgress uses.
+      // Full redirect breadcrumb, only present when every transaction under this card agrees on
+      // the exact same path — same rule buildChainAwareProgress uses.
       chain: a.chainConsistent && a.chain && a.chain.length > 2 ? a.chain : undefined,
-      // REQ-RDT-SAP-22 (8 Agu): small red "Overdue" tag on this pair's card.
+      // Small red "Overdue" tag on this pair's card.
       overdue,
     };
   });
@@ -388,15 +349,15 @@ async function buildNeedToConfirmProgress(client, targetDinasCodes, includeInves
   return rows;
 }
 
-// REQ-RDT-NAV-03 (Dashboard-Detailing): every transaction initiated by `initiatorDinas` whose
-// CURRENT dinas_target is `targetDinas`, OR whose reassignment chain ever passed through
-// `targetDinas` — same "once you're in the chain, you stay counted" rule buildChainAwareProgress
-// uses for the pair's own progress numbers, so the transaction list and the percent agree.
+// Dashboard-Detailing: every transaction initiated by `initiatorDinas` whose CURRENT dinas_target
+// is `targetDinas`, OR whose reassignment chain ever passed through `targetDinas` — same "once
+// you're in the chain, you stay counted" rule buildChainAwareProgress uses, so the transaction
+// list and the percent agree.
 async function getPairTransactions(client, initiatorDinas, targetDinas) {
-  // REQ-RDT-LEDGER-10 (29 Jul): the sentinel target 'INVESTIGATION' has no real dinas_target to
-  // chain-resolve (these rows are dinas_target IS NULL by definition, awaiting TAB's assign) —
-  // a plain status filter instead of the chain logic below, so the uploading dinas (and TAB) can
-  // see them in Dashboard-Detailing before they're ever routed anywhere real.
+  // The sentinel target 'INVESTIGATION' has no real dinas_target to chain-resolve (these rows are
+  // dinas_target IS NULL by definition, awaiting TAB's assign) — a plain status filter instead of
+  // the chain logic below, so the uploading dinas (and TAB) can see them in Dashboard-Detailing
+  // before they're ever routed anywhere real.
   if (String(targetDinas).toUpperCase() === 'INVESTIGATION') {
     const invRes = await client.query(
       `SELECT id, account, nominal, status_konfirmasi, ref_doc, remark, dinas_target, reassign_count
@@ -419,19 +380,16 @@ async function getPairTransactions(client, initiatorDinas, targetDinas) {
       const chainDinas = new Set([t.dinas_target, ...(chainMap[t.id] || [])].map((d) => String(d).toUpperCase()));
       return chainDinas.has(targetUpper);
     })
-    // REQ-RDT-NAV-03 (3 Agu, re-flagged still-open): the pair-level breadcrumb (buildChainAwareProgress's
-    // `chain`) only shows when EVERY transaction in the pair agrees on the same redirect path — with
-    // hundreds of transactions per pair, that's almost never true for a pair where even one row got
-    // redirected, so the header falls back to the plain 2-point display, and (until now) there was
-    // NOWHERE ELSE a per-transaction breadcrumb was rendered at all — Dashboard-Detailing had no
-    // transaction list, just the aggregate circle. Attaching each transaction's OWN full chain here
-    // (initiator -> every from_dinas hop -> current target) lets the frontend show it per-row instead.
+    // The pair-level breadcrumb (buildChainAwareProgress's `chain`) only shows when EVERY
+    // transaction in the pair agrees on the same redirect path, which is almost never true once
+    // even one row got redirected — so it falls back to the plain 2-point display there.
+    // Attaching each transaction's OWN full chain here (initiator -> every from_dinas hop ->
+    // current target) lets the frontend show it per-row instead.
     .map((t) => ({ ...t, chain: [initiatorDinas, ...(chainMap[t.id] || []), t.dinas_target] }));
 }
 
-// REQ-RDT-NAV-03/COMMENT: who may view or post in a dinas pair's drill-down + comment thread —
-// PIC of either dinas in the pair, or TAB (role TAB sees every pair's dashboard detail +
-// comment thread, per project owner correction 24 Jul — SM_TA/GH_TA roles removed entirely).
+// Who may view or post in a dinas pair's drill-down + comment thread — PIC of either dinas in the
+// pair, or TAB (role TAB sees every pair's dashboard detail + comment thread).
 function canAccessPair(user, initiatorDinas, targetDinas) {
   if (user.role === 'TAB') return true;
   const myDinas = String(user.dinas).toUpperCase();
@@ -439,10 +397,10 @@ function canAccessPair(user, initiatorDinas, targetDinas) {
 }
 
 // Comments attach to one specific transaction row (schema: transaction_id NOT NULL), but this
-// page's thread is scoped to a PAIR, not a transaction (see plan discussion, option A chosen by
-// project owner 23 Jul 2026: no schema change). A new top-level comment anchors to the pair's
-// most-recently-created transaction; a reply just inherits its parent comment's transaction_id
-// instead of trusting any client-supplied id. Reading the thread means merging comments across
+// page's thread is scoped to a PAIR, not a transaction (no schema change). A new top-level
+// comment anchors to the pair's most-recently-created transaction; a reply just inherits its
+// parent comment's transaction_id instead of trusting any client-supplied id. Reading the thread
+// means merging comments across
 // EVERY transaction in the pair by time, so it reads as one continuous conversation regardless
 // of which specific row each comment happens to be anchored to.
 async function getPairCommentThread(client, pairTransactionIds) {
@@ -473,22 +431,18 @@ router.get('/detail/:initiatorDinas/:targetDinas', async (req, res) => {
   try {
     await client.connect();
     const transactions = await getPairTransactions(client, initiatorDinas, targetDinas);
-    // B2 fix (3 Agu): this used to look up a pre-aggregated row from buildChainAwareProgress,
-    // which groups by each transaction's ORIGINAL target — but a 'need' card (buildNeedToConfirmProgress)
-    // links here using the CURRENT target, so for any pair reached via redirect the lookup found
-    // no match and silently fell back to an all-zero progress object (0%, canGoToConfirm always
-    // false). getPairTransactions already resolves the exact chain-inclusive set for this
-    // initiator/target pair (see its header comment: "the transaction list and the percent agree"
-    // — that invariant only holds if percent is computed from this same set), so aggregate
-    // directly off `transactions` instead of a separately-keyed lookup.
+    // A 'need' card (buildNeedToConfirmProgress) links here using the CURRENT target, while
+    // buildChainAwareProgress groups by each transaction's ORIGINAL target — so this aggregates
+    // directly off `transactions` (getPairTransactions' exact chain-inclusive set for this
+    // initiator/target pair) rather than looking up a separately-keyed pre-aggregated row, which
+    // wouldn't match for any pair reached via redirect.
     const total = transactions.length;
     const resolved = transactions.filter((t) => RESOLVED_STATUSES.includes(t.status_konfirmasi)).length;
     const pending = transactions.filter((t) => t.status_konfirmasi === 'PENDING').length;
     const declined = transactions.filter((t) => t.status_konfirmasi === 'DECLINED').length;
-    // REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): the header breadcrumb badge needs the same
-    // chain-if-consistent field the Dashboard cards' progress objects carry — this endpoint built
-    // its own `progress` object straight off `transactions` (see the B2 comment above) rather than
-    // reusing buildChainAwareProgress, so it never picked up `chain`. Each transaction already
+    // The header breadcrumb badge needs the same chain-if-consistent field the Dashboard cards'
+    // progress objects carry, even though this endpoint builds its own `progress` object straight
+    // off `transactions` rather than reusing buildChainAwareProgress. Each transaction already
     // carries its own full chain (getPairTransactions), so the same "expose only when every member
     // agrees" rule applies here too.
     const chainStrings = transactions.map((t) => JSON.stringify(t.chain));
@@ -537,8 +491,6 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
   if (!canAccessPair(req.rdtUser, initiatorDinas, targetDinas)) {
     return res.status(403).json({ ok: false, error: `user ${req.rdtUser.id} not authorized for pair ${initiatorDinas}->${targetDinas}` });
   }
-  // Checklist 1.3 (12 Agu): was trusted with no length cap — this is the most direct
-  // free-text-comment endpoint of the 8, no upstream field name to disambiguate from.
   const bodyCheck = validateFreeText(req.body && req.body.body, { required: true, fieldLabel: 'body' });
   if (!bodyCheck.ok) return res.status(400).json(bodyCheck);
   const body = bodyCheck.value;
@@ -566,9 +518,9 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
     );
     const commentId = insertRes.rows[0].id;
 
-    // REQ-RDT-COMMENT-03: purely notify-only, no transaction/reassignment side effects.
-    // Privacy bug fix (4 Agu): a mention of a dinas outside THIS pair must not leak a notification
-    // that reveals this pair's existence to them — see mentionRules.js's filterMentionsToPair.
+    // Purely notify-only, no transaction/reassignment side effects. A mention of a dinas outside
+    // THIS pair must not leak a notification that reveals this pair's existence to them — see
+    // mentionRules.js's filterMentionsToPair.
     const directory = await loadDirectory();
     const mentionedUserIds = filterMentionsToPair(resolveMentionedUserIds(body, directory), directory, [initiatorDinas, targetDinas])
       .filter((id) => id !== req.rdtUser.id);
@@ -601,31 +553,24 @@ router.post('/detail/:initiatorDinas/:targetDinas/comments', express.json(), asy
   }
 });
 
-// Need to Confirm (project owner correction, 25 Jul): an initiator dinas must NOT drop out of
-// this list the instant its PENDING rows targeting me hit zero — other target dinas from the
-// same initiator's submission may still be mid-confirmation, and even once every row here is
-// CONFIRMED/BORNE, the pair should stay visible until TAB has actually confirmed that whole
-// dinas pengaju (REQ-RDT-SAP-05, 29 Jul — see exportBatches.js's POST /confirm, which is the
-// only place export_batch_id ever gets set now) — "jangan ilang sebelum di-confirm oleh TAB".
-// So: keep any dinas_inisiasi with an ACTIONABLE row targeting me that hasn't yet been swept
-// into a confirmed batch, not just PENDING ones.
+// Need to Confirm: an initiator dinas must NOT drop out of this list the instant its PENDING rows
+// targeting me hit zero — other target dinas from the same initiator's submission may still be
+// mid-confirmation, and even once every row here is CONFIRMED/BORNE, the pair should stay visible
+// until TAB has actually confirmed that whole dinas pengaju (see exportBatches.js's POST
+// /confirm, the only place export_batch_id ever gets set). So: keep any dinas_inisiasi with an
+// ACTIONABLE row targeting me that hasn't yet been swept into a confirmed batch, not just PENDING ones.
 //
-// TAB also staffs dinas "Corp"'s queue (no dedicated PIC, REQ-RDT-AUTH-04) — its dinas_target
-// rows never showed up under myDinas='TAB' before this fix.
-//
-// REQ-RDT-AUTH-05 (CORRECTED 31 Jul, presentation feedback): 'TA' was removed from this list.
-// It was added 28 Jul on the mistaken assumption that TA had no dedicated PIC like Corp — that
-// assumption was wrong. TA is its OWN operational dinas with its own PIC (see
-// employee-directory.seed.json's demo-ta entry), distinct from TAB staff. Its rows belong in
-// dinas TA's own confirmation queue, not bundled into TAB's.
+// TAB also staffs dinas "Corp"'s queue (no dedicated PIC). 'TA' is NOT included — it's its own
+// operational dinas with its own PIC (see employee-directory.seed.json's demo-ta entry), distinct
+// from TAB staff. Its rows belong in dinas TA's own confirmation queue, not bundled into TAB's.
 function needToConfirmTargetCodes(myDinas, isTabStaff) {
   return (isTabStaff ? [myDinas, 'Corp'] : [myDinas]).map((d) => String(d).toUpperCase());
 }
 
 // Bare dinas-code list, no percent/reply-count aggregation — used ONLY by GET
-// /need-to-confirm-count (REQ-RDT-NAV-02a's sidebar badge, called on every page load) so that
-// route stays a single cheap DISTINCT query instead of paying for buildNeedToConfirmProgress's
-// per-transaction reply-count join just to get a count.
+// /need-to-confirm-count (the sidebar badge, called on every page load) so that route stays a
+// single cheap DISTINCT query instead of paying for buildNeedToConfirmProgress's per-transaction
+// reply-count join just to get a count.
 async function fetchNeedToConfirmDinas(client, targetDinasCodes, includeInvestigation) {
   const res = await client.query(
     `SELECT DISTINCT t.dinas_inisiasi AS dinas
@@ -658,7 +603,7 @@ router.get('/summary', async (req, res) => {
       ? await buildChainAwareProgress(client, { initiatorDinas: null, groupBy: 'pair' })
       : await buildChainAwareProgress(client, { initiatorDinas: myDinas, groupBy: 'target' });
     // Rich per-pair cards (percent + reply count), not just the bare dinas-code list — see
-    // buildNeedToConfirmProgress's header comment (Figma nodes 1:2/69:209, 28 Jul).
+    // buildNeedToConfirmProgress's header comment.
     const needToConfirm = await buildNeedToConfirmProgress(client, needToConfirmTargetCodes(myDinas, isTabStaff), isTabStaff);
 
     res.json({ ok: true, own_dinas: myDinas, as_initiator: asInitiator, need_to_confirm: needToConfirm, is_global_view: isTabStaff });
@@ -669,17 +614,16 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// REQ-RDT-SAP-12 (31 Jul, expanded per project owner idea): read-only repost/subdoc status for
-// pairs a dinas initiated now lives at GET /api/export-batches/history (auto-scoped to the
-// caller's own dinas_inisiasi for non-TAB users) rather than a second endpoint here — same table,
-// same query, two viewpoints, not two implementations. Pre-confirm progress is still /summary's
-// as_initiator cards (state_label-enriched, see buildChainAwareProgress above).
+// Read-only repost/subdoc status for pairs a dinas initiated lives at
+// GET /api/export-batches/history (auto-scoped to the caller's own dinas_inisiasi for non-TAB
+// users) rather than a second endpoint here — same table, same query, two viewpoints, not two
+// implementations. Pre-confirm progress is still /summary's as_initiator cards
+// (state_label-enriched, see buildChainAwareProgress above).
 
-// REQ-RDT-NAV-02a: lightweight count-only endpoint for the sidebar "Dashboard" badge, visible
-// from any page — called once at shell load, not the
-// full /summary aggregation. Deliberately just a count, not the dinas list itself, so this stays
-// cheap to call opportunistically (e.g. after Confirmation submit) without re-fetching more than
-// the badge needs.
+// Lightweight count-only endpoint for the sidebar "Dashboard" badge, visible from any page —
+// called once at shell load, not the full /summary aggregation. Deliberately just a count, not
+// the dinas list itself, so this stays cheap to call opportunistically (e.g. after Confirmation
+// submit) without re-fetching more than the badge needs.
 router.get('/need-to-confirm-count', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const myDinas = req.rdtUser.dinas;
@@ -698,17 +642,12 @@ router.get('/need-to-confirm-count', async (req, res) => {
 
 // "Open" = still needs SOMEONE's decision (PENDING waits on the target, DECLINED waits on the
 // initiator's Tanggung Sendiri/Ajukan Ulang) — the complement of RESOLVED_STATUSES within
-// ACTIONABLE_STATUSES. Not itself a pre-existing SRS term; derived here for the new KPI cards
-// (REQ-RDT-NAV-02, Figma nodes 78:242/78:243, 1 Agu) which don't have a written spec beyond the
-// mockup's example numbers, so these definitions are a reasonable, documented interpretation
-// rather than a literal requirement — flagged for the project owner to confirm/correct if the
-// exact semantics matter.
+// ACTIONABLE_STATUSES.
 const OPEN_STATUSES = ['PENDING', 'DECLINED'];
 
-// GET /api/dashboard/kpis — REQ-RDT-NAV-02 (Figma 78:242/78:243, 1 Agu): the 4 summary cards atop
-// a PIC's Report Submission page (own dinas_inisiasi only), or the 5 summary cards atop TAB's
-// Summary Progress All Dinas page (system-wide). Role-aware response shape, same pattern as
-// GET /summary above.
+// GET /api/dashboard/kpis — the 4 summary cards atop a PIC's Report Submission page (own
+// dinas_inisiasi only), or the 5 summary cards atop TAB's Summary Progress All Dinas page
+// (system-wide). Role-aware response shape, same pattern as GET /summary above.
 router.get('/kpis', async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const myDinas = req.rdtUser.dinas;
@@ -776,12 +715,11 @@ router.get('/kpis', async (req, res) => {
   }
 });
 
-// GET /api/dashboard/per-dinas-rollup — TAB-only. REQ-RDT-NAV-02 (Figma 78:243, "Progress per
-// Dinas Pengaju"): unlike buildChainAwareProgress's groupBy:'pair' (one row per (initiator,
-// target) pair), this sums ALL of one dinas_inisiasi's pairs into a single row — the table this
-// page shows is "how is each SUBMITTING dinas doing overall", not per-pair detail (that's still
-// available via the pair cards / Dashboard-Detailing). Sorted by Open descending (Figma's own
-// stated sort), matching the page's "worst first" triage intent.
+// GET /api/dashboard/per-dinas-rollup — TAB-only. Unlike buildChainAwareProgress's groupBy:'pair'
+// (one row per (initiator, target) pair), this sums ALL of one dinas_inisiasi's pairs into a
+// single row — "how is each SUBMITTING dinas doing overall", not per-pair detail (that's still
+// available via the pair cards / Dashboard-Detailing). Sorted by Open descending, matching the
+// page's "worst first" triage intent.
 router.get('/per-dinas-rollup', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -813,22 +751,12 @@ router.get('/per-dinas-rollup', requireRole('TAB'), async (req, res) => {
 
     // Status pill: "Butuh Investigasi (N)" wins if this dinas has any NEEDS_INVESTIGATION rows
     // (TAB needs to act regardless of how the rest of the dinas's pairs are doing); "Semua
-    // reposted" only once every row is resolved AND (see per-row check below) already has a
-    // subdoc — a 100%-resolved dinas that TAB hasn't reposted yet stays unbadged rather than
-    // claiming "reposted" prematurely.
-    //
-    // Bug fix (7 Agu): the two branches above were the ONLY cases that ever set `status` — every
-    // other row (the common case: a dinas with pairs still PENDING/DECLINED) fell through to
-    // `null`, and the template only renders the pill `*ngIf="row.status"` — so "Status" read empty
-    // for basically every row in practice. Added the two branches below to cover the rest of
-    // REQ-RDT-SAP-07's three-state vocabulary (rules/stateLabel.js's deriveStateLabel), rolled up
-    // to dinas level instead of one target: `open` (PENDING) rows mean someone's still waiting on
-    // a confirmation, same as deriveStateLabel's own first branch; everything else that isn't
-    // "Semua reposted" yet (including a 100%-confirmed-but-not-reposted dinas, AND a dinas whose
-    // only outstanding rows are DECLINED with none PENDING) falls to "Waiting to repost" — mirrors
-    // deriveStateLabel's own fallback branch exactly, same DECLINED-counts-as-basically-done
-    // quirk that's already established at every pair-level call site (exportBatches.js's
-    // GET /waiting, buildNeedToConfirmProgress) — not something to invent new wording for here.
+    // reposted" only once every row is resolved AND already has a subdoc — a 100%-resolved dinas
+    // that TAB hasn't reposted yet stays unbadged rather than claiming "reposted" prematurely.
+    // `open` (PENDING) rows mean someone's still waiting on a confirmation, same as
+    // deriveStateLabel's own first branch; everything else that isn't "Semua reposted" yet falls
+    // to "Waiting to repost" — mirrors deriveStateLabel's own fallback exactly, same
+    // DECLINED-counts-as-basically-done quirk established at every pair-level call site.
     const rows = await Promise.all(r.rows.map(async (row) => {
       const total = row.total;
       const percent = total > 0 ? Math.round((row.confirmed / total) * 1000) / 10 : 0;
@@ -858,13 +786,13 @@ router.get('/per-dinas-rollup', requireRole('TAB'), async (req, res) => {
   }
 });
 
-// GET /api/dashboard/summary/:dinasInisiasi/breakdown — TAB-only. REQ-RDT-SAP-15 (8 Agu, senior
-// TAB feedback): the per-dinas rollup table above sums ALL of a dinas_inisiasi's pairs into one
-// row — TAB asked for a way to see the pecahan (breakdown) per pasangan (dinas_target) behind
-// that one row, e.g. TJ=487 total/87 open could be TJ→TA, TJ→TE, TJ→TMM each with their own
-// progress. Full reuse of buildChainAwareProgress's groupBy:'pair' shape (same one /summary uses
-// for TAB's global as_initiator view) — just scoped to ONE dinas_inisiasi via the initiatorDinas
-// filter, and NOT re-aggregated: returns the array of per-pair rows as-is.
+// GET /api/dashboard/summary/:dinasInisiasi/breakdown — TAB-only. The per-dinas rollup table
+// above sums ALL of a dinas_inisiasi's pairs into one row; this shows the pecahan (breakdown) per
+// pasangan (dinas_target) behind that one row, e.g. TJ=487 total/87 open could be TJ→TA, TJ→TE,
+// TJ→TMM each with their own progress. Full reuse of buildChainAwareProgress's groupBy:'pair'
+// shape (same one /summary uses for TAB's global as_initiator view) — just scoped to ONE
+// dinas_inisiasi via the initiatorDinas filter, and NOT re-aggregated: returns the array of
+// per-pair rows as-is.
 //
 // The one wrinkle: buildChainAwareProgress's groupBy:'pair' branch always fetches investigation
 // rows GLOBALLY (fetchInvestigationCounts(client, null), see its own comment) rather than scoped

@@ -10,10 +10,7 @@ import { ChainHopDetailComponent } from './chain-hop-detail.component';
 
 // Angular only allows a component to be declared in one NgModule, so a component/pipe reused
 // across lazy feature modules (RdtModule for Repost, ConfirmModule for Confirmation, HomeModule
-// for Dashboard-Detailing, NeedApprovalModule, per REQ-RDT-NAV-07/09/REQ-RDT-COMMENT) needs a
-// module of its own that all of them import.
-// PeriodPickerComponent (REQ-RDT-UI-07) removed 14 Agu — its one consumer (repost-budgeting's
-// manual periode picker) was deleted per SRS 3.13/REQ-RDT-SAP-13.
+// for Dashboard-Detailing, NeedApprovalModule) needs a module of its own that all of them import.
 @NgModule({
   declarations: [PaginationComponent, MultiValueFilterComponent, IdDatePipe, MentionInputComponent, MentionTextComponent, ChainHopDetailComponent],
   imports: [CommonModule, FormsModule],

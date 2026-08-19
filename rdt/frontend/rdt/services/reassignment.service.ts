@@ -17,9 +17,9 @@ export interface DeclinedRow {
   reassign_count: number;
 }
 
-// REQ-RDT-LEDGER-07 — see src/backend/src/routes/reassignment.js for the confirmed rules:
-// BORNE_BY_INITIATOR is a status-only change (no ledger entries), REASSIGN overwrites the
-// same row's dinas_target and is capped at 3 attempts.
+// See src/backend/src/routes/reassignment.js for the confirmed rules: BORNE_BY_INITIATOR is a
+// status-only change (no ledger entries), REASSIGN overwrites the same row's dinas_target and is
+// capped at 3 attempts.
 @Injectable({ providedIn: 'root' })
 export class ReassignmentService {
   private readonly base = '/api/declined';
@@ -55,9 +55,8 @@ export class ReassignmentService {
       }));
   }
 
-  // Item 10 "Confirm All" — resolve every item in one request/one DB transaction instead of
-  // N independent HTTP calls, so a mid-batch failure can't leave some rows resolved and others
-  // still DECLINED. See reassignment.js's batch-resolve for the atomicity note.
+  // "Confirm All" — resolve every item in one request/one DB transaction instead of N independent
+  // HTTP calls, so a mid-batch failure can't leave some rows resolved and others still DECLINED.
   resolveBatch(items: Array<{ id: number; action: 'BORNE' | 'REASSIGN'; new_dinas_target?: string }>, note?: string): Observable<number> {
     const body: any = { items };
     if (note?.trim()) body.note = note.trim();

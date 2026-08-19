@@ -4,25 +4,20 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { CurrentUserService } from '@auth/services/current-user.service';
 
-// REQ-RDT-SAP-03..10 (SRS.md 3.3, 30 Jul) — Need Approval per PASANGAN (dinas_inisiasi,
-// dinas_target). See routes/exportBatches.js's header comment for the full design rationale
-// (WAITING is computed not stored, one batch = exactly one pair). state_label (REQ-RDT-SAP-07)
-// is a derived display string from the backend (rules/stateLabel.js), never stored/computed here.
-//
-// REQ-RDT-SAP-05 REVISED 31 Jul (presentation feedback): confirm() now bundles the first
-// subdoc_number into the same call as closing_description — a batch is created WITH its first
-// subdoc already attached, so there's no more "confirmed, no subdoc yet" intermediate state (the
-// old GET /confirmed + getConfirmed()/ConfirmedBatch were removed accordingly — every batch this
-// service can create is immediately a Batch with >=1 subdoc). Download also no longer needs a
-// batch to exist first — see getExportPair().
+// Need Approval per PASANGAN (dinas_inisiasi, dinas_target) — see routes/exportBatches.js's header
+// comment for the full design rationale (WAITING is computed not stored, one batch = exactly one
+// pair). state_label is a derived display string from the backend (rules/stateLabel.js), never
+// stored/computed here. confirm() bundles the first subdoc_number into the same call as
+// closing_description — a batch is created WITH its first subdoc already attached, so every batch
+// this service can create is immediately a Batch with >=1 subdoc. Download doesn't need a batch to
+// exist first — see getExportPair().
 
 export interface WaitingEntry {
   dinas_inisiasi: string;
   dinas_target: string;
   total: number;
-  /** REQ-RDT-SAP-21 (DIBALIK 14 Agu): overdue pairs stay in "Wait to Repost" now (no longer
-   * filtered out) — this flags them for the "Overdue" tag, sticky per routes/exportBatches.js's
-   * isOverdue (based on periode_efektif, a one-way snapshot). */
+  /** Overdue pairs stay in "Wait to Repost" (not filtered out) — this flags them for the
+   * "Overdue" tag, sticky per routes/exportBatches.js's isOverdue (periode_efektif snapshot). */
   overdue: boolean;
   state_label: string;
 }
@@ -36,25 +31,21 @@ export interface Batch {
   confirmed_at: string;
   created_at: string;
   state_label: string;
-  /** REQ-RDT-SAP-13 (3 Agu): "YYYY-MM" declared at Repost time (rdt.uploads.period), derived
-   * server-side from this batch's transactions — null for legacy batches confirmed before this
-   * field existed. This is the DECLARED period (what the data is actually FOR) — kept for audit
-   * purposes, but history now groups by `period_efektif` below, not this. */
+  /** "YYYY-MM" declared at Repost time (rdt.uploads.period), derived server-side from this
+   * batch's transactions — null for legacy batches. This is the DECLARED period (what the data
+   * is actually FOR) — kept for audit purposes, but history groups by `period_efektif` below. */
   period: string | null;
-  /** REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): the period this pasangan actually archives under —
-   * equal to `period` unless the dinas TARGET's Confirm/Reject action came after a deadline TAB
-   * set for this (dinas_inisiasi, dinas_target, periode) via rdt.period_deadlines, in which case
-   * it shifts to the next month. Null when `period` itself is null (legacy batches). */
+  /** The period this pasangan actually archives under — equal to `period` unless the dinas
+   * TARGET's Confirm/Reject action came after a deadline TAB set (rdt.period_deadlines), in which
+   * case it shifts to the next month. Null when `period` itself is null. */
   period_efektif: string | null;
-  /** REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): true when `period_efektif` shifted away from `period`
-   * because the dinas target confirmed/rejected after its deadline — computed server-side against
-   * rdt.period_deadlines, live at read time (see routes/exportBatches.js). Always false when TAB
-   * never set a deadline for this pasangan+periode (opt-in). */
+  /** True when `period_efektif` shifted away from `period` because the dinas target
+   * confirmed/rejected after its deadline. Always false when TAB never set a deadline. */
   overdue: boolean;
 }
 
-// REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu) — one TAB-set deadline for a (dinas_inisiasi, dinas_target,
-// periode) triple. See routes/periodDeadlines.js.
+// One TAB-set deadline for a (dinas_inisiasi, dinas_target, periode) triple. See
+// routes/periodDeadlines.js.
 export interface PeriodDeadline {
   id: number;
   dinas_inisiasi: string;
@@ -66,8 +57,8 @@ export interface PeriodDeadline {
   updated_at: string;
 }
 
-// REQ-RDT-SAP-16 (8 Agu) — one TAB-set default deadline for a periode ALONE, set in advance before
-// any pasangan for that periode even exists yet. See routes/periodDeadlines.js's POST/GET /default.
+// One TAB-set default deadline for a periode ALONE, set in advance before any pasangan for that
+// periode even exists yet. See routes/periodDeadlines.js's POST/GET /default.
 export interface PeriodDefaultDeadline {
   periode: string;
   deadline_at: string;
@@ -76,9 +67,9 @@ export interface PeriodDefaultDeadline {
   updated_at: string;
 }
 
-// DIPERJELAS 7 Agu — one row in "Override Deadline"'s list: a pasangan that's 100% confirmed for
-// this periode but un-batched, whose periode_efektif already shifted away from the declared
-// periode (overdue). See routes/periodDeadlines.js's GET /overdue.
+// One row in "Override Deadline"'s list: a pasangan that's 100% confirmed for this periode but
+// un-batched, whose periode_efektif already shifted away from the declared periode (overdue).
+// See routes/periodDeadlines.js's GET /overdue.
 export interface OverdueDeadlineEntry {
   dinas_inisiasi: string;
   dinas_target: string;
@@ -86,8 +77,8 @@ export interface OverdueDeadlineEntry {
   periode_efektif: string;
 }
 
-// REQ-RDT-SAP-20 (13 Agu, "'Repost' Active" table): one currently-active (not yet 100%
-// resolved) pasangan for a given periode — see routes/periodDeadlines.js's GET /active-pairs.
+// One currently-active (not yet 100% resolved) pasangan for a given periode — see
+// routes/periodDeadlines.js's GET /active-pairs.
 export interface ActivePairEntry {
   dinas_inisiasi: string;
   dinas_target: string;
@@ -95,8 +86,7 @@ export interface ActivePairEntry {
   open_count: number;
 }
 
-// REQ-RDT-SAP-11 — one subdoc entry with the transaction ids it actually covers, not just the
-// bare number.
+// One subdoc entry with the transaction ids it actually covers, not just the bare number.
 export interface SubdocDetail {
   id: number;
   subdoc_number: string;
@@ -104,16 +94,14 @@ export interface SubdocDetail {
   transaction_ids: number[];
 }
 
-// REQ-RDT-SAP-10 "Riwayat Repost TAB/Dinas" — a Batch plus the subdoc(s) that archived it
-// (SAP-11: full linkage, not just the bare numbers — subdoc_numbers stays as a flat convenience
-// list derived from `subdocs`).
+// "Riwayat Repost TAB/Dinas" — a Batch plus the subdoc(s) that archived it (full linkage, not just
+// the bare numbers — subdoc_numbers stays as a flat convenience list derived from `subdocs`).
 export interface HistoryBatch extends Batch {
   subdocs: SubdocDetail[];
   subdoc_numbers: string[];
 }
 
-// REQ-RDT-NAV-04 (diperluas 1 Agu, DITEGASKAN LAGI 3 Agu): backend now sends every contract
-// column (SELECT *), not a hand-picked subset — index signature so the dynamic-column renderer
+// Backend sends every contract column (SELECT *) — index signature so the dynamic-column renderer
 // (need-approval.component.ts's previewColumns, same pattern as repost-budgeting) can read any of
 // them by key. The named fields below stay because the component still reads them directly for
 // non-dynamic purposes (Reassign column, filtering).
@@ -136,8 +124,8 @@ export interface Subdoc {
   transaction_ids: number[];
 }
 
-// REQ-RDT-SAP-11 — one transaction line within a batch, annotated with which subdoc (if any)
-// already covers it. Used by the subdoc-entry picker (GET /:batchId/lines, TAB-only).
+// One transaction line within a batch, annotated with which subdoc (if any) already covers it.
+// Used by the subdoc-entry picker (GET /:batchId/lines, TAB-only).
 export interface BatchLine {
   id: number;
   account: string;
@@ -163,8 +151,8 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-10 — archived batches (>=1 subdoc). periode (optional, 'YYYY-MM') filters against
-  // the batch's declared/effective period — SRS 3.13 (14 Agu) replaced the old from/to date-range.
+  // Archived batches (>=1 subdoc). periode (optional, 'YYYY-MM') filters against the batch's
+  // declared/effective period.
   getHistory(periode?: string): Observable<HistoryBatch[]> {
     const qs = periode ? `?periode=${encodeURIComponent(periode)}` : '';
     return this.http
@@ -187,9 +175,9 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-05 (revised 31 Jul): one form, one call — closing_description AND the first
-  // subdoc_number together. transactionIds is optional (>300-line overflow: cover only a subset
-  // with this first subdoc, add the rest afterward via addSubdoc() from Riwayat Repost TAB).
+  // One form, one call — closing_description AND the first subdoc_number together. transactionIds
+  // is optional (>300-line overflow: cover only a subset with this first subdoc, add the rest
+  // afterward via addSubdoc() from Riwayat Repost TAB).
   confirm(dinasInisiasi: string, dinasTarget: string, closingDescription: string, subdocNumber: string, transactionIds?: number[]): Observable<number> {
     return this.http
       .post<{ ok: boolean; batch_id: number; error?: string }>(
@@ -203,10 +191,10 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-08/11 — a batch can take more than one subdoc over time (SAP's ~300 line item
-  // cap). transactionIds omitted = every transaction in this batch not yet covered by an earlier
-  // subdoc (the common single-subdoc case); pass a subset to split a batch across several
-  // subdocs (see getBatchLines for the picker data).
+  // A batch can take more than one subdoc over time (SAP's ~300 line item cap). transactionIds
+  // omitted = every transaction in this batch not yet covered by an earlier subdoc (the common
+  // single-subdoc case); pass a subset to split a batch across several subdocs (see
+  // getBatchLines for the picker data).
   addSubdoc(batchId: number, subdocNumber: string, transactionIds?: number[]): Observable<Subdoc> {
     return this.http
       .post<{ ok: boolean; subdoc: Subdoc; error?: string }>(
@@ -220,8 +208,8 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-11 — TAB-only. Every line in a batch with its current subdoc assignment, so the
-  // subdoc-entry UI can show/pick which unassigned rows go into a new subdoc number.
+  // TAB-only. Every line in a batch with its current subdoc assignment, so the subdoc-entry UI
+  // can show/pick which unassigned rows go into a new subdoc number.
   getBatchLines(batchId: number): Observable<BatchLine[]> {
     return this.http
       .get<{ ok: boolean; lines: BatchLine[]; error?: string }>(`${this.base}/${batchId}/lines`, { headers: this.currentUser.authHeaders() })
@@ -231,9 +219,9 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-06 auto-split (1 Agu): returns the full response, not just the Blob — >300 rows
-  // comes back as a .zip instead of .xlsx, and the caller needs Content-Disposition's filename
-  // (via confirmation.service.ts's filenameFromResponse) to know which one it got.
+  // Returns the full response, not just the Blob — >300 rows comes back as a .zip instead of
+  // .xlsx, and the caller needs Content-Disposition's filename (via
+  // confirmation.service.ts's filenameFromResponse) to know which one it got.
   downloadExport(batchId: number): Observable<HttpResponse<Blob>> {
     return this.http.get(`${this.base}/export/${batchId}`, {
       headers: this.currentUser.authHeaders(),
@@ -242,8 +230,8 @@ export class ExportBatchService {
     });
   }
 
-  // REQ-RDT-SAP-05 (revised 31 Jul) — download directly off a still-unbatched pair (no batch/
-  // confirm needed yet), for the "Waiting to repost" list.
+  // Download directly off a still-unbatched pair (no batch/confirm needed yet), for the
+  // "Waiting to repost" list.
   getExportPair(dinasInisiasi: string, dinasTarget: string): Observable<HttpResponse<Blob>> {
     return this.http.get(`${this.base}/export-pair/${encodeURIComponent(dinasInisiasi)}/${encodeURIComponent(dinasTarget)}`, {
       headers: this.currentUser.authHeaders(),
@@ -252,9 +240,9 @@ export class ExportBatchService {
     });
   }
 
-  // REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu) — TAB-only, separate router (routes/periodDeadlines.js),
-  // not part of /api/export-batches. dinasInisiasi/dinasTarget optional filter for "existing
-  // deadlines for this pair" in the management panel; omit both for the full list.
+  // TAB-only, separate router (routes/periodDeadlines.js), not part of /api/export-batches.
+  // dinasInisiasi/dinasTarget optional filter for "existing deadlines for this pair" in the
+  // management panel; omit both for the full list.
   private readonly deadlinesBase = '/api/period-deadlines';
 
   getPeriodDeadlines(dinasInisiasi?: string, dinasTarget?: string): Observable<PeriodDeadline[]> {
@@ -271,9 +259,8 @@ export class ExportBatchService {
   }
 
   // Upsert — setting again for the same (dinas_inisiasi, dinas_target, periode) UPDATES the
-  // existing deadline (see routes/periodDeadlines.js's ON CONFLICT), not a duplicate. This is the
-  // per-pasangan OVERRIDE — for the normal "one deadline for everyone" workflow, see
-  // setDefaultPeriodDeadline below (SAP-20).
+  // existing deadline, not a duplicate. This is the per-pasangan OVERRIDE — for the normal "one
+  // deadline for everyone" workflow, see setDefaultPeriodDeadline below.
   setPeriodDeadline(dinasInisiasi: string, dinasTarget: string, periode: string, deadlineAt: string): Observable<PeriodDeadline> {
     return this.http
       .post<{ ok: boolean; deadline: PeriodDeadline; error?: string }>(
@@ -287,13 +274,10 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-20 (13 Agu, "sekali aksi"): the ONLY Setting Deadline action now — upserts the
-  // periode-wide default AND sweeps/backfills it onto every currently-active pasangan in that
-  // periode, atomically, in one call (routes/periodDeadlines.js POST /default). Replaces the old
-  // separate setBulkPeriodDeadline()/"Terapkan ke Pasangan Aktif" panel entirely — `swept` is what
-  // that panel used to return on its own. A pasangan that shows up LATER for this periode without
-  // its own per-pasangan override inherits `deadline` automatically (confirmation.js's
-  // snapshotPeriodeEfektif / rules/periodEffective.js's pickDeadline).
+  // The ONLY Setting Deadline action — upserts the periode-wide default AND sweeps/backfills it
+  // onto every currently-active pasangan in that periode, atomically, in one call. A pasangan
+  // that shows up LATER for this periode without its own per-pasangan override inherits
+  // `deadline` automatically (rules/periodEffective.js's pickDeadline).
   setDefaultPeriodDeadline(periode: string, deadlineAt: string): Observable<{ deadline: PeriodDefaultDeadline; swept: PeriodDeadline[] }> {
     return this.http
       .post<{ ok: boolean; deadline: PeriodDefaultDeadline; swept: PeriodDeadline[]; error?: string }>(
@@ -319,8 +303,8 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-19 (13 Agu) — deletable only while its deadline hasn't passed yet (backend's own
-  // guard, routes/periodDeadlines.js DELETE /default/:periode, 400 if already passed).
+  // Deletable only while its deadline hasn't passed yet (backend's own guard, 400 if already
+  // passed).
   deleteDefaultPeriodDeadline(periode: string): Observable<void> {
     return this.http
       .delete<{ ok: boolean; error?: string }>(
@@ -332,9 +316,8 @@ export class ExportBatchService {
       }));
   }
 
-  // REQ-RDT-SAP-20 (13 Agu, "'Repost' Active" table) — pasangan yang masih punya transaksi belum
-  // selesai (blocking status) di periode ini, un-batched. See routes/periodDeadlines.js's
-  // GET /active-pairs.
+  // Pasangan yang masih punya transaksi belum selesai (blocking status) di periode ini,
+  // un-batched.
   getActivePairs(periode: string): Observable<ActivePairEntry[]> {
     return this.http
       .get<{ ok: boolean; active: ActivePairEntry[]; error?: string }>(
@@ -347,8 +330,7 @@ export class ExportBatchService {
       }));
   }
 
-  // DIPERJELAS 7 Agu — "Overdue" list, informational (SRS 3.13: cap sticky, tidak ada lagi aksi
-  // override yang menghapusnya).
+  // "Overdue" list, informational — cap sticky, tidak ada aksi override yang menghapusnya.
   getOverdueDeadlines(periode: string): Observable<OverdueDeadlineEntry[]> {
     return this.http
       .get<{ ok: boolean; overdue: OverdueDeadlineEntry[]; error?: string }>(
@@ -361,9 +343,8 @@ export class ExportBatchService {
       }));
   }
 
-  // SRS 3.13 (14 Agu, point 2) — the periode-wide default deadline for the CURRENT auto-periode,
-  // for shell.component's reminder banner. Only non-TAB-reachable route on this router (see
-  // routes/periodDeadlines.js's GET /current-reminder) — any logged-in user, not just TAB.
+  // The periode-wide default deadline for the CURRENT auto-periode, for shell.component's
+  // reminder banner. Only non-TAB-reachable route on this router — any logged-in user, not just TAB.
   getCurrentDeadlineReminder(): Observable<{ periode: string; deadline_at: string | null }> {
     return this.http
       .get<{ ok: boolean; periode: string; deadline_at: string | null; error?: string }>(

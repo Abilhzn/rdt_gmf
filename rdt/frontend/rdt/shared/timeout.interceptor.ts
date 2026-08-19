@@ -3,11 +3,9 @@ import { HttpEvent, HttpHandler, HttpInterceptor, HttpRequest, HttpErrorResponse
 import { Observable, TimeoutError, throwError } from 'rxjs';
 import { timeout, catchError } from 'rxjs/operators';
 
-// Checklist 2.2 (12 Agu): every HTTP call this app makes used to have NO client-side timeout at
-// all — a hung request (backend stuck, network dropped mid-flight, dst) left whatever spinner
-// was showing running forever, no way for the user to tell "still working" from "never coming
-// back". 30s matches the backend's own server-side timeout (see rdt/backend/src/index.js's
-// request-timeout middleware) so client and server agree on how long "too long" is.
+// Client-side timeout for every HTTP call this app makes, so a hung request doesn't leave a
+// spinner running forever. 30s matches the backend's own server-side timeout (see
+// rdt/backend/src/index.js's request-timeout middleware).
 const REQUEST_TIMEOUT_MS = 30000;
 
 @Injectable()

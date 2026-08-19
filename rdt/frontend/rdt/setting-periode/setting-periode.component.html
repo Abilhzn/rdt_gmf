@@ -2,10 +2,9 @@
   <!-- SRS 3.13 "Struktur navigasi disederhanakan lagi" (14 Agu): SATU halaman, form Setting
        Deadline di atas, tabel Repost Active di bawah — bukan 2 sub-halaman terpisah lagi. -->
   <p class="note intro">
-    Deadline mengikat kapan <strong>dinas target</strong> Confirm/Reject pasangan ini — bukan kapan
-    TAB repost. Kalau dinas target confirm/reject setelah deadline, periode repost efektif
-    pasangan itu otomatis geser ke bulan berikutnya. Opsional per pasangan+periode — tanpa
-    deadline, repost jalan normal ke periode data yang dinyatakan.
+    Deadline mengikat kapan <strong>dinas target</strong> harus Confirm/Reject, bukan kapan TAB
+    repost. Lewat deadline, periode repost otomatis geser ke bulan berikutnya. Opsional — tanpa
+    deadline, repost berjalan normal.
   </p>
 
   <!-- REQ-RDT-SAP-16/20 — the ONE Setting Deadline action: settable ANYTIME (before any dinas has
@@ -14,9 +13,8 @@
   <div class="section-panel">
     <h3 class="card__subtitle">Setting Deadline</h3>
     <p class="note">
-      Set deadline periode ini sekarang. Berlaku langsung ke setiap pasangan (dinas pengaju ×
-      dinas target) yang SUDAH aktif (masih ada transaksi belum selesai) di periode ini, DAN
-      otomatis "diwariskan" ke pasangan manapun yang baru muncul nanti di periode ini.
+      Berlaku ke semua pasangan aktif di periode ini, dan otomatis berlaku ke pasangan baru yang
+      muncul nanti.
     </p>
     <div class="deadline-form">
       <label class="filter-label">
@@ -67,14 +65,8 @@
   <div class="section-panel">
     <h3 class="card__subtitle">Repost Active</h3>
     <p class="note">
-      Semua pasangan (dinas pengaju × dinas target) yang masih AKTIF (belum selesai) atau OVERDUE
-      (sudah 100% confirmed tapi lewat deadline, belum di-repost) di periode-periode yang pernah
-      dapat deadline — satu tab per periode, seperti Riwayat Repost.
-      <!-- SRS 3.13 (14 Agu): "Override deadline"/re-evaluasi DIHAPUS — cap Overdue sekarang
-           permanen/sticky (REQ-RDT-SAP-21 dibalik), jadi tidak ada lagi aksi yang bisa
-           menghilangkannya di sini. Baris OVERDUE tetap tampil, informational saja (dikonfirmasi
-           ulang 18 Agu — SRS text section ini masih menyebut tombol lama, project owner setuju
-           tetap dihapus, bukan restore). -->
+      Pasangan yang masih aktif atau overdue di periode yang punya deadline, dikelompokkan per
+      periode.
     </p>
 
     <p class="alert alert--error" *ngIf="activeErrorMessage">{{ activeErrorMessage }}</p>

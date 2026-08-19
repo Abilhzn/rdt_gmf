@@ -1,10 +1,5 @@
-// Checklist 2.2 (12 Agu) — centralized error logging. Doesn't need to be Sentry (checklist's own
-// words), just needs to exist: a dev/TAB checking this service after something goes wrong should
-// find every 5xx response logged here, not have to wait for a user to report it or dig through a
-// terminal window that's long since scrolled away. Appends one JSON line per error to
-// logs/error.log (gitignored — runtime data, not source, same treatment as staging/uploads
-// dirs — see root .gitignore) so it survives past whatever terminal happened to be open when it
-// occurred and stays greppable.
+// Centralized error logging: every 5xx response gets appended as one JSON line to logs/error.log
+// (gitignored runtime data), so it survives past whatever terminal was open and stays greppable.
 const fs = require('fs');
 const path = require('path');
 const { classifyError } = require('./rules/errorClassification');
@@ -49,13 +44,10 @@ function errorLoggingMiddleware(serviceName) {
   };
 }
 
-// REQ-RDT-LEDGER-05 / REQ-RDT-AUDIT-02 (audit finding, 13 Agu): shared by every ledger-mutating
-// route's ROLLBACK catch block (confirmation.js, exportBatches.js, investigation.js,
-// periodDeadlines.js, reassignment.js, shareCost.js) — categorizes the error and writes ONE
-// rdt.audit_log row for the rollback itself (transaction_id NULL when the failure isn't
-// attributable to a single row, e.g. a batch-level gate check). Swallows its own failures (logging
-// must never turn a real error response into a worse one) and always returns the category so the
-// caller can still put it in the HTTP response even if the DB write itself failed.
+// Shared by every ledger-mutating route's ROLLBACK catch block — categorizes the error and writes
+// one rdt.audit_log row for the rollback (transaction_id NULL when not attributable to a single
+// row). Swallows its own failures and always returns the category, so the caller can still put it
+// in the HTTP response even if the DB write itself failed.
 async function logRollbackAudit(client, { userId, req, err, route, transactionId = null }) {
   const category = classifyError(err);
   try {

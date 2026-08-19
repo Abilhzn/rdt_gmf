@@ -10,9 +10,8 @@ interface SplitRowVm {
   nominal: number | null;
 }
 
-// SRS section 3.10 (Share-Cost oleh TAB, "seadanya" version, asumsi dikunci 3 Agu): TAB pilih
-// satu baris PENDING, input N baris split (dinas_target + nominal tiap baris), validasi sum
-// real-time sebelum submit. Lives under Need Identification's sub-nav (shell.component.html).
+// TAB pilih satu baris PENDING, input N baris split (dinas_target + nominal tiap baris), validasi
+// sum real-time sebelum submit. Lives under Need Identification's sub-nav (shell.component.html).
 @Component({
   selector: 'rdt-share-cost',
   standalone: false,
@@ -63,8 +62,8 @@ export class ShareCostComponent implements OnInit {
     this.note = '';
   }
 
-  // REQ-RDT-LEDGER-09, extended 5 Agu ke Share-Cost -- satu baris candidate = satu upload asal,
-  // jadi cukup langsung dari `selected`, tidak perlu dedupe seperti antrian PENDING/Investigation.
+  // Satu baris candidate = satu upload asal, jadi cukup langsung dari `selected`, tidak perlu
+  // dedupe seperti antrian PENDING/Investigation.
   downloadOriginal(): void {
     if (!this.selected) return;
     const uploadId = this.selected.upload_id;

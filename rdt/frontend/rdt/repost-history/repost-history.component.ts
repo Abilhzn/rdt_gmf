@@ -7,8 +7,8 @@ import { CurrentUserService } from '@auth/services/current-user.service';
 import { matchesAnyFilterValue } from '../shared/multi-value-filter.component';
 import { extractErrorMessage } from '../shared/error-message.util';
 
-// Project owner request (31 Jul sore): split the list into month "sheets" (like separate tabs in
-// one Excel workbook), labeled literally MM-YYYY (e.g. "06-2026") — not a localized month name.
+// List splits into month "sheets" (like separate tabs in one Excel workbook), labeled literally
+// MM-YYYY (e.g. "06-2026") — not a localized month name.
 export interface MonthGroup {
   key: string;
   batches: HistoryBatch[];
@@ -19,7 +19,7 @@ function monthKeyOf(iso: string): string {
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
 }
 
-// REQ-RDT-SAP-13 (3 Agu): "YYYY-MM" (rdt.uploads.period) -> this page's "MM-YYYY" tab-key format.
+// "YYYY-MM" (rdt.uploads.period) -> this page's "MM-YYYY" tab-key format.
 function periodToMonthKey(period: string): string {
   const [yyyy, mm] = period.split('-');
   return `${mm}-${yyyy}`;
@@ -30,18 +30,12 @@ function monthKeySortValue(key: string): number {
   return Number(yyyy) * 100 + Number(mm);
 }
 
-// REQ-RDT-SAP-10/12 "Riwayat Repost TAB/Dinas" — the archive destination for REQ-RDT-SAP-09 (a
-// batch leaves Need Approval's "Sudah Confirmed" the instant it gets its first subdoc, see
-// need-approval.component's addSubdoc). Also the in-app substitute for the deferred email
-// notification (SMTP infra out of scope for now) — PICs already got their in-app notification +
-// comment at Confirm time (POST /confirm), this page is a browsable log on top, not a
-// replacement for that.
-//
-// SAP-12 (31 Jul, expanded): NOT TAB-only anymore — GET /history auto-scopes to the caller's own
-// dinas_inisiasi for non-TAB users, TAB sees every dinas (see routes/exportBatches.js). Same
-// endpoint, same table, two viewpoints — not a separate "Riwayat Repost Dinas" feature. Adding a
-// subdoc and downloading the export file stay TAB-only actions (backend still gates those
-// specifically), hidden here for a plain PIC.
+// "Riwayat Repost TAB/Dinas" — the archive destination once a batch gets its first subdoc (see
+// need-approval.component's addSubdoc). Also the in-app substitute for email notification (SMTP
+// out of scope) — PICs already got their in-app notification + comment at Confirm time, this page
+// is a browsable log on top. NOT TAB-only — GET /history auto-scopes to the caller's own
+// dinas_inisiasi for non-TAB users, TAB sees every dinas. Same endpoint, same table, two
+// viewpoints. Adding a subdoc and downloading the export file stay TAB-only actions.
 @Component({
   selector: 'rdt-repost-history',
   standalone: false,
@@ -51,8 +45,8 @@ function monthKeySortValue(key: string): number {
 export class RepostHistoryComponent implements OnInit {
   batches: HistoryBatch[] = [];
   errorMessage = '';
-  // SRS 3.13 (14 Agu): replaced the old from/to date-range filter — plain Bulan+Tahun dropdown
-  // over the batch's declared/effective period ('YYYY-MM', same precedence monthGroups uses).
+  // Bulan+Tahun dropdown over the batch's declared/effective period ('YYYY-MM', same precedence
+  // monthGroups uses).
   filterMonth = '';
   filterYear = '';
   readonly months = [
@@ -63,20 +57,17 @@ export class RepostHistoryComponent implements OnInit {
   ];
   // A handful of years around now — plenty for a Repost archive filter, no need to derive from data.
   readonly years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - 3 + i));
-  // Checklist section 3 (12 Agu, loading-state audit): !batches.length used to double as both
-  // "still loading" and "genuinely nothing archived yet" — no way to tell them apart, page just
-  // sat blank until the request resolved.
+  // Distinguishes "still loading" from "genuinely nothing archived yet".
   loading = true;
 
-  // REQ-RDT-SAP-11: subdoc entry is TAB-only and can be repeated on an already-archived batch
-  // (splitting a large pair across several subdocs over time) — one input per batch row, keyed
-  // by batch id since more than one row can be mid-entry at once.
+  // Subdoc entry is TAB-only and can be repeated on an already-archived batch (splitting a large
+  // pair across several subdocs over time) — one input per batch row, keyed by batch id since
+  // more than one row can be mid-entry at once.
   subdocInputByBatchId: Record<number, string> = {};
   addingSubdocBatchId: number | null = null;
 
-  // REQ-RDT-NAV-09: paste-many-values filter on subdoc number — the page's own stated purpose
-  // is "cari nomor refdoc/subdoc untuk cross-check", so that's the filterable column here
-  // (batches don't have individual Account/Ref.Doc rows, unlike the other tables this applies to).
+  // Paste-many-values filter on subdoc number — "cari nomor refdoc/subdoc untuk cross-check" is
+  // this page's own stated purpose, so that's the filterable column here.
   subdocFilterValues: string[] = [];
 
   get filteredBatches(): HistoryBatch[] {
@@ -88,12 +79,10 @@ export class RepostHistoryComponent implements OnInit {
     this.subdocFilterValues = values;
   }
 
-  // Month "sheets" — REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): grouped by the EFFECTIVE period
-  // (period_efektif) now, not the declared period — a pasangan whose dinas target confirmed after
-  // TAB's deadline archives under the NEXT month, not the month the data was declared for. Falls
-  // back to `period` (pre-SAP-14-revision batches, period_efektif null) then confirmed_at (legacy
-  // batches with neither). Sorted oldest to newest (same left-to-right order Excel workbook tabs
-  // get added in), independent of the subdoc paste-filter above.
+  // Month "sheets" grouped by the EFFECTIVE period (period_efektif), not the declared period — a
+  // pasangan whose dinas target confirmed after TAB's deadline archives under the NEXT month, not
+  // the month the data was declared for. Falls back to `period` then confirmed_at for legacy
+  // batches with neither. Sorted oldest to newest, independent of the subdoc paste-filter above.
   selectedMonthKey: string | null = null;
 
   get monthGroups(): MonthGroup[] {
@@ -158,8 +147,8 @@ export class RepostHistoryComponent implements OnInit {
     this.load();
   }
 
-  // REQ-RDT-SAP-06 auto-split (1 Agu): >300 rows comes back as a .zip instead of .xlsx — the
-  // actual filename (with the right extension) comes from the response, not guessed client-side.
+  // >300 rows comes back as a .zip instead of .xlsx — the actual filename (with the right
+  // extension) comes from the response, not guessed client-side.
   download(batch: HistoryBatch): void {
     this.exportBatches.downloadExport(batch.id).subscribe({
       next: (res) => {
@@ -171,12 +160,11 @@ export class RepostHistoryComponent implements OnInit {
     });
   }
 
-  // Feedback tambahan 7 Agu: an archived pair's thread/chain is already fully queryable via
-  // GET /api/dashboard/detail/:initiator/:target (dashboard.js's getPairTransactions filters by
-  // status_konfirmasi only, not export_batch_id) — Dashboard-Detailing works for archived pairs
-  // with zero backend changes, this page just never linked to it. Same relative-navigation
-  // pattern HomeComponent.goToInvestigation() uses ('repost-history' and 'dashboard' are sibling
-  // routes under the same ShellComponent, see rdt-routing.module.ts).
+  // An archived pair's thread/chain is already fully queryable via GET
+  // /api/dashboard/detail/:initiator/:target (filters by status_konfirmasi only, not
+  // export_batch_id) — Dashboard-Detailing works for archived pairs with zero backend changes.
+  // Same relative-navigation pattern HomeComponent.goToInvestigation() uses ('repost-history' and
+  // 'dashboard' are sibling routes under the same ShellComponent).
   goToDetail(batch: HistoryBatch): void {
     this.router.navigate(['../dashboard/detail', batch.dinas_inisiasi, batch.dinas_target], { relativeTo: this.route });
   }

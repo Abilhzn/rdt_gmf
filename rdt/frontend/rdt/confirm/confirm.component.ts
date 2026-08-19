@@ -26,9 +26,8 @@ interface PreviewColumn {
   numeric?: boolean;
 }
 
-// REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu): the same curated 7-contract-field set every previewColumns
-// builder in this app filters down to now — duplicated per component rather than shared/imported,
-// matching this app's own "duplicate styles/logic per component" convention (see rdt/README.md).
+// Curated 7-contract-field set every previewColumns builder in this app filters down to —
+// duplicated per component rather than shared/imported, matching this app's own convention.
 const CURATED_CONTRACT_KEYS = ['account', 'profit_ctr', 'ref_doc', 'period', 'text_desc', 'material', 'in_pclc'];
 
 interface ThreadRow {
@@ -36,16 +35,11 @@ interface ThreadRow {
   depth: number;
 }
 
-// REQ-RDT-NAV-04 — rebuilt to match the updated Figma (node 20:712, "Confirmation"):
-// single checkbox per row (checked=Confirm, unchecked=Reject) + Select All, ALL visible
-// rows get submitted (no "skip, undecided" state) — confirmed with the project owner.
-// Auto-resolves the acting dinas from the logged-in user instead of requiring a :dinas
-// route param; an optional ?from=<dinas> query param (set when navigating here from
-// Dashboard's "Need to Confirm" buttons) filters the PENDING list to just that initiator
-// dinas, matching the "[Dinas Lain] → [User]" badge in the design.
-//
-// Export-batch approval (REQ-RDT-SAP-01/02) moved to its own NeedApprovalComponent/page —
-// the updated Figma sidebar has "Need Approval" as a separate nav item now.
+// Single checkbox per row (checked=Confirm, unchecked=Reject) + Select All, ALL visible rows get
+// submitted (no "skip, undecided" state). Auto-resolves the acting dinas from the logged-in user
+// instead of requiring a :dinas route param; an optional ?from=<dinas> query param (set when
+// navigating here from Dashboard's "Need to Confirm" buttons) filters the PENDING list to just
+// that initiator dinas. Export-batch approval lives in its own NeedApprovalComponent/page.
 @Component({
   selector: 'rdt-confirm',
   standalone: false,
@@ -55,44 +49,36 @@ interface ThreadRow {
 export class ConfirmComponent implements OnInit {
   dinas = '';
   /** Which target queue is loaded. Equals the user's own dinas, except for role TAB, who
-   * additionally staffs dinas "Corp" (item 3 — Corp has no dedicated PIC, TAB acts on its
-   * behalf, but the label stays "Corp" everywhere; see middleware/auth.js's requireDinasAccess
-   * special case). TAB gets a picker to switch between their own queue and Corp's. */
+   * additionally staffs dinas "Corp" (no dedicated PIC, TAB acts on its behalf, but the label
+   * stays "Corp" everywhere). TAB gets a picker to switch between their own queue and Corp's. */
   selectedTarget = '';
   filterFromDinas: string | null = null;
   /** ?target=<dinas> — set when navigating here from a "Need to Confirm" dashboard card, which
-   * knows the REAL queue a submission sits in (a plain dinas's own PIC, or 'Corp' — TAB's only
-   * no-dedicated-PIC queue, REQ-RDT-AUTH-04). Without it, selectedTarget falls back to the
-   * user's own dinas. REQ-RDT-AUTH-05 (corrected 31 Jul): 'TA' was removed from the set of
-   * TAB-staffed queues here — a 28 Jul fix had briefly treated it like Corp on the mistaken
-   * assumption TA had no dedicated PIC; TA rows now only ever show up under TA's own PIC login. */
+   * knows the REAL queue a submission sits in (a plain dinas's own PIC, or 'Corp'). Without it,
+   * selectedTarget falls back to the user's own dinas. 'TA' is NOT a TAB-staffed queue — TA has
+   * its own dedicated PIC, its rows only ever show up under TA's own PIC login. */
   filterTargetDinas: string | null = null;
   pendingRows: PendingRowVm[] = [];
   declinedRows: DeclinedRow[] = [];
   dinasOptions: DinasEntry[] = [];
 
-  // REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu, "full column preview everywhere"): this queue used to
-  // hardcode Account/Ref.Doc/Nominal/Remark only — same shared column source (GET
-  // /api/contract-fields) repost-budgeting.component.ts and need-approval.component.ts already
-  // use, so whatever's visible at Upload Detail Transaction stays visible here too.
+  // Full column preview — same shared column source (GET /api/contract-fields)
+  // repost-budgeting.component.ts and need-approval.component.ts use, so whatever's visible at
+  // Upload Detail Transaction stays visible here too.
   previewColumns: PreviewColumn[] = [];
 
-  /** REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): which row's chain popover is open, at most one at a
-   * time — same "one at a time" convention as home.component's expandedChainKey. A table cell has
-   * no room to widen sideways like the Dashboard cards do, so this opens a small floating popover
-   * instead (see confirm.component.scss's .chain-popover). */
+  /** Which row's chain popover is open, at most one at a time — same convention as
+   * home.component's expandedChainKey. A table cell has no room to widen sideways like the
+   * Dashboard cards do, so this opens a small floating popover instead (.chain-popover). */
   expandedChainRowId: number | null = null;
-  /** Fixed-position coords for the open popover, computed from the trigger button's own
-   * bounding rect (see toggleChainPopover) — position:absolute would get clipped by
-   * .table-scroll's `overflow-x: auto` (which forces overflow-y to a clipping value too, per
-   * the CSS spec, even though only overflow-x was set), so this escapes via position:fixed
-   * instead, which isn't confined by an ancestor's overflow. */
+  /** Fixed-position coords for the open popover, computed from the trigger button's bounding rect
+   * — position:absolute would get clipped by .table-scroll's `overflow-x: auto` (forces overflow-y
+   * to a clipping value too, per the CSS spec), so this uses position:fixed instead. */
   chainPopoverTop = 0;
   chainPopoverLeft = 0;
 
-  // REQ-RDT-NAV-05 (baru 3 Agu): baris DECLINED/sedang-direassign pindah ke tab/sheet terpisah
-  // (mirip tab sheet Excel), bukan ditumpuk di bawah tabel pending — dan tab ini cuma dirender
-  // sama sekali kalau ADA datanya (lihat confirm.component.html's *ngIf="declinedRows.length").
+  // Baris DECLINED/sedang-direassign ada di tab/sheet terpisah dari tabel pending — tab ini cuma
+  // dirender kalau ADA datanya (lihat confirm.component.html's *ngIf="declinedRows.length").
   activeQueueTab: 'pending' | 'declined' = 'pending';
 
   selectQueueTab(tab: 'pending' | 'declined'): void {
@@ -103,11 +89,8 @@ export class ConfirmComponent implements OnInit {
   emptyNote = '';
   reassignTargetByRowId: Record<number, string> = {};
 
-  // Checklist section 3 (12 Agu, loading-state audit): none of this page's 6 async actions had
-  // any busy-state guard — a double-click (or an impatient second click while a slow request was
-  // still in flight) could fire the same mutation twice. Per-row flags follow the same pattern
-  // already used elsewhere in this file (addingSubdocBatchId-style) for actions scoped to one row;
-  // page-wide flags for actions that affect the whole visible set at once.
+  // Busy-state guards so a double-click can't fire the same mutation twice. Per-row flags for
+  // actions scoped to one row; page-wide flags for actions affecting the whole visible set.
   submittingDecisions = false;
   resolvingRowId: number | null = null;
   submittingAllResolutions = false;
@@ -115,65 +98,55 @@ export class ConfirmComponent implements OnInit {
   assigningAllInvestigation = false;
   bulkAssigning = false;
 
-  // REQ-RDT-NAV-07 (direvisi 5 Agu, 100->50): paginate the pending table instead of dumping every
-  // row on one page, using the shared pager (50 rows/page) also used by Repost's review table.
+  // Paginate the pending table instead of dumping every row on one page, using the shared pager
+  // (50 rows/page) also used by Repost's review table.
   page = 1;
   readonly pageSize = 50;
-  // REQ-RDT-NAV-09 (diperluas 1 Agu): satu filter multi-value per KOLOM, bukan cuma Account —
-  // keyed by PendingRowVm's own field names (dinas_inisiasi/account/ref_doc/nominal/remark), AND
-  // antar kolom aktif, OR di dalam satu kolom (matchesAllColumnFilters).
+  // One filter multi-value per KOLOM, bukan cuma Account — keyed by PendingRowVm's field names,
+  // AND antar kolom aktif, OR di dalam satu kolom (matchesAllColumnFilters).
   pendingColumnFilters: Record<string, string[]> = {};
 
-  // Item 7: right after a submit, show exactly which rows were declined vs redirected (from
-  // the submit response, no refetch needed) as immediate feedback for the confirming user —
-  // separate from declinedRows below, which is a different person's queue (the INITIATOR's,
-  // resolved as this.dinas, not selectedTarget).
+  // Right after a submit, show exactly which rows were declined vs redirected (from the submit
+  // response, no refetch needed) — separate from declinedRows below, which is a different
+  // person's queue (the INITIATOR's, resolved as this.dinas, not selectedTarget).
   justDeclined: DeclinedOutcomeRow[] = [];
   justRedirected: RedirectedOutcomeRow[] = [];
 
-  /** Project owner request (25 Jul): optional note attached to a Confirm submit — posted
-   * server-side as a reply under the initiator's repost-description comment in the pair's
-   * Dashboard-Detailing thread. Cleared on every fresh loadStatus() like justDeclined/justRedirected. */
+  /** Optional note attached to a Confirm submit — posted server-side as a reply under the
+   * initiator's repost-description comment in the pair's Dashboard-Detailing thread. Cleared on
+   * every fresh loadStatus() like justDeclined/justRedirected. */
   confirmDescription = '';
 
-  // Item 10: "Confirm All" — pick an action for every declined row first, then submit them
-  // all in one batch (existing per-row resolveBorne/resolveReassign buttons stay available for
-  // one-at-a-time use). Item 7/10's optional shared note travels with whichever submit path
-  // is used (single resolve or batch).
+  // "Confirm All" — pick an action for every declined row first, then submit them all in one
+  // batch (per-row resolveBorne/resolveReassign buttons stay available for one-at-a-time use).
+  // The optional shared note travels with whichever submit path is used (single resolve or batch).
   pendingActionByRowId: Record<number, 'BORNE' | 'REASSIGN'> = {};
   batchNote = '';
 
-  // Project owner request (28 Jul): "liatin dulu chatnya" before deciding Ya/Tidak — read-only
-  // preview of the pair's existing discussion, shown above the transaction list. Only meaningful
-  // when filtered to ONE specific (initiator, target) pair (see showThread below); posting/
-  // replying stays on Dashboard-Detailing, reached via goToThreadDetail().
+  // "liatin dulu chatnya" before deciding Ya/Tidak — read-only preview of the pair's existing
+  // discussion, shown above the transaction list. Only meaningful when filtered to ONE specific
+  // (initiator, target) pair (see showThread below); posting/replying stays on Dashboard-Detailing.
   threadRows: ThreadRow[] = [];
   threadLoaded = false;
 
-  // REQ-RDT-LEDGER-10 restructure (29 Jul, project owner request): Investigation/Ask TA folded
-  // into Confirmation as a third TAB-only sub-tab (was a standalone InvestigationComponent/route
-  // before) — swaps the whole normal-queue section for a differently-shaped queue.
-  // selectedTarget === 'INVESTIGATION' is the sentinel (not a
-  // real dinas code, driven by the shell sidebar's sub-nav via ?target=INVESTIGATION).
+  // Investigation/Ask TA is a third TAB-only sub-tab — swaps the whole normal-queue section for a
+  // differently-shaped queue. selectedTarget === 'INVESTIGATION' is the sentinel (not a real dinas
+  // code, driven by the shell sidebar's sub-nav via ?target=INVESTIGATION).
   isInvestigation = false;
   investigationRows: InvestigationRow[] = [];
   investigationTargetByRowId: Record<number, string> = {};
   /** Optional note explaining why each row went to its chosen dinas — same comment system as
-   * Repost, posted on the newly-assigned pair's Dashboard-Detailing thread (see
-   * routes/investigation.js's postPairComment). */
+   * Repost, posted on the newly-assigned pair's Dashboard-Detailing thread. */
   investigationDescription = '';
 
-  // REQ-RDT-LEDGER-10 addition (30 Jul, TAB meeting): checkbox + Select All bulk-select, assigned
-  // to ONE shared dinas_target in one action — a lighter alternative to "Assign All" above (which
-  // requires every row to already have its OWN per-row target chosen first). Both call the same
-  // backend endpoint (routes/investigation.js's assign-all already accepts any subset of items,
-  // no backend change needed) — single-row Assign stays available for rows with a different
-  // answer than the rest, per project owner: "assign satu-per-satu tetap harus tersedia".
+  // Checkbox + Select All bulk-select, assigned to ONE shared dinas_target in one action — a
+  // lighter alternative to "Assign All" above (which requires every row to already have its own
+  // per-row target chosen first). Single-row Assign stays available for rows with a different
+  // answer than the rest.
   selectedInvestigationIds = new Set<number>();
   bulkTargetDinas = '';
-  // REQ-RDT-NAV-09 (diperluas 1 Agu): filter per kolom — narrows what's shown/selectable, but
-  // NOT what "Assign All" targets (that stays literally every awaiting-investigation row, its
-  // pre-existing meaning).
+  // Filter per kolom — narrows what's shown/selectable, but NOT what "Assign All" targets (that
+  // stays literally every awaiting-investigation row).
   investigationColumnFilters: Record<string, string[]> = {};
 
   get filteredInvestigationRows(): InvestigationRow[] {
@@ -202,13 +175,10 @@ export class ConfirmComponent implements OnInit {
     });
   }
 
-  // REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "tampilkan SEMUA kolom"): sama 11-kolom+Notes
-  // tetap yang dipakai repost-budgeting.component.ts's buildPreviewColumns (lihat komentarnya di
-  // sana untuk rasional lengkap) — MINUS "Dinas Pengaju": queue ini sudah punya kolom "Dinas
-  // Pengaju" sendiri di luar previewColumns (dengan chain-popover per-hop, lihat template),
-  // menambahkannya lagi di sini akan bikin kolom duplikat, bukan menghilangkan datanya.
-  // status_konfirmasi TIDAK pernah ada di sini — setiap baris di queue ini sudah PENDING (sama
-  // untuk semua), beda dari Repost Review yang butuh Status per-baris.
+  // Same 11-kolom+Notes yang dipakai repost-budgeting.component.ts's buildPreviewColumns, MINUS
+  // "Dinas Pengaju" — queue ini sudah punya kolom itu sendiri di luar previewColumns (dengan
+  // chain-popover per-hop). status_konfirmasi tidak pernah ada di sini — semua baris di queue ini
+  // sudah PENDING, beda dari Repost Review yang butuh Status per-baris.
   private buildPreviewColumns(fields: ContractField[]): PreviewColumn[] {
     const contractCols: PreviewColumn[] = fields
       .filter((f) => CURATED_CONTRACT_KEYS.includes(f.key))
@@ -218,11 +188,8 @@ export class ConfirmComponent implements OnInit {
       ...contractCols,
       { key: 'category', label: 'Group' },
       { key: 'remark', label: 'Remark' },
-      // BUG FIX (5 Agu, project owner): the sticky column at the right edge was pinning `remark`
-      // (raw Excel routing text) under the label "Notes" — but "Notes" is supposed to be the
-      // uploading user's OWN per-row note from the Repost Review step (reviewer_note, now
-      // persisted — migration 015), a completely different field. `remark` stays as an ordinary
-      // scrollable column above; this is the one that's actually sticky (see the template).
+      // The sticky column at the right edge is `reviewer_note` ("Notes" — the uploading user's own
+      // per-row note from Repost Review), not `remark` (raw Excel routing text) — don't swap these.
       { key: 'reviewer_note', label: 'Notes' },
     ];
   }
@@ -232,24 +199,18 @@ export class ConfirmComponent implements OnInit {
   }
 
   // Closes the chain popover on any click outside it — same pattern
-  // shared/multi-value-filter.component.ts uses for its own popup. toggleChainPopover already
-  // stopPropagation()s the click that OPENS it, so this only ever fires for genuinely outside
-  // clicks, not the opening click itself bubbling up.
+  // shared/multi-value-filter.component.ts uses. toggleChainPopover already stopPropagation()s the
+  // click that OPENS it, so this only ever fires for genuinely outside clicks.
   @HostListener('document:click')
   onDocumentClick(): void {
     this.expandedChainRowId = null;
   }
 
-  // BUG FIX (28 Jul, found while verifying the thread-reorder change): user$ and queryParamMap
-  // used to be two SEPARATE subscriptions, each independently calling resolveDinasAndLoad() on
-  // init. Since user$ (a BehaviorSubject) fires synchronously the moment it's subscribed —
-  // BEFORE the queryParamMap subscription two lines down even exists yet — that first call
-  // always ran with filterFromDinas/filterTargetDinas still at their unset defaults, firing an
-  // HTTP request for the WRONG queue (the viewer's own dinas, not the one linked to). Whichever
-  // of the two requests happened to resolve LAST won, so the pending table was empty or wrong
-  // roughly half the time depending on network timing — exactly the intermittent "no rows" bug
-  // reported live. combineLatest fires once per actual change with BOTH inputs already current,
-  // so there's only ever one load in flight for a given (user, params) combination.
+  // combineLatest, not two separate subscriptions: user$ (a BehaviorSubject) fires synchronously
+  // the moment it's subscribed, before a queryParamMap subscription would exist yet — so a
+  // separate subscription would call resolveDinasAndLoad() with filterFromDinas/filterTargetDinas
+  // still unset, racing an HTTP request for the WRONG queue. combineLatest fires once per actual
+  // change with BOTH inputs already current, so there's only ever one load in flight.
   ngOnInit(): void {
     this.dinasService.getActiveDinas().subscribe((d) => (this.dinasOptions = d));
     combineLatest([this.currentUser.user$, this.route.queryParamMap]).subscribe(([, params]) => {
@@ -263,9 +224,9 @@ export class ConfirmComponent implements OnInit {
     const user = this.currentUser.current;
     this.dinas = user?.dinas || '';
     // ?target= overrides the default queue — set by the shell sidebar's Corp/Investigation
-    // sub-nav (TAB-only). Without it: TAB defaults to the 'Corp' sub-tab (dinas_target can never
-    // literally be 'TAB' — see schema.sql's rdt.dinas seed comment — so falling back to
-    // this.dinas would always show an empty queue for TAB); a plain PIC defaults to their own.
+    // sub-nav (TAB-only). Without it: TAB defaults to 'Corp' (dinas_target can never literally be
+    // 'TAB', so falling back to this.dinas would always show an empty queue for TAB); a plain PIC
+    // defaults to their own.
     if (this.filterTargetDinas) {
       this.selectedTarget = this.filterTargetDinas;
     } else if (user) {
@@ -277,14 +238,11 @@ export class ConfirmComponent implements OnInit {
   get badgeText(): string {
     const user = this.currentUser.current;
     if (!user) return 'Belum login';
-    // REQ-RDT-NAV-10 (TERJAWAB 1 Agu): sub-nav label for this queue is now "TAB", not
-    // "Investigation/Ask TA" — matches the sidebar rename (shell.component.html).
     if (this.isInvestigation) return 'TAB';
-    // A5 (3 Agu): chain arrow was missing everywhere except Dashboard-Detailing — when this
-    // queue is scoped to one specific initiator (via Dashboard's ?from= param) and every loaded
-    // row agrees on the same redirect path, show the full breadcrumb instead of a flat 2-point
-    // label. Unscoped ("Semua dinas") or a mixed-path queue falls back to the plain label, same
-    // "only show when unambiguous" rule dashboard.js's chain fields already use.
+    // When this queue is scoped to one specific initiator (via Dashboard's ?from= param) and
+    // every loaded row agrees on the same redirect path, show the full breadcrumb instead of a
+    // flat 2-point label. Unscoped ("Semua dinas") or a mixed-path queue falls back to the plain
+    // label — only show the chain when it's unambiguous.
     if (this.filterFromDinas && this.pendingRows.length) {
       const scoped = this.pendingRows.filter((r) => r.dinas_inisiasi === this.filterFromDinas);
       const firstChain = scoped[0]?.chain;
@@ -365,8 +323,7 @@ export class ConfirmComponent implements OnInit {
   }
 
   // Same "must decide EVERY row before you can batch" gate the backend independently enforces
-  // (routes/investigation.js's assign-all) — project owner: "kalo ada yang belum ditentukan mau
-  // di-assign kemana itu ga bisa langsung assign semuanya".
+  // (routes/investigation.js's assign-all).
   canAssignAllInvestigation(): boolean {
     return this.investigationRows.length > 0 && this.investigationRows.every((r) => !!this.investigationTargetByRowId[r.id]);
   }
@@ -481,10 +438,9 @@ export class ConfirmComponent implements OnInit {
     return rows;
   }
 
-  // Route-object navigation, not '../../' string tokens (28 Jul bug fix — see
-  // HomeComponent.goToConfirmFrom's note; the same '../' hop-counting pattern threw NG04002 here
-  // too). Walk up to the shell's own route (this.route.parent = 'confirm', .parent.parent = the
-  // shell's '' route) and resolve 'dashboard/detail/...' relative to THAT.
+  // Route-object navigation, not '../../' string tokens (same NG04002 hop-counting pitfall as
+  // HomeComponent.goToConfirmFrom). Walk up to the shell's own route (this.route.parent =
+  // 'confirm', .parent.parent = the shell's '' route) and resolve 'dashboard/detail/...' from there.
   goToThreadDetail(): void {
     if (!this.filterFromDinas || !this.selectedTarget) return;
     const shellRoute = this.route.parent?.parent || this.route;
@@ -505,12 +461,9 @@ export class ConfirmComponent implements OnInit {
     this.pendingRows.forEach((r) => (r.checked = checked));
   }
 
-  // REQ-RDT-SAP-18 (8 Agu, "filter-aware select all"): Select All above intentionally selects
-  // EVERY pending row across every pagination page, ignoring any active column filter (REQ-RDT-
-  // NAV-05's own established behavior — kept, not touched). This is the ADDITIONAL option: only
-  // the rows the current filter is actually showing, for when TAB/PIC filtered down to a specific
-  // subset (e.g. one Account) and wants to act on exactly that subset without also sweeping in
-  // everything else still checked from before.
+  // Select All above intentionally selects EVERY pending row across every pagination page,
+  // ignoring any active column filter. This is the ADDITIONAL option: only the rows the current
+  // filter is actually showing, for acting on exactly a filtered subset.
   get hasActivePendingFilter(): boolean {
     return Object.keys(this.pendingColumnFilters).length > 0;
   }
@@ -519,7 +472,7 @@ export class ConfirmComponent implements OnInit {
     this.filteredPendingRows.forEach((r) => (r.checked = checked));
   }
 
-  // REQ-RDT-NAV-09: filter first, THEN paginate what's left.
+  // Filter first, THEN paginate what's left.
   get filteredPendingRows(): PendingRowVm[] {
     return this.pendingRows.filter((r) => matchesAllColumnFilters(r, this.pendingColumnFilters, (row, key) => (row as any)[key]));
   }
@@ -530,7 +483,7 @@ export class ConfirmComponent implements OnInit {
     this.page = 1;
   }
 
-  // REQ-RDT-NAV-07: pagination for pendingRows via the shared pager component.
+  // Pagination for pendingRows via the shared pager component.
   get totalPages(): number {
     return Math.max(1, Math.ceil(this.filteredPendingRows.length / this.pageSize));
   }
@@ -542,10 +495,9 @@ export class ConfirmComponent implements OnInit {
 
   onPageChange(p: number): void { this.page = p; }
 
-  // REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): a single transaction's own chain has no meaningful
-  // "in progress" fraction per hop (it already fully traversed every hop to reach where it sits
-  // now) — see shared/chain-hop-detail.component.ts's showProgress fallback, which this leaves
-  // resolved/total undefined for on purpose.
+  // A single transaction's own chain has no meaningful "in progress" fraction per hop (it already
+  // fully traversed every hop to reach where it sits now) — chain-hop-detail's showProgress
+  // fallback handles resolved/total left undefined here on purpose.
   isChainPopoverOpen(rowId: number): boolean {
     return this.expandedChainRowId === rowId;
   }
@@ -561,18 +513,16 @@ export class ConfirmComponent implements OnInit {
     }
   }
 
-  // Item 7: dinas choices for a pending row's "reject ke dinas lain" picker — same exclusion
-  // rules as REASSIGN (can't send back to the uploader, can't "redirect" to the dinas that's
-  // literally doing the rejecting right now).
+  // Dinas choices for a pending row's "reject ke dinas lain" picker — same exclusion rules as
+  // REASSIGN (can't send back to the uploader, can't redirect to the rejecting dinas itself).
   redirectTargetsFor(row: PendingRow): DinasEntry[] {
     const excluded = new Set([String(row.dinas_inisiasi || '').toUpperCase(), this.selectedTarget.toUpperCase()]);
     return this.dinasOptions.filter((d) => !excluded.has(d.code.toUpperCase()));
   }
 
-  // REQ-RDT-LEDGER-09: one download button per distinct source upload feeding this queue — not
-  // a single button, since one confirmation pair can be fed by more than one upload (different
-  // months/periods). No separate "list available files" endpoint: the pending rows already
-  // carry upload_id/upload_filename, so this just dedupes what's already loaded.
+  // One download button per distinct source upload feeding this queue — one confirmation pair can
+  // be fed by more than one upload (different months/periods). Dedupes upload_id/upload_filename
+  // already carried by the pending rows, no separate "list available files" endpoint needed.
   get downloadableUploads(): { upload_id: number; upload_filename: string }[] {
     const seen = new Map<number, { upload_id: number; upload_filename: string }>();
     for (const r of this.pendingRows) {
@@ -590,9 +540,7 @@ export class ConfirmComponent implements OnInit {
     });
   }
 
-  // REQ-RDT-LEDGER-09, extended 5 Agu ke antrian Investigation ("Ask TA") — sama pola dengan
-  // downloadableUploads di atas, sumbernya investigationRows (yang juga sudah bawa
-  // upload_id/upload_filename dari investigation.js), tetap pakai downloadOriginal() yang sama.
+  // Sama pola dengan downloadableUploads di atas, sumbernya investigationRows.
   get downloadableInvestigationUploads(): { upload_id: number; upload_filename: string }[] {
     const seen = new Map<number, { upload_id: number; upload_filename: string }>();
     for (const r of this.investigationRows) {

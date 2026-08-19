@@ -8,19 +8,14 @@ import { triggerBlobDownload, filenameFromResponse } from '../services/confirmat
 import { ModalService } from '../services/modal.service';
 import { extractErrorMessage } from '../shared/error-message.util';
 
-// REQ-RDT-SAP-03..06 (SRS.md 3.3) — approval unit is one PASANGAN (dinas_inisiasi, dinas_target):
-// a WAITING entry appears (computed, not stored) once that specific pair is resolved — other
-// pairs from the same dinas_inisiasi never block or get blocked by it. TAB can open full
-// transparency for that one pair (including DECLINED/reassigned history), and can download the
-// pair's Excel (full 53 contract columns) directly off this list.
-//
-// REQ-RDT-SAP-05 REVISED 31 Jul (presentation feedback): two changes from the earlier version —
-// (1) download no longer waits for Confirm at all, it's one button per waiting entry; (2) Confirm
-// is now ONE form (closing description + first subdoc number together, submitted in a single
-// call) instead of Confirm-then-separately-add-a-subdoc. A batch is created WITH its first subdoc
-// already attached, so it goes straight from this page's "Waiting" list into Riwayat Repost TAB —
-// there is no more intermediate "confirmed, no subdoc yet" list here (see
-// export-batch.service.ts's header comment for what that replaced).
+// Approval unit is one PASANGAN (dinas_inisiasi, dinas_target): a WAITING entry appears (computed,
+// not stored) once that specific pair is resolved — other pairs from the same dinas_inisiasi never
+// block or get blocked by it. TAB can open full transparency for that one pair (including
+// DECLINED/reassigned history), and can download the pair's Excel (full 53 contract columns)
+// directly off this list. Download doesn't wait for Confirm — it's one button per waiting entry.
+// Confirm is ONE form (closing description + first subdoc number together, submitted in a single
+// call): a batch is created WITH its first subdoc already attached, so it goes straight from this
+// page's "Waiting" list into Riwayat Repost TAB.
 @Component({
   selector: 'rdt-need-approval',
   standalone: false,
@@ -30,10 +25,8 @@ import { extractErrorMessage } from '../shared/error-message.util';
 export class NeedApprovalComponent implements OnInit {
   waiting: WaitingEntry[] = [];
   errorMessage = '';
-  // Audit "kaku" 17 Agu: this page had NO loading flag at all — "Belum ada pasangan yang siap
-  // di-repost" showed immediately on every load, indistinguishable from genuinely empty. Same
-  // gap the 12 Agu loading-state checklist already fixed elsewhere (home/repost-history), just
-  // missed here — fixed the same way (skeleton while true, empty-state text gated on !loading).
+  // Skeleton while true; empty-state text gated on !loading so it's distinguishable from a
+  // genuinely empty queue.
   loading = true;
 
   // Transparency + confirm form: at most one pair expanded at a time, keyed
@@ -42,13 +35,10 @@ export class NeedApprovalComponent implements OnInit {
   transparencyRows: TransparencyRow[] = [];
   transparencyError = '';
   closingDescription = '';
-  // REQ-RDT-SAP-08/11 REVISI (5 Agu, project owner request): a pair whose CONFIRMED rows exceed
-  // SAP's ~300-line cap downloads as several chunk-N.xlsx files (see exportBatches.js's
-  // streamContractExport) — this used to mean ONE subdoc input here (covering chunk 1 only) and a
-  // separate trip to Riwayat Repost TAB's "+ Tambah subdoc" for chunk 2+ later. Now it's ONE
-  // array, sized to the actual chunk count, entered together right here — "Repost 1: [subdoc]",
-  // "Repost 2: [subdoc]", etc. (see chunkCount/chunkIndexes below). A non-chunked pair keeps
-  // exactly the old single-input experience (array of length 1, same label).
+  // A pair whose CONFIRMED rows exceed SAP's ~300-line cap downloads as several chunk-N.xlsx files
+  // (exportBatches.js's streamContractExport) — one subdoc input per chunk, entered together here
+  // ("Repost 1: [subdoc]", "Repost 2: [subdoc]", etc, see chunkCount/chunkIndexes below). A
+  // non-chunked pair gets a single-input experience (array of length 1).
   subdocNumbers: string[] = [''];
   confirming = false;
 
@@ -101,12 +91,11 @@ export class NeedApprovalComponent implements OnInit {
   // hint text ("X baris/file").
   readonly maxRowsPerFile = 300;
 
-  // Only CONFIRMED rows actually end up in a downloaded chunk (streamContractExport's own filter,
-  // REQ-RDT-SAP-06) — BORNE_BY_INITIATOR rows are attachable/confirmable but never exported as a
-  // file line, so they must NOT count toward chunk boundaries or a subdoc's transaction_ids here.
-  // Already `ORDER BY id` from the backend (GET /transparency), same order the export endpoints
-  // use, so chunking this client-side reproduces the exact same chunk-N boundaries TAB just
-  // downloaded and posted to SAP.
+  // Only CONFIRMED rows actually end up in a downloaded chunk (streamContractExport's own filter)
+  // — BORNE_BY_INITIATOR rows are attachable/confirmable but never exported, so they must NOT
+  // count toward chunk boundaries or a subdoc's transaction_ids here. Already `ORDER BY id` from
+  // the backend, same order the export endpoints use, so chunking this client-side reproduces the
+  // exact same chunk-N boundaries TAB downloaded and posted to SAP.
   get confirmedTransparencyRows(): TransparencyRow[] {
     return this.transparencyRows.filter((r) => r.status_konfirmasi === 'CONFIRMED');
   }
@@ -129,22 +118,17 @@ export class NeedApprovalComponent implements OnInit {
     this.transparencyRows = [];
   }
 
-  // REQ-RDT-SAP-05 (revised): Confirm requires every subdoc number — one per chunk (see
-  // subdocNumbers/chunkCount above). Project owner request (12 Agu): closing description is no
-  // longer part of this gate — it flipped from mandatory to optional (see
-  // exportBatches.js POST /confirm's own header comment), TAB can confirm with the field left
-  // blank.
+  // Confirm requires every subdoc number — one per chunk (see subdocNumbers/chunkCount above).
+  // Closing description is optional, TAB can confirm with the field left blank.
   canConfirm(): boolean {
     return this.subdocNumbers.every((s) => !!s.trim());
   }
 
-  // REQ-RDT-SAP-08/11 REVISI (5 Agu): chunk 1's subdoc is attached atomically with the batch
-  // itself (POST /confirm, unchanged) — chunk 2+ each need their own POST /:batchId/subdocs call
-  // AFTER the batch exists, so those go out sequentially (not parallel — each call's `transaction_
-  // ids` must be a subset of rows NOT YET covered by an earlier subdoc, per the backend's own
-  // defensive check, so they have to land in order). If a later chunk's call fails, the batch and
-  // any earlier chunks it already got ARE still confirmed/saved — reload so the list reflects
-  // that instead of silently pretending nothing happened, and say plainly which chunk failed.
+  // Chunk 1's subdoc is attached atomically with the batch itself (POST /confirm) — chunk 2+ each
+  // need their own POST /:batchId/subdocs call AFTER the batch exists, sequentially (not parallel
+  // — each call's `transaction_ids` must be a subset of rows NOT YET covered by an earlier subdoc,
+  // so they have to land in order). If a later chunk's call fails, the batch and any earlier
+  // chunks it already got ARE still confirmed/saved — reload and say plainly which chunk failed.
   async confirmPair(dinasInisiasi: string, dinasTarget: string): Promise<void> {
     if (!this.canConfirm()) return;
     const chunkLabel = this.chunkCount > 1 ? ` (${this.chunkCount} subdoc)` : ` dengan subdoc ${this.subdocNumbers[0].trim()}`;
@@ -182,10 +166,9 @@ export class NeedApprovalComponent implements OnInit {
     });
   }
 
-  // REQ-RDT-SAP-05/06 (revised): download is available the instant a pair shows up here — no
-  // batch/Confirm needed first. Reads directly off the pair's still-unbatched CONFIRMED rows.
-  // REQ-RDT-SAP-06 auto-split (1 Agu): >300 rows comes back as a .zip instead of .xlsx — the
-  // actual filename (with the right extension) comes from the response, not guessed client-side.
+  // Download is available the instant a pair shows up here — no batch/Confirm needed first. Reads
+  // directly off the pair's still-unbatched CONFIRMED rows. >300 rows comes back as a .zip instead
+  // of .xlsx — the actual filename (with the right extension) comes from the response.
   download(entry: WaitingEntry): void {
     const key = this.pairKey(entry.dinas_inisiasi, entry.dinas_target);
     this.downloadingPairKey = key;

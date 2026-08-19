@@ -6,14 +6,13 @@ const { requireUser } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Same directory index.js's multer instance writes into (rdt/backend/uploads/, per SRS 3.1/REQ-RDT-EXT-08).
+// Same directory index.js's multer instance writes into (rdt/backend/uploads/).
 const uploadDir = path.join(__dirname, '..', '..', 'uploads');
 
 // Mounted at /api/uploads in index.js.
-// GET /api/uploads/:uploadId/download — REQ-RDT-LEDGER-09: serve the ORIGINAL uploaded
-// workbook byte-for-byte (formulas intact), not a re-export. Gated the same way as the
-// Confirmation page itself (REQ-RDT-LEDGER-06, REQ-RDT-AUTH-04): only the upload's own
-// initiator dinas, a dinas that upload actually has a transaction targeting, or TAB.
+// GET /api/uploads/:uploadId/download — serves the ORIGINAL uploaded workbook byte-for-byte
+// (formulas intact), not a re-export. Gated the same way as the Confirmation page itself: only
+// the upload's own initiator dinas, a dinas that upload actually has a transaction targeting, or TAB.
 router.get('/:uploadId/download', requireUser, async (req, res) => {
   const uploadId = Number(req.params.uploadId);
   if (!Number.isInteger(uploadId)) return res.status(400).json({ ok: false, error: 'invalid uploadId' });
@@ -35,15 +34,12 @@ router.get('/:uploadId/download', requireUser, async (req, res) => {
       const isInitiator = String(upload.dinas_code).toUpperCase() === String(user.dinas).toUpperCase();
       let isTarget = false;
       if (!isInitiator) {
-        // BUG FIX (5 Agu, project owner — "reassign harus kebawa ke semua pihak, termasuk file
-        // asli, sepanjang apapun rantainya"): checking ONLY the current dinas_target meant a dinas
-        // that DECLINED and got reassigned away lost download access entirely, even though they
-        // were genuinely part of this upload's history and dashboard.js's own pair-detail/comment
-        // endpoints (canAccessPair + getPairTransactions' chainMap) already treat them as still
-        // entitled to view that history. Mirrors that same chain-awareness here: a dinas counts as
-        // "isTarget" if it's the CURRENT dinas_target of any transaction in this upload, OR if it
-        // shows up as a past dinas_target in that transaction's REASSIGN/REJECT_REDIRECT audit
-        // trail (detail.from_dinas) — no cap on how many hops back, same as the audit_log itself.
+        // Checking only the current dinas_target would mean a dinas that DECLINED and got
+        // reassigned away loses download access entirely, even though dashboard.js's own
+        // pair-detail/comment endpoints still treat them as entitled to view that history. A dinas
+        // counts as "isTarget" if it's the CURRENT dinas_target of any transaction in this upload,
+        // OR if it shows up as a past dinas_target in that transaction's REASSIGN/REJECT_REDIRECT
+        // audit trail — no cap on how many hops back.
         const targetUpper = String(user.dinas).toUpperCase();
         const directRes = await client.query(
           'SELECT 1 FROM rdt.transactions WHERE upload_id=$1 AND UPPER(dinas_target)=UPPER($2) LIMIT 1',

@@ -8,13 +8,9 @@ export interface ExclusionsConfig {
   prefixes: string[];
 }
 
-// Checklist section 3 (12 Agu, loading-state/error-message audit): both admin editors
-// (mapping-editor/exclusions-editor) used to call `fetch('/api/mapping')` directly, with NO
-// X-Session-Token header at all — worked fine while those endpoints had zero auth (checklist 1.1
-// gap), but broke outright the moment that gap got fixed (requireUser/requireRole('TAB') added).
-// Pulled into a proper service using the same HttpClient + CurrentUserService.authHeaders()
-// pattern every other feature in this app already uses (see e.g. export-batch.service.ts),
-// instead of the one-off unauthenticated fetch() the admin pages had.
+// Uses the same HttpClient + CurrentUserService.authHeaders() pattern every other feature in this
+// app uses (see e.g. export-batch.service.ts) — these endpoints require auth (requireUser/
+// requireRole('TAB')), so a plain unauthenticated fetch() would 401.
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly base = '/api';

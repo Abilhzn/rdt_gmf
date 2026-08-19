@@ -217,13 +217,9 @@
        swap rather than trying to unify the two. -->
   <ng-container *ngIf="isInvestigation">
     <p class="note">
-      Baris di bawah ini punya sinyal dinas "Ask TA" — bukan dinas sungguhan, artinya
-      kepemilikannya AMBIGU dan butuh investigasi manual (cek Ref.Doc/PO, tanya ke dinas terkait)
-      sebelum bisa ditentukan dinas target yang benar. Assign di sini bersifat FINAL — begitu
-      di-assign, baris LANGSUNG berstatus Confirmed dengan dinas target baru (dianggap sudah
-      disepakati lewat diskusi di luar sistem sebelum TAB assign), TIDAK perlu dinas target
-      konfirmasi ulang. Dinas target tetap bisa melihat transaksinya. Hanya role TAB yang bisa
-      bertindak di sini.
+      Baris ini dinas targetnya belum jelas — cek Ref.Doc/PO atau tanya dinas terkait, lalu assign
+      dinas targetnya. Assign bersifat final, tidak perlu konfirmasi ulang dari dinas target.
+      Hanya role TAB yang bisa bertindak di sini.
     </p>
     <div class="card__actions">
       <button class="btn btn--ghost" type="button" (click)="loadInvestigation()">Muat ulang antrian</button>

@@ -19,9 +19,9 @@ export interface InvestigationRow {
   created_at: string;
 }
 
-// REQ-RDT-LEDGER-10 — see rdt/backend/src/routes/investigation.js. TAB-only queue of rows whose
-// dinas signal was the literal "Ask TA" (ambiguous ownership, needs manual TAB investigation
-// before a real dinas_target exists) — see rdt/docs/SRS.md REQ-RDT-LEDGER-10.
+// TAB-only queue of rows whose dinas signal was the literal "Ask TA" (ambiguous ownership, needs
+// manual TAB investigation before a real dinas_target exists) — see
+// rdt/backend/src/routes/investigation.js.
 @Injectable({ providedIn: 'root' })
 export class InvestigationService {
   private readonly base = '/api/investigation';
@@ -50,10 +50,9 @@ export class InvestigationService {
       }));
   }
 
-  // REQ-RDT-LEDGER-10 batch action (29 Jul, project owner request) — same "assign one-by-one or
-  // all at once" shape as Confirmation's declined-row batch resolve. The backend independently
-  // enforces the all-or-nothing rule (every item must already have a target) — see
-  // routes/investigation.js's assign-all header comment — this isn't just a UI nicety.
+  // Same "assign one-by-one or all at once" shape as Confirmation's declined-row batch resolve.
+  // The backend independently enforces the all-or-nothing rule (every item must already have a
+  // target) — this isn't just a UI nicety.
   assignAll(items: { transaction_id: number; dinas_target: string }[], description?: string): Observable<void> {
     return this.http
       .post<{ ok: boolean; error?: string }>(

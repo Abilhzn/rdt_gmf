@@ -15,12 +15,11 @@ export interface PairTransaction {
   remark: string | null;
   dinas_target: string;
   reassign_count: number;
-  /** REQ-RDT-NAV-03 (3 Agu, still-open re-flag): this transaction's OWN full redirect path
-   * (initiator -> every dinas it was reassigned FROM -> its current target) — independent of
-   * `progress.chain`, which only shows a value when EVERY transaction in the whole pair agrees
-   * on the same path (rare once a pair has more than a handful of rows). This is what actually
-   * lets a 2+ hop reassignment be seen anywhere in the UI. Absent for the INVESTIGATION pseudo-
-   * pair (dinas_target IS NULL, nothing to chain-resolve yet). */
+  /** This transaction's OWN full redirect path (initiator -> every dinas it was reassigned FROM
+   * -> its current target) — independent of `progress.chain`, which only shows a value when
+   * EVERY transaction in the whole pair agrees on the same path. This is what actually lets a 2+
+   * hop reassignment be seen anywhere in the UI. Absent for the INVESTIGATION pseudo-pair
+   * (dinas_target IS NULL, nothing to chain-resolve yet). */
   chain?: string[];
 }
 
@@ -32,9 +31,8 @@ export interface DashboardDetail {
   comments: Comment[];
 }
 
-// REQ-RDT-NAV-03/REQ-RDT-COMMENT — drill-down + comment thread for one (initiator, target) dinas
-// pair, reached by clicking a card on the Dashboard (see routes/dashboard.js's
-// /detail/:initiatorDinas/:targetDinas endpoints).
+// Drill-down + comment thread for one (initiator, target) dinas pair, reached by clicking a card
+// on the Dashboard (see routes/dashboard.js's /detail/:initiatorDinas/:targetDinas endpoints).
 @Injectable({ providedIn: 'root' })
 export class DashboardDetailService {
   private readonly base = '/api/dashboard/detail';
@@ -53,9 +51,9 @@ export class DashboardDetailService {
       }));
   }
 
-  // Lightweight comments-only fetch (project owner request, 28 Jul: Confirmation shows the pair's
-  // existing discussion, read-only, above the transaction list) — no progress/transactions
-  // payload, unlike getDetail() above, since Confirmation already has its own pending rows.
+  // Lightweight comments-only fetch (Confirmation shows the pair's existing discussion, read-only,
+  // above the transaction list) — no progress/transactions payload, unlike getDetail() above,
+  // since Confirmation already has its own pending rows.
   getComments(initiatorDinas: string, targetDinas: string): Observable<Comment[]> {
     return this.http
       .get<{ ok: boolean; comments: Comment[]; error?: string }>(

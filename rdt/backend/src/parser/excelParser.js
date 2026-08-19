@@ -3,9 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { readPivotCaches } = require('./pivotCacheReader');
 
-// Expected 53 contract headers in order (variants allowed) — REQ-RDT-EXT-01. Module-level because
-// both the live-worksheet path and the pivot-cache path (REQ-RDT-EXT-09 jalur 1b) need the same
-// canonical key/variant list to resolve a source's columns/fields to the same output shape.
+// Expected 53 contract headers in order (variants allowed). Module-level because both the
+// live-worksheet path and the pivot-cache path need the same canonical key/variant list to
+// resolve a source's columns/fields to the same output shape.
 const CONTRACT_FIELDS = [
   { key: 'account', variants: ['Account'] },
   { key: 'cost_ctr', variants: ['Cost Ctr','Cost Centre','CostCenter'] },
@@ -67,31 +67,21 @@ function loadJSON(relPath) {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
-// REQ-RDT-NAV-04 (3 Agu, re-reported "Sub Group masih belum muncul"): the exact-match
-// `name.toLowerCase() === 'sub group'` check only tolerated a literal single space. Every real
-// contoh_input file we have DOES match that exactly (verified against TB/TJ/TJ-R1 directly), but
-// since we can't test every dinas's real export, harden the comparison against the whitespace/
-// separator variants a hand-edited header is likely to drift into ("Sub-Group", "Sub_Group",
-// "Sub  Group" double space, trailing space) — collapsing runs of whitespace/hyphen/underscore to
-// one space before comparing, rather than requiring byte-for-byte "sub group".
+// Tolerant "Sub Group" header match: collapses runs of whitespace/hyphen/underscore to one space
+// before comparing, so a hand-edited header ("Sub-Group", "Sub_Group", double space, trailing
+// space) still matches instead of requiring byte-for-byte "sub group".
 function isSubGroupHeaderName(name) {
   return String(name || '').toLowerCase().replace(/[\s_-]+/g, ' ').trim() === 'sub group';
 }
 
 // Codes a raw Remarks/Review value can resolve to without an explicit mapping.seed.json entry —
-// mapping's own keys+values (aliases already confirmed) plus the full canonical dinas roster
-// (dinas.codes.json), so e.g. a bare "TM" resolves even though no dinas needs an alias entry for
-// its own code.
+// mapping's own keys+values plus the full canonical dinas roster (dinas.codes.json), so e.g. a
+// bare "TM" resolves even though no dinas needs an alias entry for its own code.
 //
-// Bug found 13 Agu (live upload of contoh_input/06. DT TB - Jun 2026.xlsx via /api/parse, real
-// DB-sourced mapping — see rdt/docs/SRS.md "Bug ditemukan 8 Agu, PRIORITAS TERTINGGI"): this used
-// to be a Set of UPPERCASED codes, and every caller that matched against it assigned the
-// uppercased match itself as dinasTarget — fine for codes that are naturally all-caps (TB, TC,
-// TJ, ...), but WRONG for 'Corp', whose canonical casing in rdt.dinas is mixed-case. A row whose
-// Remarks/Review resolved via this fallback (not an explicit mapping.seed.json/rdt.dinas_mapping
-// entry) got dinasTarget='CORP', which doesn't match rdt.dinas's 'Corp' row -> FK violation on
-// insert. Now a Map from UPPERCASE key -> the ORIGINAL casing seen in mapping/dinasCodes, so every
-// caller can .get() the canonical form instead of re-deriving (wrongly) from the uppercased input.
+// Returns a Map from UPPERCASE key -> the ORIGINAL casing seen in mapping/dinasCodes (not a Set
+// of uppercased codes) — dinas 'Corp' is stored mixed-case in rdt.dinas, so uppercasing it to
+// 'CORP' before insert would violate the dinas_target FK. Callers must .get() the canonical form
+// rather than re-deriving it from the uppercased input.
 function buildAllowedCodes(mapping, dinasCodes) {
   const map = new Map();
   Object.keys(mapping).forEach((k) => map.set(String(mapping[k]).toUpperCase(), String(mapping[k])));
@@ -100,19 +90,12 @@ function buildAllowedCodes(mapping, dinasCodes) {
   return map;
 }
 
-// GMF-wide sub-dinas naming convention (confirmed by project owner, 28 Jul 2026): a value that
-// isn't a known code/alias on its own may still be a SUB-DINAS of a real one, written as that
-// code plus extra trailing letters with no separator. Only matches when the candidate is
-// strictly longer than the base code (so a code never "matches itself" here — that's
-// allowedCodes' job) and picks the LONGEST matching base to avoid a shorter code shadowing a
-// more specific one.
-// "TMM" used to be this function's textbook example, until 31 Jul 2026 when the project owner
-// reasserted TMM is its OWN dinas, not a TM sub-unit — see dinas.codes.json's comment. TMM is
-// now in the canonical roster, so it resolves via the plain allowedCodes exact-match branch
-// (its caller checks allowedCodes BEFORE falling back to this function) and never reaches this
-// fallback at all. This function stays in place for any OTHER genuine sub-dinas case.
-// Returns the base code in its ORIGINAL/canonical casing (same case-preservation fix as
-// buildAllowedCodes above) — not the uppercased comparison value.
+// GMF-wide sub-dinas naming convention: a value that isn't a known code/alias on its own may
+// still be a SUB-DINAS of a real one, written as that code plus extra trailing letters with no
+// separator. Only matches when the candidate is strictly longer than the base code (so a code
+// never "matches itself" here — that's allowedCodes' job) and picks the LONGEST matching base to
+// avoid a shorter code shadowing a more specific one. Returns the base code in its original,
+// canonical casing, not the uppercased comparison value.
 function resolveSubDinasCode(rawUpper, dinasCodes) {
   if (!rawUpper || !/^[A-Z]+$/.test(rawUpper)) return null;
   let best = null;
@@ -152,19 +135,15 @@ function parseNumber(val) {
   return Number.isNaN(n) ? null : n;
 }
 
-// REQ-RDT-EXT-09 (25 Jul, fallback strategy): generates one synthetic transaction row per pivot
-// Column Label (dinas target) when no ala-TB detail sheet was found anywhere in the workbook.
-// Layout verified against contoh_input/06. DT TJ - Jun 2026.xlsx: a "Row Labels" header cell
-// (col 1) marks the header row, the remaining columns up to (and excluding) a trailing "Grand
-// Total" column are dinas Column Labels, and data rows run until a row whose col-1 label is
-// literally "Grand Total" (excluded). nominal per dinas = SUM across all row-label cells in that
-// column (not one row per pivot cell) — this is what the SUM has to equal to reproduce the
-// per-dinas Grand Total row exactly, which is what downstream confirmation actually cares about
-// at this granularity (no document-level detail survives a pivot-only export anyway). Dinas-target
-// resolution uses mapping.seed.json + the canonical dinas.codes.json roster + the GMF-wide
-// sub-dinas suffix convention (resolveSubDinasCode) — still no blind first-two-letters guessing,
-// so a column label matching none of those (truly unknown) surfaces as NEEDS_REVIEW rather than
-// being guessed, per SRS 3.1.2's explicit "jangan menebak sendiri".
+// Generates one synthetic transaction row per pivot Column Label (dinas target) when no ala-TB
+// detail sheet was found anywhere in the workbook. A "Row Labels" header cell (col 1) marks the
+// header row, remaining columns up to (excluding) a trailing "Grand Total" column are dinas
+// Column Labels, and data rows run until a row whose col-1 label is literally "Grand Total".
+// nominal per dinas = SUM across all row-label cells in that column, matching the per-dinas Grand
+// Total row (no document-level detail survives a pivot-only export anyway). Dinas-target
+// resolution uses mapping.seed.json + the canonical roster + the sub-dinas suffix convention
+// (resolveSubDinasCode) — never blind first-two-letters guessing; an unresolvable column label
+// surfaces as NEEDS_REVIEW instead.
 function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas, dinasCodes) {
   let headerRowNum = null;
   worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
@@ -216,15 +195,13 @@ function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas,
     } else if (exclusions.prefixes.includes(rawPrefix)) {
       status = 'EXCLUDED';
     }
-    // B3 fix (3 Agu) — same bug as buildDetailRow: don't let the resolution branch below
-    // silently overwrite an already-correct EXCLUDED verdict back to NEEDS_INVESTIGATION/
-    // NEEDS_REVIEW just because the excluded prefix isn't ALSO independently resolvable as a
-    // dinas code (which exclusions.config.json prefixes like "AUAK" never are, by definition).
+    // Don't let the resolution branch below silently overwrite an already-correct EXCLUDED
+    // verdict back to NEEDS_INVESTIGATION/NEEDS_REVIEW just because the excluded prefix isn't
+    // ALSO independently resolvable as a dinas code.
     const preResolvedExcluded = status === 'EXCLUDED';
 
-    // REQ-RDT-LEDGER-10: same "Ask TA" exact-string carve-out as buildDetailRow — this is the
-    // same literal pivot column that appears in the real file (see SRS 3.1.2), just reached via
-    // the jalur-2 pivot-only fallback instead of a live detail sheet's Remarks/Review columns.
+    // "Ask TA" exact-string carve-out — same as buildDetailRow, reached here via the pivot-only
+    // fallback instead of a live detail sheet's Remarks/Review columns.
     const isAskTaInvestigation = rawPrefix.trim() === 'Ask TA';
     const mapped = isAskTaInvestigation ? null : (mapping[rawPrefix] || mapping[rawPrefix.toLowerCase()] || mapping[rawPrefix.toUpperCase()]);
     let dinasTarget = null;
@@ -266,8 +243,8 @@ function derivePivotRowsFromSheet(worksheet, mapping, exclusions, uploaderDinas,
 // Single source of truth for turning one row's worth of already-extracted contract-field values
 // into a transaction row — dinas_target resolution (Remarks prefix, "Review <dinas>" fallback),
 // exclusion rules, nominal validation, NEEDS_REVIEW reasons. Used identically by both the live
-// ala-TB worksheet path AND the pivot-cache DETAIL_ROW path (REQ-RDT-EXT-09 jalur 1b) — same rules
-// either way, on purpose, so a row extracted from a cache is indistinguishable downstream from one
+// ala-TB worksheet path AND the pivot-cache DETAIL_ROW path — same rules either way, on purpose,
+// so a row extracted from a cache is indistinguishable downstream from one
 // read off a normal worksheet.
 function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, gl, subGroupRaw, mapping, exclusions, uploaderDinas, granularity, rawPayload, dinasCodes }) {
   const nominal = parseNumber(fieldValues.in_pclc);
@@ -276,14 +253,11 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
   // can't change TB's (or any Remarks-routed dinas's) already-verified behavior.
   const prefixFromReview = !rawPrefix && !!reviewRaw;
   if (prefixFromReview) rawPrefix = String(reviewRaw).trim();
-  // REQ-RDT-LEDGER-10 (27 Jul): the exact string "Ask TA" is NOT a dinas — it's a signal the
-  // row's ownership is ambiguous and needs manual TAB investigation (see
-  // routes/investigation.js), a different concept from NEEDS_REVIEW's "unmapped code, decide the
-  // mapping once and it's fixed forever". Checked on the raw prefix exactly as-is (whichever
-  // source it came from — Remarks or the Review-column fallback, buildDetailRow doesn't care),
-  // BEFORE mapping/allowedCodes/sub-dinas resolution runs, so it never gets routed like a normal
-  // dinas. Do NOT generalize this to other "Ask <code>" values without project owner
-  // confirmation — see rdt/docs/SRS.md REQ-RDT-LEDGER-10.
+  // The exact string "Ask TA" is NOT a dinas — it's a signal the row's ownership is ambiguous and
+  // needs manual TAB investigation (see routes/investigation.js), different from NEEDS_REVIEW's
+  // "unmapped code, decide the mapping once and it's fixed forever". Checked BEFORE
+  // mapping/allowedCodes/sub-dinas resolution runs, so it never gets routed like a normal dinas.
+  // Do NOT generalize this to other "Ask <code>" values without confirming with the project owner first.
   const isAskTaInvestigation = !!rawPrefix && rawPrefix.trim() === 'Ask TA';
 
   let dinasTarget = null;
@@ -301,15 +275,9 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
   } else if (rawPrefix && exclusions.prefixes.includes(rawPrefix)) {
     status = 'EXCLUDED';
   }
-  // B3 fix (3 Agu, found investigating "TB shows 4,346 EXCLUDED vs 469 real rows"): the branch
-  // below resolves dinasTarget for whatever the status ended up being above, and on failure to
-  // resolve it unconditionally OVERWROTE status to NEEDS_REVIEW/NEEDS_INVESTIGATION — silently
-  // undoing the EXCLUDED verdict just set. A self-repost prefix (e.g. "TB") happened to survive
-  // this only because the uploader's own code is also a valid dinas in allowedCodes; an
-  // exclusions.config.json prefix that ISN'T a dinas (e.g. "AUAK", an internal SAP cost-object
-  // code) is never resolvable that way, so it always got clobbered back to NEEDS_REVIEW — making
-  // the exclusions list dead for exactly the case it exists for. Captured before the resolution
-  // branch so status downgrades below can be skipped once a row is already correctly excluded.
+  // Captured before the resolution branch below, so a row already correctly EXCLUDED never gets
+  // silently overwritten to NEEDS_REVIEW/NEEDS_INVESTIGATION just because its prefix also fails
+  // to resolve as a dinas code (e.g. an exclusions.config.json prefix like "AUAK" never does).
   const preResolvedExcluded = status === 'EXCLUDED';
 
   if (nominal === null || Number.isNaN(nominal)) {
@@ -327,18 +295,16 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
     if (allowedCodes.has(rp)) {
       dinasTarget = allowedCodes.get(rp);
     } else if (subDinasBase) {
-      // GMF-wide sub-dinas suffix convention — see resolveSubDinasCode's header comment (31 Jul:
-      // "TMM" no longer reaches this branch, it's an exact roster match now). Still never
-      // overrides a Remarks value that already resolved via mapping/allowedCodes above.
+      // GMF-wide sub-dinas suffix convention — see resolveSubDinasCode. Never overrides a Remarks
+      // value that already resolved via mapping/allowedCodes above.
       dinasTarget = subDinasBase;
     } else {
       // Remarks-derived value didn't resolve — before giving up, retry via the "Review <dinas>"
       // column if present. Still never overrides a Remarks value that DID resolve.
       const reviewFallbackRaw = !prefixFromReview && reviewRaw ? String(reviewRaw).trim() : null;
-      // REQ-RDT-LEDGER-10: the exact same "Ask TA" carve-out applies here — a row whose Remarks
-      // is unrelated free text (so it fails the mapping/allowedCodes/sub-dinas checks above) but
-      // whose Review-column fallback is literally "Ask TA" is still an investigation signal, not
-      // an unmapped-code NEEDS_REVIEW case.
+      // "Ask TA" carve-out applies here too — a row whose Remarks is unrelated free text but whose
+      // Review-column fallback is literally "Ask TA" is still an investigation signal, not an
+      // unmapped-code NEEDS_REVIEW case.
       if (reviewFallbackRaw === 'Ask TA') {
         if (!preResolvedExcluded) status = 'NEEDS_INVESTIGATION';
       } else {
@@ -428,14 +394,11 @@ function buildDetailRow({ sheetName, rowNumber, fieldValues, remark, reviewRaw, 
     reason_if_invalid: reason_if_invalid,
     status_konfirmasi: status,
     category: gl,
-    // REQ-RDT-NAV-04 (1 Agu, presentation feedback): "Sub Group" as its OWN preview column, raw
-    // and undisturbed by the "category" field's own GL-or-Sub-Group fallback above — a dinas
-    // whose sheet has no literal "GL" column (e.g. TJ-R1) has its Sub Group value doing double
-    // duty as BOTH `category` (unchanged, existing pivot-matching behavior) AND this dedicated
-    // field, looked up independently by header name so it always reflects the real "Sub Group"
-    // column regardless of where that column sits (verified varies by dinas — REQ-RDT-NAV-04's
-    // SRS note: TJ-R1 puts it right after "Group", before Account). null for any dinas whose
-    // sheet has no such column at all (e.g. TB).
+    // "Sub Group" as its own preview column, raw and undisturbed by the "category" field's own
+    // GL-or-Sub-Group fallback above — a dinas whose sheet has no literal "GL" column has its Sub
+    // Group value doing double duty as BOTH `category` and this dedicated field, looked up
+    // independently by header name since that column's position varies by dinas. Null for any
+    // dinas whose sheet has no such column at all.
     sub_group: subGroupRaw != null && subGroupRaw !== '' ? subGroupRaw : null,
     raw_payload: rawPayload,
     granularity: granularity,
@@ -460,17 +423,11 @@ function resolveContractKeys(orderedNames, contractFields) {
   return resolved;
 }
 
-// REQ-RDT-EXT-09 jalur 1b (26 Jul, project owner confirmed): before falling back to the coarse
-// pivot-aggregate synthesis (derivePivotRowsFromSheet), check whether the workbook's PivotTable
-// still carries its full source-row cache — Excel keeps this internally (it's what "double-click a
-// pivot cell to drill down" reads from) even when no visible detail worksheet survives an export.
-// contoh_input/06. DT TJ - Jun 2026.xlsx is exactly this case: only a pivot sheet is visible, but
-// its cache holds the same 490-row/59-column dataset as contoh_input/06. DT TJ JUN 2026 R1.xlsx's
-// visible detail sheet (cross-checked: grouping the recovered records by "Review TJ" reproduces
-// the pivot's own totals exactly — TMM=473933.51, TA=1653.24, TE=84.36, Ask TA=40393.29). When a
-// cache is present and its own field names satisfy the REQ-RDT-EXT-01 contract, this produces full
-// DETAIL_ROW rows through the exact same buildDetailRow rules as a live sheet — not the coarser
-// PIVOT_DERIVED aggregate.
+// Before falling back to the coarse pivot-aggregate synthesis (derivePivotRowsFromSheet), check
+// whether the workbook's PivotTable still carries its full source-row cache — Excel keeps this
+// internally even when no visible detail worksheet survives an export. When a cache is present
+// and its own field names satisfy the contract, this produces full DETAIL_ROW rows through the
+// exact same buildDetailRow rules as a live sheet — not the coarser PIVOT_DERIVED aggregate.
 async function deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, uploaderDinas, sheetNameHint, dinasCodes) {
   const caches = await readPivotCaches(filePath);
   const rows = [];
@@ -485,18 +442,14 @@ async function deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, upl
     if (!keyToFieldName.in_pclc) continue; // no nominal field — nothing usable here
 
     const remarkField = fieldNames.find((n) => n.toLowerCase().startsWith('remark'));
-    // "GL" (category) itself is missing from some dinas's shape entirely — TJ's cache has no "GL"
-    // field at all, but carries the identical category vocabulary (verified against
-    // contoh_input/06. DT TJ - Jun 2026.xlsx: "Sub Group" values are exactly "Repairable-Material",
-    // "Spare parts scrap", "Repairable parts-Subcont", "Rotable part", "Rotable parts-Subcont",
-    // "Meeting and Conference" — the same strings TB's own "GL" column resolves to via its
-    // XLOOKUP, e.g. "Repairable-Material"/"Spare parts scrap") under a differently-named field.
-    // Without this fallback every TJ row's category stays null even though the source data has it.
+    // "GL" (category) is missing from some dinas's shape entirely, but the same category
+    // vocabulary can appear under a differently-named "Sub Group" field instead — fall back to
+    // that, otherwise every such row's category would stay null even though the source data has it.
     const glField = fieldNames.find((n) => n.toLowerCase() === 'gl')
       || fieldNames.find((n) => isSubGroupHeaderName(n));
     const reviewField = fieldNames.find((n) => n.toLowerCase().startsWith('review'));
-    // REQ-RDT-NAV-04 (1 Agu) — independent "Sub Group" lookup for the dedicated preview column,
-    // same rationale as the live-sheet path's subGroupCol.
+    // Independent "Sub Group" lookup for the dedicated preview column, same rationale as the
+    // live-sheet path's subGroupCol.
     const subGroupField = fieldNames.find((n) => isSubGroupHeaderName(n));
     const coveredFields = new Set([...Object.values(keyToFieldName).filter(Boolean), remarkField, glField, reviewField]);
 
@@ -541,12 +494,9 @@ async function deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, upl
 }
 
 async function parseExcelFile(filePath, options = {}) {
-  // Checklist audit (13 Agu, REQ-RDT-EXT-04): mapping/exclusions/dinasCodes were ALWAYS read from
-  // the local JSON seed files, even though index.js's admin PUT /api/mapping and PUT /api/exclusions
-  // write to rdt.dinas_mapping/rdt.exclusion_rules instead of these files whenever DATABASE_URL is
-  // set (the normal case) — TAB editing mapping via the Admin UI silently had zero effect on
-  // parsing. Callers with a live DB (index.js's POST /api/parse) now pass the DB-sourced values in
-  // via these options; no-DB callers (tests, no DATABASE_URL) keep the exact old JSON-file behavior.
+  // mapping/exclusions/dinasCodes come from the DB when a caller passes them in (index.js's
+  // POST /api/parse, when DATABASE_URL is set) so TAB's Admin UI edits actually affect parsing;
+  // otherwise fall back to the local JSON seed files (tests, no-DB callers).
   const mapping = options.mapping || loadJSON('mapping.seed.json');
   const exclusions = options.exclusions || loadJSON('exclusions.config.json');
   const dinasCodes = options.dinasCodes || (loadJSON('dinas.codes.json').codes) || [];
@@ -557,25 +507,16 @@ async function parseExcelFile(filePath, options = {}) {
   await workbook.xlsx.readFile(filePath);
 
   const results = [];
-  // REQ-RDT-EXT-09: tracked across the whole workbook so we know, only once every sheet has been
-  // visited, whether the ala-TB detail path (jalur 1) found anything at all — the pivot fallback
-  // (jalur 2) only kicks in when it didn't.
+  // Tracked across the whole workbook so we know, only once every sheet has been visited, whether
+  // the ala-TB detail path found anything at all — the pivot fallback only kicks in when it didn't.
   let anyDetailSheetFound = false;
   const pivotSheets = [];
 
   workbook.eachSheet((worksheet, sheetId) => {
-    // REQ-RDT-EXT-07 CORRECTION (26 Jul, project owner request): dropped the sheet-NAME check
-    // ("summary" substring) entirely — verified empirically that it was always redundant. TB's
-    // own pivot sheet is literally named "DT TB - June 2026" (no "summary" in it at all) and was
-    // only ever caught by the A3 check; R1's "Summary"-named pivot ALSO independently matches A3.
-    // So the name check never actually did anything across any of the 3 known real files — pure
-    // dead weight that risked false-catching an unrelated sheet whose name happens to contain
-    // "summary". Pivot detection now relies purely on cell content, with two anchors instead of
-    // one: A3="Sum of In PCLC" (as before) OR A4="Row Labels" — both verified identical in TB's
-    // pivot AND both TJ pivots (contoh_input/06. DT TJ - Jun 2026.xlsx and R1's Summary sheet).
-    // "Row Labels"/"Column Labels" are Excel PivotTable's own generated boilerplate labels (not
-    // dinas-specific), so A4 is a second anchor that survives even if a future dinas's pivot sums
-    // a differently-named value field (i.e. not literally "Sum of In PCLC").
+    // Pivot detection relies purely on cell content, not sheet name (a "summary" substring check
+    // proved redundant/unreliable), with two anchors: A3="Sum of In PCLC" OR A4="Row Labels" — the
+    // latter is Excel PivotTable's own generated boilerplate, so it survives even if a future
+    // dinas's pivot sums a differently-named value field.
     const a3Value = readCellValue(worksheet.getCell('A3'));
     const a4Value = readCellValue(worksheet.getCell('A4'));
     const isPivotSheet = String(a3Value || '').trim() === 'Sum of In PCLC' || String(a4Value || '').trim() === 'Row Labels';
@@ -602,22 +543,13 @@ async function parseExcelFile(filePath, options = {}) {
     const needed = ['Account', 'Cost Ctr', 'Profit Ctr', 'Value Date'];
     const hasNeeded = needed.every((k) => headerNamesLower.has(k.toLowerCase()));
     if (!hasNeeded) {
-      // REQ-RDT-EXT-01 CORRECTION (25 Jul, verified by opening the real
-      // contoh_input/06. DT TJ JUN 2026 R1.xlsx directly and cross-checking against its own
-      // Summary pivot): TJ-TE/TJ-TMM/TJ-Scrap (Cost.Ctr1/Cost.Element/Amount/Curr./Cost.Ctr2/
-      // Qty/UoM/Text shaped sheets) are NOT additional transactions — they are a per-destination
-      // reconciliation breakdown of rows ALREADY on the main sheet, routed via its own "Review
-      // TJ" column. Proof: every single TJ-TMM row's amount exactly matches an amount among the
-      // main sheet's Review-TJ="TMM" rows (321/321 matched), and TJ-TE/TJ-Scrap's sheet totals
-      // (84.36 / 1653.24) exactly equal the main sheet's own Review-TJ="TE"/"TA" row sums — with
-      // nothing left over. The main sheet's Review TJ column alone reproduces the pivot's Grand
-      // Total (516,064.40) exactly across all 4 real destinations (TMM/TA/TE/"Ask TA").
-      // Extracting these sheets as a second, separate transaction source (as an earlier session
-      // did, based on an incomplete/cached read of the pivot) double-counted every one of these
-      // rows — confirmed against a live screenshot of the resulting bug (TM shown as 797,421.97,
-      // exactly 473,933.51 + the TJ-TMM sheet's own 323,488.46 duplicate). So: treat these
-      // exactly like an actual lookup/reference sheet (e.g. TB's SQ00/ziw29/po/WBS/IW38/GL) and
-      // just skip them — the main sheet's own Remarks/Review-column routing is already complete.
+      // TJ-TE/TJ-TMM/TJ-Scrap (Cost.Ctr1/Cost.Element/Amount/Curr./Cost.Ctr2/Qty/UoM/Text shaped
+      // sheets) are NOT additional transactions — they're a per-destination reconciliation
+      // breakdown of rows already on the main sheet, routed via its own "Review TJ" column
+      // (verified: every row's amount matches an amount among the main sheet's own Review-TJ rows,
+      // with nothing left over). Extracting them as a separate transaction source double-counts
+      // every row, so treat these like a lookup/reference sheet and skip them — the main sheet's
+      // own Remarks/Review-column routing is already complete.
       return;
     }
     anyDetailSheetFound = true;
@@ -661,21 +593,17 @@ async function parseExcelFile(filePath, options = {}) {
       }
       return undefined;
     })();
-    // REQ-RDT-EXT-XX (found via contoh_input/06. DT TJ - Jun 2026.xlsx, confirmed by project
-    // owner 24 Jul): some dinas route via a "Review <dinas>" column instead of Remarks — e.g.
-    // TJ's "Review TJ" (values like "TMM", "TA", "TE", "Ask TA", recovered from that file's
-    // pivot cache since the sheet ships only as a pivot in that particular export). Only used as
-    // a FALLBACK when Remarks is empty — never overrides an existing Remarks value — so this
-    // can't change TB's already-verified behavior.
+    // Some dinas route via a "Review <dinas>" column instead of Remarks — e.g. TJ's "Review TJ"
+    // (values like "TMM", "TA", "TE", "Ask TA"). Only used as a FALLBACK when Remarks is empty —
+    // never overrides an existing Remarks value — so this can't change TB's already-verified behavior.
     const reviewCol = (function(){
       for (const name of Object.keys(headerIndex)) {
         if (name.toLowerCase().startsWith('review')) return headerIndex[name][0];
       }
       return undefined;
     })();
-    // REQ-RDT-NAV-04 (1 Agu): independent "Sub Group" lookup for the dedicated preview column —
-    // separate from glCol above, which may ALSO point at this same column when the sheet has no
-    // literal "GL" (that's fine, both can read the same cell for their own purposes).
+    // Independent "Sub Group" lookup for the dedicated preview column — separate from glCol above,
+    // which may ALSO point at this same column when the sheet has no literal "GL".
     const subGroupCol = (function(){
       for (const name of Object.keys(headerIndex)) {
         if (isSubGroupHeaderName(name)) return headerIndex[name][0];
@@ -688,11 +616,9 @@ async function parseExcelFile(filePath, options = {}) {
       return;
     }
 
-    // raw_payload covers every column NOT already surfaced as a named field — by column NUMBER
-    // (not just "after Value Date"), so leading columns the 53-field contract doesn't recognize
-    // (e.g. R1's "Group"/"Sub Group" at columns 1-2, before "Account") are captured too instead of
-    // silently dropped. Mirrors the pivot-cache path's by-NAME equivalent (deriveDetailRowsFromPivotCache's
-    // coveredFields), which never had this gap since it was never position-based to begin with.
+    // raw_payload covers every column NOT already surfaced as a named field — by column NUMBER,
+    // so leading columns the 53-field contract doesn't recognize (e.g. columns before "Account")
+    // are captured too instead of silently dropped.
     const coveredCols = new Set(Object.values(headerPos).filter(Boolean));
     if (remarksCol) coveredCols.add(remarksCol);
     if (glCol) coveredCols.add(glCol);
@@ -739,10 +665,10 @@ async function parseExcelFile(filePath, options = {}) {
     });
   });
 
-  // No ala-TB detail sheet found anywhere in the workbook. Try the richer fallback first (jalur
-  // 1b): recover full DETAIL_ROW rows from the workbook's pivot cache, if it has one and that
-  // cache satisfies the same header contract. Only if that yields nothing does this drop to the
-  // coarse PIVOT_DERIVED aggregate (jalur 2) instead of returning an empty result.
+  // No ala-TB detail sheet found anywhere in the workbook. Try the richer fallback first: recover
+  // full DETAIL_ROW rows from the workbook's pivot cache, if it has one and it satisfies the same
+  // header contract. Only if that yields nothing does this drop to the coarse PIVOT_DERIVED
+  // aggregate instead of returning an empty result.
   if (!anyDetailSheetFound) {
     const cacheRows = pivotSheets.length > 0
       ? await deriveDetailRowsFromPivotCache(filePath, mapping, exclusions, uploaderDinas, pivotSheets[0].name, dinasCodes)
@@ -761,7 +687,7 @@ async function parseExcelFile(filePath, options = {}) {
 
 module.exports = {
   parseExcelFile,
-  // REQ-RDT-SAP-06 (29 Jul): routes/exportBatches.js's full-53-column per-pair export reuses this
-  // for real contract header labels (Account, Cost Ctr, ...) instead of guessing/retyping them.
+  // routes/exportBatches.js's full-53-column per-pair export reuses this for real contract header
+  // labels (Account, Cost Ctr, ...) instead of guessing/retyping them.
   CONTRACT_FIELDS,
 };

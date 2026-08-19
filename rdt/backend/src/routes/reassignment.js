@@ -1,21 +1,14 @@
-// REQ-RDT-LEDGER-07 — resolution of DECLINED transactions by the initiator dinas.
-//
-// Decisions confirmed with the project owner before implementing this file:
+// Resolution of DECLINED transactions by the initiator dinas.
 //   - BORNE_BY_INITIATOR is a pure status change: no ledger_entries rows are written, since
 //     no budget actually moves cross-dinas when the initiator absorbs the cost themselves.
-//   - REASSIGN overwrites dinas_target on the SAME transaction row (per the literal text of
-//     REQ-RDT-LEDGER-07) rather than creating a new row; reassigned_from + reassign_count
-//     capture the trail, and full history remains in rdt.audit_log regardless.
-//   - reassign_count is capped at 3: once a row has already been reassigned 3 times, further
-//     REASSIGN attempts are rejected (400) and the initiator must choose BORNE_BY_INITIATOR —
-//     this is a hard stop, not a silent auto-conversion, so the initiator makes that call
-//     explicitly rather than the system deciding it for them.
-//   - The eligible target-dinas list for REASSIGN excludes the original uploader
-//     (dinas_inisiasi) and the dinas that just declined (the row's current dinas_target) —
+//   - REASSIGN overwrites dinas_target on the SAME transaction row rather than creating a new
+//     one; reassigned_from + reassign_count capture the trail, full history stays in rdt.audit_log.
+//   - reassign_count is capped at 3 — further REASSIGN attempts are rejected (400) and the
+//     initiator must choose BORNE_BY_INITIATOR, a hard stop rather than a silent auto-conversion.
+//   - Eligible REASSIGN targets exclude the original uploader and the dinas that just declined —
 //     both would trivially re-produce the situation just resolved.
-//   - REASSIGN does not re-run Excel prefix normalization/exclusion checks — the new target
-//     is chosen directly by the initiator from the active rdt.dinas list, since there's no
-//     Excel remark to re-derive a prefix from at this point.
+//   - REASSIGN does not re-run Excel prefix normalization/exclusion checks — the new target is
+//     chosen directly from the active rdt.dinas list, since there's no Excel remark left to derive one from.
 
 const express = require('express');
 const { Client } = require('pg');
@@ -74,11 +67,9 @@ async function resolveOneDeclined(client, user, { id, action, newTarget, note, i
     }
     const newTargetUpper = validation.newTargetUpper;
 
-    // REQ-RDT-SAP-14: periode_efektif=NULL — the DECLINE that got us here already snapshotted a
-    // value for the OLD pasangan (routes/confirmation.js), but this row is now starting a fresh
-    // confirm/reject episode under newTargetUpper, a DIFFERENT pasangan with its own deadline.
-    // That old snapshot no longer applies; a new one gets written when the new target eventually
-    // Confirms/Declines.
+    // periode_efektif=NULL: the DECLINE that got us here already snapshotted a value for the OLD
+    // pasangan, but this row is starting a fresh confirm/reject episode under newTargetUpper, a
+    // DIFFERENT pasangan with its own deadline — a new snapshot gets written when it resolves.
     await client.query(
       `UPDATE rdt.transactions
        SET dinas_target=$1, status_konfirmasi='PENDING', reassigned_from=$2, reassign_count=reassign_count+1,
@@ -117,7 +108,7 @@ router.post('/:id/resolve', express.json(), async (req, res) => {
   const newTarget = req.body && req.body.new_dinas_target;
   // Optional free-text note (items 7/10) — stored in audit_log.detail (jsonb) rather than a
   // new schema column, since audit_log already carries free-form per-action context elsewhere.
-  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  // Length-capped free text.
   const noteCheck = validateFreeText(req.body && req.body.note, { fieldLabel: 'Catatan' });
   if (!noteCheck.ok) return res.status(400).json(noteCheck);
   const note = noteCheck.value;
@@ -147,7 +138,7 @@ router.post('/:id/resolve', express.json(), async (req, res) => {
 // /:id/resolve endpoint above stays available unchanged.
 router.post('/batch-resolve', express.json(), async (req, res) => {
   const items = req.body && req.body.items;
-  // Checklist 1.3 (12 Agu): was trusted with no length cap.
+  // Length-capped free text.
   const noteCheck = validateFreeText(req.body && req.body.note, { fieldLabel: 'Catatan' });
   if (!noteCheck.ok) return res.status(400).json(noteCheck);
   const note = noteCheck.value;

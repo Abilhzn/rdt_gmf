@@ -1,7 +1,6 @@
 /**
  * Backend server exposing the RDT API, consumed by the Angular dev-shell frontend
- * (rdt/frontend/dev-shell, `ng serve`, port 4200) — the standalone ui-demo.html frontend this
- * used to also serve was removed 7 Agu 2026.
+ * (rdt/frontend/dev-shell, `ng serve`, port 4200) — the only frontend this serves.
  * - POST /api/parse  : accepts multipart/form-data with field `file` and returns parsed rows + aggregation
  *
  * This server should eventually be integrated into the team's existing Node.js backend with
@@ -38,11 +37,10 @@ const { Client } = require('pg');
 const { errorLoggingMiddleware, logRollbackAudit } = require('./logger');
 
 const app = express();
-// Checklist 1.2 (11 Agu): baseline security headers — same 'none' CSP rationale as
-// auth/data_user (see auth/src/index.js's comment): this service is JSON API + file
-// download/upload only, never renders its own HTML/script/style, so lock CSP down as
-// defense-in-depth. Content-Disposition:attachment downloads (original file, SAP export) are
-// unaffected — CSP governs how a page loads resources, not how a browser handles a download.
+// Baseline security headers: this service is JSON API + file download/upload only, never renders
+// its own HTML/script/style, so CSP is locked to 'none' as defense-in-depth. Content-Disposition
+// downloads (original file, SAP export) are unaffected — CSP governs page resource loading, not
+// how a browser handles a download.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -57,14 +55,12 @@ app.use(helmet({
   frameguard: { action: 'deny' }, // X-Frame-Options: DENY — matches frameAncestors 'none' above
   hsts: { maxAge: 15552000, includeSubDomains: true },
 }));
-// Checklist 2.2 (12 Agu): every 5xx response logged to logs/error.log — see logger.js.
+// Every 5xx response logged to logs/error.log — see logger.js.
 app.use(errorLoggingMiddleware('rdt-backend'));
-// Checklist 2.2 (12 Agu): a request whose handler hangs (stuck DB query, unreachable upstream
-// service, etc.) used to just leave the client's spinner running forever with no server-side
-// signal at all. 30s is generous (the widest legitimate operation here, a >300-row SAP export,
-// still completes well under that) but bounds every request to SOME response. Paired with the
-// Angular TimeoutInterceptor (frontend, same 30s) so the client-side wait is bounded even if this
-// server-side timer somehow doesn't fire (e.g. process itself wedged).
+// Bounds every request to SOME response even if the handler hangs (stuck DB query, unreachable
+// upstream). 30s is generous (a >300-row SAP export still finishes well under that). Paired with
+// the Angular TimeoutInterceptor (same 30s) so the client-side wait is bounded even if this
+// server-side timer somehow doesn't fire.
 app.use((req, res, next) => {
   const timer = setTimeout(() => {
     if (!res.headersSent) {
@@ -105,11 +101,9 @@ function writeConfig(name, obj) {
   fs.writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8');
 }
 
-// REQ-RDT-EXT-04 fix (13 Agu, audit finding): mapping/exclusions/dinasCodes used to always come
-// from the JSON seed files even when DATABASE_URL is set — PUT /api/mapping and PUT /api/exclusions
-// below write to rdt.dinas_mapping/rdt.exclusion_rules in that case, so the parser never reflected
-// what TAB actually edited. Mirrors the exact SELECTs those GET routes already use, just bundled
-// for excelParser.js's parseExcelFile options. Returns null (caller falls back to JSON) when no DB.
+// Loads mapping/exclusions/dinasCodes from the DB when configured, so parseExcelFile reflects
+// what TAB actually edited via PUT /api/mapping and PUT /api/exclusions. Returns null (caller
+// falls back to the JSON seed files) when no DB.
 async function loadDbRoutingConfig() {
   if (!process.env.DATABASE_URL) return null;
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -141,11 +135,9 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
-// fieldSize default (1MB) is too small for /api/persist's `rows` field — it's the FULL parsed
-// row set (incl. raw_payload per row) re-sent as JSON text, which for a large dinas file (e.g.
-// TB's ~3.9MB source, hundreds of rows) comfortably exceeds 1MB. Busboy aborts the connection
-// non-gracefully on overflow (no clean HTTP response), which is why this showed up as a hung
-// "Memproses..." / opaque 500 rather than a readable error — see the global error handler below
+// fieldSize default (1MB) is too small for /api/persist's `rows` field — the full parsed row set
+// (incl. raw_payload per row) re-sent as JSON text comfortably exceeds 1MB for a real dinas file.
+// Busboy aborts the connection non-gracefully on overflow — see the global error handler below
 // for the other half of this fix.
 const upload = multer({ storage, limits: { fieldSize: 25 * 1024 * 1024 } });
 
@@ -175,20 +167,13 @@ app.post('/api/parse', requireUser, upload.single('file'), async (req, res) => {
   // client body — same rule as confirmation.js/reassignment.js.
   const uploaderDinas = req.rdtUser.dinas;
   try {
-    // REQ-RDT-EXT-04 fix — pass DB-sourced mapping/exclusions/dinasCodes when a DB is configured,
-    // so TAB's Admin UI edits (PUT /api/mapping, PUT /api/exclusions) actually take effect. `null`
-    // when DATABASE_URL isn't set — parseExcelFile falls back to the JSON seed files as before.
+    // Pass DB-sourced mapping/exclusions/dinasCodes when configured, so TAB's Admin UI edits take
+    // effect. `null` when no DB — parseExcelFile falls back to the JSON seed files.
     const dbConfig = await loadDbRoutingConfig();
     const rows = await parseExcelFile(fp, { uploaderDinas, ...(dbConfig || {}) });
-    // Bug found 25 Jul (project owner report against contoh_input/06. DT TJ - Jun 2026.xlsx):
-    // a workbook whose ONLY sheet is a pivot/summary export (no 53-column detail sheet at all)
-    // used to silently return `rows: []` with ok:true — the Repost page just showed all-zero
-    // counts and an empty table with no explanation, easy to mistake for "it worked, there's
-    // nothing to repost" instead of "this file has no transaction-level detail to extract at
-    // all". Zero results here specifically means every sheet in the workbook was skipped (pivot/
-    // lookup-shaped, or missing the required headers) — a real file with actual data rows would
-    // always produce at least SOME row (even just NEEDS_REVIEW/INVALID ones), so this is a safe
-    // signal to surface as an explicit error rather than a silent empty success.
+    // Zero rows here means every sheet in the workbook was skipped (pivot/lookup-shaped, or
+    // missing the required headers) — a real file with data rows always produces at least SOME
+    // row, so surface this as an explicit error rather than a silent empty success.
     if (rows.length === 0) {
       return res.status(400).json({
         ok: false,
@@ -206,19 +191,13 @@ app.post('/api/parse', requireUser, upload.single('file'), async (req, res) => {
   }
 });
 
-// ui-demo.html (the standalone vanilla-JS demo UI this used to serve at '/' and '/rdt/demo')
-// was removed 7 Agu 2026 — the Angular dev-shell (rdt/frontend/dev-shell, `ng serve`, port 4200)
-// is now the only frontend, per project owner instruction. This server is API-only from here on.
+// The Angular dev-shell (rdt/frontend/dev-shell, `ng serve`, port 4200) is the only frontend —
+// this server is API-only.
 app.get('/', (req, res) => res.json({ ok: true, service: 'rdt-backend', frontend: 'http://localhost:4200/rdt' }));
 
-// Checklist 2.2 (12 Agu): the other 2 backend services already had this at the conventional
-// `/health` path (auth/data_user, both trivial "process is alive" checks) — this one was missing
-// AND, being the service every write actually goes through, is worth making more useful than a
-// bare "process alive" ping: it actually round-trips the database, so "service up but DB
-// unreachable" (a real, distinct failure mode — Supabase pooler hiccup, wrong DATABASE_URL after
-// a redeploy, etc.) shows up as db:"error" here instead of masquerading as a healthy service that
-// then 500s on every real request. No auth required, same convention as auth/data_user's /health
-// and this file's own GET / — a liveness probe has to be reachable without a login.
+// Round-trips the database so "service up but DB unreachable" shows up as db:"error" here instead
+// of masquerading as a healthy service that then 500s on every real request. No auth required —
+// a liveness probe has to be reachable without a login.
 app.get('/health', async (req, res) => {
   if (!process.env.DATABASE_URL) {
     return res.json({ ok: true, service: 'rdt-backend', db: 'not_configured' });
@@ -236,9 +215,8 @@ app.get('/health', async (req, res) => {
 });
 
 // GET /api/directory — employee directory, used for the @mention autocomplete + comment/
-// notification author display names. Restructured 24 Jul 2026: proxies to the data_user
-// service instead of reading a local file (see rdt/backend/src/middleware/auth.js's header
-// comment for why identity/directory data moved out of this app).
+// notification author display names. Proxies to the data_user service instead of reading a
+// local file (see middleware/auth.js for why identity/directory data lives outside this app).
 app.get('/api/directory', requireUser, async (req, res) => {
   try {
     res.json({ ok: true, directory: await loadDirectory() });
@@ -247,12 +225,9 @@ app.get('/api/directory', requireUser, async (req, res) => {
   }
 });
 
-// GET /api/contract-fields — REQ-RDT-NAV-04 (1 Agu, presentation feedback): the Repost Review
-// preview table must show the SAME columns that actually get repost-ed, from ONE shared source —
-// this is that source. CONTRACT_FIELDS (excelParser.js) is already what routes/exportBatches.js's
-// GET /export/:batchId uses to build the real 53-column SAP file; exposing it here means the
-// Angular preview table renders columns by iterating this list instead of a second, hand-picked
-// column set that could drift out of sync if the contract ever changes.
+// GET /api/contract-fields — exposes CONTRACT_FIELDS (excelParser.js, same list exportBatches.js
+// uses to build the SAP file) so the Angular Repost Review preview table renders the same columns
+// that actually get repost-ed, instead of a second hand-picked list that could drift out of sync.
 app.get('/api/contract-fields', requireUser, (req, res) => {
   res.json({ ok: true, fields: CONTRACT_FIELDS.map((f) => ({ key: f.key, label: f.variants[0] })) });
 });
@@ -279,11 +254,8 @@ app.get('/api/dinas', requireUser, (req, res) => {
   }
 });
 
-// GET/PUT mapping — checklist 1.1 (12 Agu, audit ketemu ini bisa diakses tanpa login sama
-// sekali, termasuk PUT-nya yang nge-rewrite tabel routing dinas): TAB-only, sama gate yang
-// dipakai tempat lain buat aksi admin/config (Angular's admin/ module gak punya route guard
-// sendiri, jadi backend HARUS jadi lapisan penegakan yang sesungguhnya — jangan percaya
-// frontend doang, checklist 1.3's rule yang sama berlaku di sini).
+// GET/PUT mapping — TAB-only. Angular's admin/ module has no route guard of its own, so the
+// backend is the real enforcement layer here, not the frontend.
 app.get('/api/mapping', requireUser, requireRole('TAB'), (req, res) => {
   // If DB available, read from rdt.dinas_mapping; else fallback to JSON file
   if (process.env.DATABASE_URL) {
@@ -332,7 +304,7 @@ app.put('/api/mapping', requireUser, requireRole('TAB'), express.json(), (req, r
   catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
 });
 
-// GET/PUT exclusions — checklist 1.1 (12 Agu), same gap/fix as /api/mapping above.
+// GET/PUT exclusions — same TAB-only gate as /api/mapping above.
 app.get('/api/exclusions', requireUser, requireRole('TAB'), (req, res) => {
   if (process.env.DATABASE_URL) {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -375,9 +347,8 @@ app.put('/api/exclusions', requireUser, requireRole('TAB'), express.json(), (req
 });
 
 // Commit parsed rows to a staging JSON file (no DB). Expects JSON body { rows: [...], aggregation: {...} }
-// Checklist 1.1 (12 Agu): legacy no-DB fallback path, dead code from the frontend's own
-// perspective (no caller left — grep confirmed) but still reachable directly — gated same as
-// everything else rather than left as the one unauthenticated write endpoint standing.
+// Legacy no-DB fallback path, no caller left in the frontend but still reachable directly —
+// gated same as everything else rather than left as an unauthenticated write endpoint.
 app.post('/api/commit', requireUser, express.json(), (req, res) => {
   try {
     const body = req.body;
@@ -400,11 +371,9 @@ app.post('/api/commit', requireUser, express.json(), (req, res) => {
 // Persist parsed rows into PostgreSQL staging tables (rdt.transactions).
 // Uses DATABASE_URL or PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGPORT env vars.
 //
-// REQ-RDT-EXT-08: the client may now also attach the original workbook (field "file") so its
-// bytes can be saved alongside the parsed rows — multer no-ops on a plain JSON request (no
-// req.file, req.body already parsed by the global express.json()), so existing JSON-only
-// callers are unaffected. On multipart requests, non-file fields arrive as strings, hence the
-// JSON.parse below.
+// The client may attach the original workbook (field "file") so its bytes can be saved alongside
+// the parsed rows — multer no-ops on a plain JSON request, so existing JSON-only callers are
+// unaffected. On multipart requests, non-file fields arrive as strings, hence the JSON.parse below.
 app.post('/api/persist', requireUser, upload.single('file'), async (req, res) => {
   const body = req.body || {};
   const rows = typeof body.rows === 'string' ? JSON.parse(body.rows) : body.rows;
@@ -415,28 +384,21 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
   body.rows = rows;
   body.aggregation = typeof body.aggregation === 'string' ? JSON.parse(body.aggregation) : body.aggregation;
 
-  // REQ-RDT-SAP-13 DIBATALKAN 14 Agu (SRS 3.13): periode tidak lagi diminta dari client sama
-  // sekali (dan kalaupun dikirim, diabaikan) — selalu implisit = bulan sebelum bulan upload
-  // berjalan (server time), lihat rules/periodEffective.js's currentAutoPeriode.
+  // Periode tidak diminta dari client — selalu implisit = bulan sebelum bulan upload berjalan
+  // (server time), lihat rules/periodEffective.js's currentAutoPeriode.
   const period = currentAutoPeriode();
 
-  // Bug fix (11 Agu, found via live-DB testing): rdt.uploads.original_filename is NOT NULL in
-  // the schema, but this route treated it as optional (defaulted to null below) — a caller that
-  // omits it hit a raw Postgres constraint-violation 500 instead of a clean validation error.
-  // The real Angular Repost flow always sends it (transaction.service.ts falls back to
-  // 'unknown.xlsx' when there's no File object), so this should never fire in normal use — this
-  // just turns a latent gap into a proper 400 for any other caller.
+  // rdt.uploads.original_filename is NOT NULL in the schema — reject early with a clean 400
+  // instead of a raw Postgres constraint-violation 500.
   const originalFilenameTrimmed = typeof body.original_filename === 'string' ? body.original_filename.trim() : '';
   if (!originalFilenameTrimmed) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
     return res.status(400).json({ ok: false, error: 'original_filename is required' });
   }
 
-  // Checklist 1.3 (12 Agu): description (Keterangan Repost, level upload) and each row's
-  // reviewer_note (Catatan Reviewer, per-baris) were never length-checked — trusted entirely as
-  // free text straight into an unbounded `text` column. All-or-nothing: one row's reviewer_note
-  // too long rejects the whole persist call, same convention `period`/`original_filename` above
-  // already use for this endpoint (no partial-write half-state).
+  // description (level upload) and each row's reviewer_note (per-baris) are length-checked here.
+  // All-or-nothing: one row's reviewer_note too long rejects the whole persist call (no
+  // partial-write half-state).
   const descriptionCheck = validateFreeText(body.description, { fieldLabel: 'Deskripsi' });
   if (!descriptionCheck.ok) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
@@ -488,9 +450,9 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
     try {
       await client.query('BEGIN');
 
-      // REQ-RDT-EXT-10 (4 Agu): a re-upload for a (dinas_inisiasi, periode) pair that already has
-      // an ACTIVE upload must supersede it, not accumulate alongside it — lock candidates first so
-      // two concurrent persists for the same dinas+period can't both pass the block-check below.
+      // A re-upload for a (dinas_inisiasi, periode) pair that already has an ACTIVE upload must
+      // supersede it, not accumulate alongside it — lock candidates first so two concurrent
+      // persists for the same dinas+period can't both pass the block-check below.
       const priorRes = await client.query(
         `SELECT id FROM rdt.uploads WHERE dinas_code=$1 AND period=$2 AND status='ACTIVE' FOR UPDATE`,
         [uploader, period]
@@ -548,17 +510,15 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
         );
       }
 
-      // REQ-RDT-EXT-08: save the original workbook byte-for-byte (if the client attached one)
-      // and link it to this upload row, so REQ-RDT-LEDGER-09's download-with-live-formulas has
-      // something to serve. TODO: no retention/cleanup policy yet — original files accumulate
-      // in uploadDir indefinitely; fine for now, revisit before this holds real volume.
+      // Save the original workbook byte-for-byte (if the client attached one) and link it to this
+      // upload row, so download-with-live-formulas has something to serve.
+      // TODO: no retention/cleanup policy yet — original files accumulate in uploadDir indefinitely.
       if (req.file) {
         const originalFilePath = saveOriginalFile(uploadDir, uploadId, req.file.path, originalFilename || req.file.originalname);
         await client.query('UPDATE rdt.uploads SET original_file_path=$1 WHERE id=$2', [originalFilePath, uploadId]);
       }
 
-      // REQ-RDT-EXT-03: duplicate transaction detection (cross-upload only — see
-      // src/persist/duplicateCheck.js for why within-file matches are intentionally excluded).
+      // Duplicate transaction detection (cross-upload only — see persist/duplicateCheck.js).
       const pendingDocNos = Array.from(new Set(
         body.rows
           .filter((r) => r.status_konfirmasi === 'PENDING' && r.document_no !== null && r.document_no !== undefined && String(r.document_no).trim() !== '')
@@ -584,15 +544,8 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
         'material','time_val','year_2','ref_org_un','val_a','mvt','type','sales_ord','s_no','bus_a','func_area','acty',
         'asset','rep_mat','ar','dt','ref_tran','item','bill_t','sd_doc','s_grp','s_off','co_ar','in_pclc','curr',
         'doc_date','pstng_date','in_ccc','in_tc','qty','unit','entry_dte','value_date',
-        // trailing fields
-        // REQ-RDT-NAV-04 (diperluas 1 Agu, ditegaskan 3 Agu): sub_group now persists (migration
-        // 011) so it survives past this Repost step into Confirmation/Need Approval/history
-        // previews too, not just the pre-persist Review screen.
-        // reviewer_note now persists too (migration 015, 5 Agu project owner confirmation) — same
-        // gap, same fix: it used to be stripped by the frontend before this request even arrived
-        // (see transaction.model.ts), so Confirmation's sticky "Notes" column had nothing real to
-        // pin and fell back to showing `remark` instead, which is a completely different field
-        // (raw Excel routing text, not the uploader's own note).
+        // trailing fields — sub_group and reviewer_note persist here so they survive past this
+        // Repost step into Confirmation/Need Approval/history previews too.
         'sheet_name','raw_row_index','remark','raw_payload','sub_group','reviewer_note'
       ];
       // helper to normalize value for insert (explicit null check)
@@ -648,13 +601,11 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
         insertedRows.push(...insertRes.rows);
       }
 
-      // Project owner request (25 Jul): the repost description, if given, should auto-appear as
-      // a comment in EVERY dinas pair's Dashboard-Detailing thread this upload actually targets —
-      // one top-level comment per distinct dinas_target, anchored to one of this upload's own
-      // transaction rows for that pair (same anchoring convention as dashboard.js's comment
-      // routes). Skip pairs with no real target (dinas_target null) or that are self-repost
-      // (EXCLUDED rows still carry dinas_target=uploader; excluded here as a pair, not a status
-      // filter, so this stays correct even if EXCLUDED's definition ever changes).
+      // The repost description, if given, auto-appears as a comment in every dinas pair's
+      // Dashboard-Detailing thread this upload actually targets — one top-level comment per
+      // distinct dinas_target, anchored to one of this upload's own transaction rows for that
+      // pair. Skips pairs with no real target or that are self-repost (EXCLUDED rows still carry
+      // dinas_target=uploader).
       const trimmedDescription = description && String(description).trim();
       if (trimmedDescription) {
         const pairTransactionId = new Map();
@@ -663,11 +614,8 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
           if (String(r.dinas_target).toUpperCase() === String(r.dinas_inisiasi).toUpperCase()) continue;
           if (!pairTransactionId.has(r.dinas_target)) pairTransactionId.set(r.dinas_target, r.id);
         }
-        // REQ-RDT-COMMENT-03 (diperluas 3 Agu, gap found in sweep): this comment never notified
-        // ANYONE before — not even the target dinas it's addressed to, let alone anyone @mentioned
-        // in it. dashboard.js's plain manual-comment endpoint already does mention-based notify;
-        // this is that same rule (resolveMentionedUserIds), applied here too — one target dinas's
-        // PIC(s) implicitly (this comment IS addressed to them) plus anyone else @mentioned.
+        // Notifies the target dinas's PIC(s) implicitly (this comment is addressed to them) plus
+        // anyone else @mentioned, same mention-based notify rule as dashboard.js's manual-comment endpoint.
         const directory = await loadDirectory();
         for (const [targetDinas, transactionId] of pairTransactionId) {
           const commentRes = await client.query(
@@ -675,10 +623,9 @@ app.post('/api/persist', requireUser, upload.single('file'), async (req, res) =>
             [transactionId, uploadedBy, trimmedDescription]
           );
           const commentId = commentRes.rows[0].id;
-          // Privacy bug fix (4 Agu, mentionRules.js's filterMentionsToPair header comment): this
-          // loop creates ONE comment per distinct target dinas from the SAME shared description —
-          // a mention elsewhere in that text (e.g. a different pair's dinas) must not leak into
-          // THIS pair's recipient list.
+          // This loop creates one comment per distinct target dinas from the same shared
+          // description — a mention elsewhere in that text must not leak into this pair's
+          // recipient list (see mentionRules.js's filterMentionsToPair).
           const mentioned = filterMentionsToPair(resolveMentionedUserIds(trimmedDescription, directory), directory, [uploader, targetDinas]);
           const recipientIds = new Set(mentioned);
           Object.keys(directory).forEach((id) => {
@@ -726,12 +673,9 @@ app.use('/api/investigation', investigationRouter);
 app.use('/api/share-cost', shareCostRouter);
 app.use('/api/period-deadlines', periodDeadlinesRouter);
 
-// Bug fix (live testing, 24 Jul): multer/busboy errors (e.g. MulterError on a field exceeding
-// its size limit) are thrown INSIDE the upload.single(...) middleware, before any route
-// handler's own try/catch runs — with no error-handling middleware registered, Express fell
-// through to its default handler, which for a stream-level abort like this manifested as a
-// hung connection (client saw "Memproses..." forever) rather than a readable error. This must
-// be the LAST app.use — Express only routes to a 4-arg middleware for errors passed via next(err).
+// Catches multer/busboy errors (e.g. MulterError on a field exceeding its size limit), thrown
+// inside upload.single(...) before any route handler's own try/catch runs. Must be the LAST
+// app.use — Express only routes to a 4-arg middleware for errors passed via next(err).
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   if (res.headersSent) return next(err);

@@ -17,14 +17,11 @@ import { RdtRoutingModule } from './rdt-routing.module';
 // (double-provide HttpClientModule di lazy module bisa mereset interceptor).
 // Disertakan sementara supaya modul bisa jalan standalone saat development.
 //
-// LoginComponent/SelectPlatformComponent moved OUT to the shared AuthModule (24 Jul 2026) — a
-// component can only be declared by one NgModule, so RdtModule now just imports+re-routes to
-// them instead of declaring them itself (see auth/frontend/auth.module.ts).
-// Checklist 2.2 (12 Agu): TimeoutInterceptor registered via HTTP_INTERCEPTORS (the classic
-// NgModule-compatible way — works alongside HttpClientModule above regardless of whether the
-// real host platform ends up providing HttpClientModule at its own root instead, see this file's
-// own CATATAN INTEGRASI above about double-provide risk being interceptor-reset, not
-// interceptor-registration).
+// LoginComponent/SelectPlatformComponent live in the shared AuthModule — a component can only be
+// declared by one NgModule, so RdtModule just imports+re-routes to them (see
+// auth/frontend/auth.module.ts). TimeoutInterceptor registered via HTTP_INTERCEPTORS (works
+// alongside HttpClientModule above regardless of whether the host platform provides
+// HttpClientModule at its own root instead — see the CATATAN INTEGRASI above).
 @NgModule({
   declarations: [ShellComponent, ModalComponent, RepostBudgetingComponent, ErrorPageComponent],
   imports: [CommonModule, FormsModule, HttpClientModule, RouterModule, RdtRoutingModule, SharedModule, AuthModule],

@@ -1,20 +1,14 @@
-// TODO(IT-AUTH): interim feature-level authorization (REQ-RDT-AUTH-01/02/03, REQ-RDT-LEDGER-06).
+// TODO(IT-AUTH): interim feature-level authorization.
 //
-// Restructured 24 Jul 2026: identity resolution (WHO is this request) moved OUT to the shared
-// `auth` service (GET /verify) — requireUser here is now an HTTP client, not a local directory
-// lookup. Dinas/role AUTHORIZATION (WHAT they're allowed to do — requireDinasAccess, requireRole)
-// stays here: these are RDT-specific business rules (dinas access, TAB role semantics), not
-// something shared with other future apps the same way identity is shared.
+// Identity resolution (WHO is this request) lives in the shared `auth` service (GET /verify) —
+// requireUser here is an HTTP client, not a local directory lookup. Dinas/role AUTHORIZATION
+// (WHAT they're allowed to do — requireDinasAccess, requireRole) stays here as RDT-specific
+// business rules, not shared with other apps the way identity is.
 //
-// Roles SM_TA/GH_TA were removed entirely on 24 Jul 2026 (project owner correction) — role TAB
-// alone now handles Repost/Confirmation/Need Approval, so the blockRoles() factory that used to
-// reject SM_TA/GH_TA outright at Repost/Confirmation has no remaining callers and was deleted.
-//
-// This is still a PROVISIONAL mechanism, not real authentication — it exists only to close the
-// hole where any client can pass an arbitrary `dinas` and act as it. Once GMF IT confirms their
-// real employee/user table (rdt/docs/SRS.md section 3.7 open question), only the `auth` service's
-// internals need to change — the requireUser / requireDinasAccess contract used by routes here
-// should stay the same so callers don't need to change.
+// This is still PROVISIONAL, not real authentication — it exists only to close the hole where any
+// client can pass an arbitrary `dinas` and act as it. Once GMF IT confirms their real
+// employee/user table, only the `auth` service's internals need to change — the requireUser /
+// requireDinasAccess contract used by routes here should stay the same.
 
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:4001';
 
@@ -45,16 +39,11 @@ async function requireUser(req, res, next) {
 }
 
 // Middleware factory: only allow role TAB, or a user whose own dinas matches
-// req.params[dinasParam] — that's true for a plain PIC, and equally true for TAB staff acting
-// on dinas "TAB" itself. Dinas "TA" is its own operational dinas with its own PIC (REQ-RDT-AUTH-05,
-// corrected 31 Jul — an earlier 24 Jul assumption that TA merged into TAB was wrong); a TA PIC
-// gets access here the same way any other PIC does, via the plain dinas-match check below. Role
-// was renamed from 'ADMIN_TAB' to plain 'TAB' on 24 Jul (project owner correction) — same
-// role/permissions, just dropped the 'ADMIN' prefix; SM_TA/GH_TA were later removed entirely the
-// same day, role TAB now handles everything they used to.
+// req.params[dinasParam] — true for a plain PIC, and equally true for TAB staff acting on dinas
+// "TAB" itself. Dinas "TA" is its own operational dinas with its own PIC, and gets access here the
+// same way any other PIC does, via the plain dinas-match check below.
 //
-// REQ-RDT-AUTH-04 (koreksi 22 Jul): dinas "Corp" has no dedicated PIC, but who may act on its
-// queue is role TAB only.
+// Dinas "Corp" has no dedicated PIC — only role TAB may act on its queue.
 function requireDinasAccess(dinasParam) {
   return function (req, res, next) {
     const user = req.rdtUser;
