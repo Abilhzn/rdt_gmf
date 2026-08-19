@@ -92,19 +92,16 @@ $radius-md: 8px;
 // via home.component.html's #pairCard ng-template. ----------
 .pair-card-list { display: flex; flex-direction: column; gap: 12px; }
 
-// REQ-RDT-NAV-03 (5 Agu): .pair-card is the OUTER flex row, so the whole thing (main content +
-// divider + expanded chain detail) reads as ONE wider card sharing a single border/radius when
-// expanded, rather than the detail panel looking like a separate floating box.
+// "Jalur Repost" (18 Agu): .pair-card used to be the OUTER flex row (main content + divider +
+// sideways chain detail as 3 flex siblings) — the expanded hop detail now renders INLINE below
+// the route strip, inside __main, so this goes back to a plain block card.
 .pair-card {
   background: #fff;
   border-radius: $radius-lg;
   border: 1px solid $line;
-  display: flex;
-  align-items: stretch;
   transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
 
   &__main {
-    flex: 1 1 auto;
     min-width: 0;
     // Densitas (5 Agu, ronde 2): sama alasan seperti .kpi-card di atas — dirapatkan dari 22/30/26
     // biar sejalan sama referensi yang lebih compact.
@@ -184,33 +181,85 @@ $radius-md: 8px;
   }
   &__notif { margin-top: 12px; font-size: 12px; color: $danger-600; font-weight: 600; }
 
-  // ---------- REQ-RDT-NAV-03 progress-redirect badge + sideways expand (5 Agu) ----------
-  &__chain-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 12px;
-    border: 1px solid $accent;
-    border-radius: 999px;
-    background: #fff;
-    color: $accent;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 5px 12px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: background 120ms ease;
-
-    &:hover { background: rgba(0, 98, 152, 0.08); }
-  }
-  &__chain-badge-caret { font-size: 9px; }
-
-  &__chain-divider { flex: 0 0 auto; width: 1px; align-self: stretch; background: $line; margin: 16px 0; }
-
+  // Rincian per-hop — dulu panel sideways (lihat &__chain-divider/&__chain-detail lama), sekarang
+  // blok inline di bawah strip .route, dalam kartu yang sama.
   &__chain-detail {
-    flex: 0 0 220px;
-    padding: 20px 24px 24px 20px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed $line;
   }
+}
+
+// ---------- "Jalur Repost" (18 Agu, audit tanda-tangan visual) ----------
+// Elemen visual utama kartu sekarang, ganti donut/badge kecil yang sebelumnya cuma detail
+// tersembunyi. Reused $accent (biru) untuk hop aktif — BUKAN $amber/coklat, sesuai keputusan
+// project owner 18 Agu (mockup awal pakai amber, direvisi sebelum masuk template asli).
+.route {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:focus-visible { outline: 2px solid $accent; outline-offset: 2px; border-radius: $radius-md; }
+}
+
+.route-node {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1.5px solid $line;
+  background: #fff;
+  color: $ink-900;
+  font-variant-numeric: tabular-nums;
+  position: relative;
+  z-index: 1;
+  transition: border-color 120ms ease, background 120ms ease;
+
+  &--settled { border-color: $green; }
+  &--current {
+    border-color: $accent;
+    background: rgba(0, 98, 152, 0.1);
+    box-shadow: 0 0 0 3px rgba(0, 98, 152, 0.12);
+  }
+}
+
+.route-gap {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: $ink-600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1.5px dashed $line;
+  background: #fff;
+  z-index: 1;
+}
+
+.route-seg {
+  flex: 1 1 auto;
+  min-width: 18px;
+  height: 5px;
+  border-radius: 999px;
+  background: $bar-track;
+  position: relative;
+  overflow: hidden;
+  margin: 0 -2px;
+
+  &--settled { background: $green; }
+}
+.route-seg__fill {
+  position: absolute;
+  inset: 0;
+  background: $accent;
+  border-radius: 999px;
 }
 
 // A2 (Figma 78:242 re-pull): 2-column bar-mode body — left column (state-label pill + comment
@@ -506,6 +555,6 @@ $radius-md: 8px;
 
 // ---------- reduced motion (audit "kaku" 17 Agu) ----------
 @media (prefers-reduced-motion: reduce) {
-  .btn, .pair-card, .pair-card__chain-badge, .rollup-table__detail-btn { transition: none; }
+  .btn, .pair-card, .route-node, .rollup-table__detail-btn { transition: none; }
   .skeleton-block { animation: none; background: $bar-track; }
 }

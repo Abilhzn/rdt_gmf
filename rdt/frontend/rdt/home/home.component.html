@@ -30,6 +30,41 @@
         <span class="pair-card__overdue-tag" *ngIf="d.overdue">Overdue</span>
       </div>
 
+      <!-- "Jalur Repost" (18 Agu, audit tanda-tangan visual) — visual utama kartu sekarang,
+           bukan lagi badge kecil "▶" yang perlu diklik: rute dinas SELALU tampil, pasangan
+           langsung (2 node) sekalipun, biar bahasa visualnya konsisten di semua kartu. Klik rute
+           expand rincian per-hop inline di bawah (reuse isChainExpanded/toggleChainExpand yang
+           sudah ada — cuma trigger dan posisi hasil expand-nya yang pindah dari badge+sideways
+           ke strip+inline). -->
+      <button
+        type="button"
+        class="route"
+        (click)="$event.stopPropagation(); toggleChainExpand(kind, d)"
+        [attr.aria-expanded]="isChainExpanded(kind, d)"
+        [attr.aria-label]="'Jalur repost ' + pairTitle(kind, d) + ', klik untuk rincian per-hop'"
+      >
+        <ng-container *ngFor="let chip of routeChips(kind, d); let i = index; let last = last">
+          <span
+            *ngIf="chip.kind === 'node'"
+            class="route-node"
+            [class.route-node--settled]="chip.state === 'settled'"
+            [class.route-node--current]="chip.state === 'current'"
+          >{{ chip.code }}</span>
+          <span *ngIf="chip.kind === 'gap'" class="route-gap">&middot;&middot;&middot;+{{ chip.hidden }}</span>
+          <span
+            *ngIf="!last"
+            class="route-seg"
+            [class.route-seg--settled]="routeSegments(kind, d)[i].state === 'settled'"
+          >
+            <span
+              *ngIf="routeSegments(kind, d)[i].state === 'current'"
+              class="route-seg__fill"
+              [style.width.%]="routeSegments(kind, d)[i].fillPct"
+            ></span>
+          </span>
+        </ng-container>
+      </button>
+
       <!-- 2-COLUMN bar body — LEFT column stacks state-label pill/comment-count, RIGHT column
            holds the segmented bar+percent with the legend below it. -->
       <ng-container *ngIf="useBar; else donutBody">
@@ -88,26 +123,15 @@
         {{ d.declined_pending_action }} transaksi ditolak, perlu tindak lanjut
       </div>
 
-      <!-- REQ-RDT-NAV-03 progress-redirect indicator (5 Agu, project owner-approved mockup): only
-           shown when a GENUINE multi-hop redirect happened — d.chain is only ever more than 2
-           points when every transaction under this card agrees on the same full path. Collapsed
-           by default, click expands SIDEWAYS (not downward) with a divider; stopPropagation so
-           the badge click doesn't also fire the card's own onCardClick. -->
-      <button
-        type="button"
-        class="pair-card__chain-badge"
-        *ngIf="d.chain && d.chain.length > 2"
-        (click)="$event.stopPropagation(); toggleChainExpand(kind, d)"
-      >→{{ d.chain[d.chain.length - 1] }} {{ d.resolved }}/{{ d.total }}
-        <span class="pair-card__chain-badge-caret">{{ isChainExpanded(kind, d) ? '◀' : '▶' }}</span>
-      </button>
-    </div>
-    <ng-container *ngIf="isChainExpanded(kind, d)">
-      <div class="pair-card__chain-divider"></div>
-      <div class="pair-card__chain-detail">
-        <rdt-chain-hop-detail [chain]="d.chain" [resolved]="d.resolved" [total]="d.total"></rdt-chain-hop-detail>
+      <!-- Rincian per-hop — dulu expand SIDEWAYS (badge+divider terpisah), sekarang inline di
+           bawah strip "Jalur Repost" di atas, sama kartu, gak lagi butuh divider/panel
+           terpisah. pairChain() dipakai (bukan d.chain langsung) supaya pasangan langsung yang
+           d.chain-nya undefined tetap dapat fallback 2-titik yang konsisten sama yang dirender
+           strip-nya. -->
+      <div class="pair-card__chain-detail" *ngIf="isChainExpanded(kind, d)">
+        <rdt-chain-hop-detail [chain]="pairChain(kind, d)" [resolved]="d.resolved" [total]="d.total"></rdt-chain-hop-detail>
       </div>
-    </ng-container>
+    </div>
   </div>
 </ng-template>
 

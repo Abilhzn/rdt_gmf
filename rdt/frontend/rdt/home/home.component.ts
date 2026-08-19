@@ -4,6 +4,20 @@ import { DashboardService, DinasProgress, DashboardKpis, PerDinasRollupRow } fro
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { extractErrorMessage } from '../shared/error-message.util';
 
+// "Jalur Repost" (18 Agu) — pair-card's route strip. A "chip" is either a real dinas node or a
+// collapsed "+N" gap (long chain, see routeChips()); a "segment" is the connecting line between
+// two adjacent chips, always chips.length - 1 of them.
+export interface RouteChip {
+  kind: 'node' | 'gap';
+  code?: string;
+  hidden?: number;
+  state?: 'settled' | 'current';
+}
+export interface RouteSegment {
+  state: 'settled' | 'current';
+  fillPct?: number;
+}
+
 // REQ-RDT-NAV-02/02a — rebuilt to match the updated Figma (nodes 1:2 "Need to Confirm" / 69:209
 // "Own Repost"): two switchable sub-views (not a side-by-side two-panel layout), "Need to
 // Confirm" default since it's the action item (Own Repost is pure monitoring). Sub-view lives in
@@ -182,10 +196,60 @@ export class HomeComponent implements OnInit {
   // what a chain member sees, so the same "chain arrow missing" bug applied here too.
   pairTitle(kind: 'need' | 'own', d: DinasProgress): string {
     const label = (code: string | undefined) => (code === 'INVESTIGATION' ? 'Investigation/Ask TA' : code);
-    if (d.chain?.length) return d.chain.map((c) => label(c)).join(' → ');
-    if (kind === 'need') return `${d.dinas} → ${label(d.target_dinas) || this.myDinas || ''}`;
-    if (this.isGlobalView) return `${d.dinas} → ${label(d.target_dinas)}`;
-    return `${this.myDinas || ''} → ${label(d.dinas)}`;
+    return this.pairChain(kind, d).map((c) => label(c)).join(' → ');
+  }
+
+  // "Jalur Repost" (18 Agu, audit tanda-tangan visual): same real-vs-fallback chain logic
+  // pairTitle() above already has, extracted so routeChips() below can reuse it as an array
+  // instead of a joined string. d.chain populated = genuine multi-hop redirect breadcrumb;
+  // otherwise falls back to the two-point [inisiasi, target] pairTitle's own doc comment already
+  // called "always a safe fallback" — same per-kind derivation (need/own, global vs personal).
+  pairChain(kind: 'need' | 'own', d: DinasProgress): string[] {
+    if (d.chain?.length) return d.chain;
+    if (kind === 'need') return [d.dinas, d.target_dinas || this.myDinas || ''];
+    if (this.isGlobalView) return [d.dinas, d.target_dinas || ''];
+    return [this.myDinas || '', d.dinas];
+  }
+
+  // Route strip chips: node codes to render, truncated to first+gap+current when the chain has
+  // more than 3 members (SRS "chain sangat panjang" case, approved mockup 18 Agu) — caps the
+  // strip's width regardless of how many redirects actually happened, same "+N hop lainnya"
+  // truncation idea shared/chain-hop-detail.component.ts already uses for the expanded list.
+  routeChips(kind: 'need' | 'own', d: DinasProgress): RouteChip[] {
+    const chain = this.pairChain(kind, d);
+    const len = chain.length;
+    if (len <= 3) {
+      return chain.map((code, i) => ({ kind: 'node', code, state: this.routeNodeState(i, len) }));
+    }
+    return [
+      { kind: 'node', code: chain[0], state: 'settled' },
+      { kind: 'gap', hidden: len - 2 },
+      { kind: 'node', code: chain[len - 1], state: 'current' },
+    ];
+  }
+
+  // One fewer than routeChips() — a segment sits BETWEEN each pair of chips. Only the LAST
+  // segment (leading into the current/last node) is "current" (filled proportional to d.percent,
+  // same value the segment-bar/donut already use) — every earlier segment is a settled,
+  // already-happened redirect fact, solid rather than partial (see chain-hop-detail's own
+  // isRedirected doc comment: an earlier hop never had a real "some confirmed" fraction).
+  routeSegments(kind: 'need' | 'own', d: DinasProgress): RouteSegment[] {
+    const chips = this.routeChips(kind, d);
+    return chips.slice(1).map((_, i) => {
+      const isLast = i === chips.length - 2;
+      return isLast ? { state: 'current', fillPct: d.percent } : { state: 'settled' };
+    });
+  }
+
+  // Only a chain of exactly 2 (a direct pair, never redirected) has no settled hop at all — both
+  // its endpoints belong to the one-and-only in-progress hop, so both read "current". Every other
+  // chain has at least one genuinely settled hop before the current one; only its LAST node is
+  // "current" (where the pasangan sits right now), everything earlier (including the node right
+  // before the current hop) is settled.
+  private routeNodeState(i: number, len: number): 'settled' | 'current' {
+    if (i === len - 1) return 'current';
+    if (i === 0 && len === 2) return 'current';
+    return 'settled';
   }
 
   // REQ-RDT-NAV-03 (5 Agu, project owner-approved mockup): badge collapsed by default, click
