@@ -33,6 +33,7 @@ ada di `rdt/CLAUDE.md`.
 | 10 | 12 Agu 2026 | [10_2026-08-12.md](10_2026-08-12.md) | `ponytail-audit` (tidak ada yang perlu dipangkas) + review efisiensi N+1/`trackBy` (sudah dibatch dengan benar, tidak ada perubahan), data-engineering pass: index baru `idx_txn_inisiasi_status` (`019_txn_inisiasi_status_index.sql`, belum di-commit), restart backend+dev-shell (sukses, health OK) tapi verifikasi UI lewat Chrome MCP terblokir (ekstensi belum konek) |
 | 11 | 14 Agu 2026 | [11_2026-08-14.md](11_2026-08-14.md) | Verifikasi ulang SAP-21/22 (ketemu: stale backend process, bukan bug — root cause & fix didokumentasikan), **REQ-RDT-SAP-23** (hapus preview tabel di "Confirm Reposted", sudah benar dari sebelumnya) + **REQ-RDT-UI-11 revisi** (Catatan Reviewer 80px→48px), commit gabungan `c9d6cbc`, data sintetis fitur Share-Cost (`tools/seedShareCostSynthetic.js`, 4 transaksi PENDING `dinas_target='TAB'`) |
 | 12 | 17–18 Agu 2026 | [12_2026-08-18.md](12_2026-08-18.md) | **SRS 3.13** (periode auto-derive, deadline reminder banner, overdue dibalik jadi sticky + konflik Override Deadline ditemukan&dihapus, filter Riwayat Repost disederhanakan), audit+eksekusi UI "kaku" (hover/transisi/busy-spinner/skeleton, native CSS), koreksi navigasi Setting Periode (2 sub-halaman → 1 flat page), audit+eksekusi tipografi (SCSS partial pertama di repo, type scale + treatment numerik), audit+eksekusi copy (generic "Error:"/English leftover → kontekstual Indonesia) — 5 commit, semua di-push |
+| 13 | 19 Agu 2026 | [13_2026-08-19.md](13_2026-08-19.md) | **"Jalur Repost"** — audit "AI banget"/generic dashboard, 3 arah diusulkan (chain reassign dipilih jadi tanda tangan visual), validasi via mockup Artifact HTML statis (token produksi verbatim) sebelum sentuh kode, koreksi warna (biru $accent, bukan amber), implementasi ke `#pairCard` (donut ternyata sudah mati kode sejak 5 Agu — yang diganti badge-chain, segment-bar tetap ada), expand hop-detail dipindah dari sideways ke inline — commit `cd2fa7e`, di-push |
 
 ## Garis besar evolusi arsitektur
 
@@ -49,15 +50,31 @@ ada di `rdt/CLAUDE.md`.
   snapshot periode_efektif) — fitur bisnis besar terakhir sebelum sesi ini
   ditutup.
 
-## Status akhir per 18 Agu 2026 (akhir sesi 12)
+## Status akhir per 19 Agu 2026 (akhir sesi 13)
 
-- Branch aktif: `lenovo`, commit terakhir di-push `09bd490`. Sejak sesi 10
-  (di bawah, masih akurat untuk kondisi 12 Agu): sesi 11 menyelesaikan
-  SAP-23 + UI-11 revisi (`c9d6cbc`); sesi 12 mengerjakan **SRS 3.13**
+- Branch aktif: `lenovo`, commit terakhir di-push `cd2fa7e`. Sesi 13
+  mengerjakan **"Jalur Repost"** — chain reassign (TJ→TE→TL) dipromosikan
+  jadi visual utama tiap `#pairCard` (ganti badge-chain kecil ▶), warna
+  biru `$accent` untuk hop aktif, hijau `$green` untuk hop settled — lihat
+  [13_2026-08-19.md](13_2026-08-19.md) untuk rincian.
+- **Temuan penting**: `.dinas-circle` (donut ring) di `home.component.html`'s
+  `#pairCard` **sudah mati kode sejak 5 Agu** — SEMUA 3 caller pakai
+  `useBar: true` (segment-bar), donut cuma hidup di
+  `dashboard-detail.component.html`'s header sendiri (halaman detail 1
+  pasangan, layout beda, SENGAJA di luar scope Jalur Repost). Jangan
+  asumsikan ulang "kartu Dashboard pakai donut" tanpa cek `useBar` di
+  caller-nya dulu.
+- Segment-bar (Confirmed/Open/Declined breakdown) TETAP ada di bawah
+  strip Jalur Repost — bukan diganti, itu info komposisi yang beda dari
+  jalur/chain.
+- Klik expand hop-detail (`rdt-chain-hop-detail`) sekarang INLINE di bawah
+  strip, bukan lagi sideways lewat divider+panel terpisah (REQ-RDT-NAV-03,
+  5 Agu, sekarang superseded) — `.pair-card` balik jadi block biasa, bukan
+  flex-row.
+- Sesi 12 (di bawah, masih akurat untuk kondisi 18 Agu): **SRS 3.13**
   lengkap (periode auto-derive, deadline reminder, overdue sticky, filter
   Riwayat Repost) + audit&eksekusi UI-kaku/navigasi-Setting-Periode/
-  tipografi/copy — 5 commit (`683d43c`..`09bd490`), lihat
-  [12_2026-08-18.md](12_2026-08-18.md) untuk rincian.
+  tipografi/copy — 5 commit (`683d43c`..`09bd490`).
 - **Konflik "Override Deadline" vs sticky-overdue** ditemukan 2x (sesi 12,
   Bagian 0 dan Bagian 2) — endpoint `POST /period-deadlines/
   override-reevaluate` dan tombolnya di UI sudah dihapus total per
@@ -67,9 +84,10 @@ ada di `rdt/CLAUDE.md`.
   `@import`/`@use`" **tidak lagi berlaku mutlak** — deliberate exception
   buat type-scale/numeric-treatment tokens, `@use`'d di 8 komponen.
 - Bug extension Chrome (browser automation) berulang kali muncul sesi 12
-  ("Frame with ID 0 is showing error page" khusus `localhost:4200`,
-  situs lain normal) — belum diketahui akar masalahnya, dicatat di
-  [12_2026-08-18.md](12_2026-08-18.md) kalau kejadian lagi.
+  DAN 13 ("Frame with ID 0 is showing error page" khusus `localhost:4200`,
+  atau stale compile-error overlay dari `ng serve` watcher) — belum
+  diketahui akar masalahnya, biasanya pulih sendiri setelah fresh
+  tab/reload. Dicatat lagi kalau kejadian lagi.
 
 ## Status akhir per 12 Agu 2026 (akhir sesi 10)
 
