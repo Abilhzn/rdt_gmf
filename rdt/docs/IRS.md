@@ -92,6 +92,19 @@ spesifikasi yang dikarang:
 - Ada lingkungan **staging/UAT** OCX yang bisa dipakai coba integrasi dulu
   sebelum produksi, atau langsung ke produksi?
 
+### 3.5 Format kolom input/output (baru 14 Agu, belum ada arahan)
+- **Input**: RDT sekarang berasumsi file DT yang diupload dinas punya kontrak
+  53 kolom (diturunkan dari analisis file contoh TB/TJ asli). BELUM PASTI ini
+  representasi format yang akan distandarkan GMF ke depannya — kemungkinan
+  besar template resmi (kalau ada) beda/lebih ringkas. Tunggu template dokumen
+  contoh input resmi dari IT sebelum asumsi 53 kolom ini dianggap final.
+- **Output**: file yang di-download TAB dari "Wait to Repost" (buat di-post ke
+  SAP) sekarang juga bawa 53 kolom penuh. Menurut informasi awal, SAP
+  kemungkinan cuma butuh subset kolom spesifik (disebutkan: `GL Account`,
+  `Profit Ctr. Sebelumnya`, `Profit Ctr. Baru`, dan beberapa lagi yang belum
+  lengkap diingat) — BUKAN 53 kolom penuh. Tunggu daftar kolom lengkap dari IT/
+  tim SAP sebelum implementasi apapun ke arah ini.
+
 ---
 
 ## 4. Yang TIDAK relevan lagi dari IRS versi 1.0 (dihapus)

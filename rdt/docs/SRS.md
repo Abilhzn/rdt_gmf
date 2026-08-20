@@ -1481,6 +1481,43 @@ kolom data yang scroll di antaranya.
   buat lihat pasangan MANAPUN sudah ada sejak REQ-RDT-AUTH-05 (24 Jul), jadi ini
   murni kerjaan UI + satu endpoint agregasi baru (breakdown per pasangan untuk
   SATU dinas_inisiasi), bukan perubahan otorisasi.
+
+> **Open question baru (14 Agu, dari diskusi persiapan meeting IT)**: asumsi
+> "53 kolom kontrak" (dari acuan TB) kemungkinan BUKAN template final — baik
+> untuk INPUT (file yang diupload dinas) maupun OUTPUT (file yang di-download
+> TAB buat repost ke SAP). Untuk output khususnya, sudah ada indikasi awal cuma
+> perlu beberapa kolom terbatas (disebutkan: `GL Account`, `Profit Ctr.
+> Sebelumnya`, `Profit Ctr. Baru`, dan beberapa lagi yang belum diingat persis).
+> **JANGAN ubah kode berdasarkan ini dulu** — murni catatan, masih menunggu
+> arahan resmi dari tim IT/GMF soal format template input & output yang benar.
+>
+> **TERJAWAB 15 Agu — file resmi `Format_Detail_Transaksi.xlsx` diterima**:
+> 3 sheet: `Format CBO` (template INPUT), `Format TAB` (template OUTPUT), `Account`
+> (kosong, kemungkinan sumber dropdown validasi).
+>
+> **`Format CBO` (input, 12 kolom)**: `Requester, Account, Detail Group, Profit
+> Ctr, Ref.Doc., Period, Text, Material, In PCLC, Curr., Remarks, Recipient`.
+> **PENTING**: `Recipient` (dinas_target) itu KOLOM EKSPLISIT di template resmi
+> ini — BEDA dari cara TB/TJ/TM sekarang (parsing prefix dari `Remarks`). Kalau
+> dinas beneran pakai template resmi ini ke depan, parser TIDAK PERLU lagi
+> parsing prefix Remarks untuk file berformat ini — tinggal baca kolom
+> `Recipient` langsung.
+>
+> **`Format TAB` (output, 8 kolom)**: `Requester, Cost.Element, Amount, Curr.,
+> Recipient, Qty, UoM, Text`. Data-nya DIAMBIL/DIPETAKAN dari `Format CBO`
+> (bukan subset kolom yang sama persis — ada rename: `Account`→`Cost.Element`,
+> `In PCLC`→`Amount`). Tiga aturan khusus:
+> - `Qty` = **FIXED 1** (konstanta, bukan dari data).
+> - `UoM` = **FIXED 'EA'** (konstanta, bukan dari data).
+> - `Text` = **CONCATENATE**: `Requester + " to " + Recipient + " " + Ref.Doc.
+>   + " " + Period` (digabung dari kolom `Format CBO`, bukan field baru).
+>
+> **BELUM DIJAWAB (JANGAN DITEBAK)**: apakah template resmi ini MENGGANTIKAN
+> format lama (TB/TJ/TM yang beda-beda, parsing prefix Remarks) mulai sekarang,
+> ATAU ini format BARU yang cuma berlaku untuk upload ke depan sementara data
+> lama tetap diproses cara lama (kedua format didukung berdampingan)? Ini
+> nentuin apakah parser TB/TJ/TM-style yang sudah dibangun (pivot-cache,
+> resolve dinas_target dari Remarks, dst) dipertahankan atau diganti total.
 - `REQ-RDT-SAP-16` **(baru 8 Agu, PEMBALIKAN ALUR deadline — koreksi penting)**:
   Alur deadline SEKARANG (per REQ-RDT-SAP-14) itu REAKTIF — TAB cuma bisa bulk-set
   deadline buat periode yang SUDAH PUNYA transaksi aktif (query bulk-set butuh
