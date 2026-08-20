@@ -491,16 +491,59 @@ function buildContractWorkbookBuffer(rows) {
   return workbook.xlsx.writeBuffer();
 }
 
-// Shared by both export routes below — full 53 contract columns (Account..Value Date), CONFIRMED
-// rows only. <=300 rows streams a single .xlsx; >300 rows streams a .zip of chunk-1.xlsx,
-// chunk-2.xlsx, ... (jszip, already a dependency via exceljs) so nothing downstream has to guess
-// which case it got beyond checking the file extension.
-async function streamContractExport(res, rows, dinasInisiasi, dinasTarget) {
+// SRS.md "TERJAWAB 15 Agu" — output-side mapping only, from the official Format_Detail_Transaksi.xlsx
+// ("Format TAB" sheet, 8 columns). Fields are RENAMED, not new data: Account->Cost.Element,
+// In PCLC->Amount (read from `nominal`, the already-processed value). Qty/UoM are fixed constants
+// (1 / 'EA'), not derived from any row data. Text is a literal concatenation of 4 fields, not a
+// separate stored field. Header "Text " keeps the official template's trailing space verbatim.
+//
+// This is an ADDITIONAL export option alongside the full 53-column contract format
+// (buildContractWorkbookBuffer) — does not replace it. Whether input parsing should also switch to
+// the sibling "Format CBO" sheet's explicit Recipient column is a separate, still-open question
+// (see SRS.md) and is NOT implemented here.
+const FORMAT_TAB_SQL_COLS = ['dinas_inisiasi', 'dinas_target', 'account', 'nominal', 'curr', 'ref_doc', 'period'];
+
+function buildFormatTabWorkbookBuffer(rows) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Format TAB');
+  sheet.columns = [
+    { header: 'Requester', key: 'requester', width: 14 },
+    { header: 'Cost.Element', key: 'cost_element', width: 16 },
+    { header: 'Amount', key: 'amount', width: 16 },
+    { header: 'Curr.', key: 'curr', width: 8 },
+    { header: 'Recipient', key: 'recipient', width: 14 },
+    { header: 'Qty', key: 'qty', width: 6 },
+    { header: 'UoM', key: 'uom', width: 6 },
+    { header: 'Text ', key: 'text', width: 40 },
+  ];
+  rows.forEach((row) => {
+    sheet.addRow({
+      requester: row.dinas_inisiasi,
+      cost_element: row.account,
+      amount: row.nominal,
+      curr: row.curr,
+      recipient: row.dinas_target,
+      qty: 1,
+      uom: 'EA',
+      text: `${row.dinas_inisiasi || ''} to ${row.dinas_target || ''} ${row.ref_doc || ''} ${row.period || ''}`,
+    });
+  });
+  return workbook.xlsx.writeBuffer();
+}
+
+// Shared by both export routes below — CONFIRMED rows only. `format` picks the column shape:
+// 'contract' (default) is the full 53-column format, 'tab' is the 8-column Format TAB above.
+// <=300 rows streams a single .xlsx; >300 rows streams a .zip of chunk-1.xlsx, chunk-2.xlsx, ...
+// (jszip, already a dependency via exceljs) so nothing downstream has to guess which case it got
+// beyond checking the file extension.
+async function streamContractExport(res, rows, dinasInisiasi, dinasTarget, format) {
   const dateStr = new Date().toISOString().slice(0, 10);
-  const baseName = `${dinasInisiasi}-${dinasTarget}_${dateStr}`;
+  const suffix = format === 'tab' ? '_FormatTAB' : '';
+  const baseName = `${dinasInisiasi}-${dinasTarget}_${dateStr}${suffix}`;
+  const buildBuffer = format === 'tab' ? buildFormatTabWorkbookBuffer : buildContractWorkbookBuffer;
 
   if (rows.length <= MAX_ROWS_PER_FILE) {
-    const buffer = await buildContractWorkbookBuffer(rows);
+    const buffer = await buildBuffer(rows);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${baseName}.xlsx"`);
     res.end(buffer);
@@ -511,7 +554,7 @@ async function streamContractExport(res, rows, dinasInisiasi, dinasTarget) {
   for (let i = 0; i < rows.length; i += MAX_ROWS_PER_FILE) {
     const chunkIndex = Math.floor(i / MAX_ROWS_PER_FILE) + 1;
     const chunkRows = rows.slice(i, i + MAX_ROWS_PER_FILE);
-    const buffer = await buildContractWorkbookBuffer(chunkRows);
+    const buffer = await buildBuffer(chunkRows);
     zip.file(`chunk-${chunkIndex}.xlsx`, buffer);
   }
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
@@ -527,6 +570,7 @@ async function streamContractExport(res, rows, dinasInisiasi, dinasTarget) {
 router.get('/export/:batchId', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const { batchId } = req.params;
+  const format = req.query.format === 'tab' ? 'tab' : 'contract';
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
@@ -534,14 +578,14 @@ router.get('/export/:batchId', requireRole('TAB'), async (req, res) => {
     if (!batchRes.rows.length) return res.status(404).json({ ok: false, error: 'batch not found: ' + batchId });
     const { dinas_inisiasi: dinasInisiasi, dinas_target: dinasTarget } = batchRes.rows[0];
 
-    const cols = CONTRACT_FIELDS.map((f) => f.key);
+    const cols = format === 'tab' ? FORMAT_TAB_SQL_COLS : CONTRACT_FIELDS.map((f) => f.key);
     const r = await client.query(
       `SELECT ${cols.join(',')} FROM rdt.transactions
        WHERE export_batch_id=$1 AND status_konfirmasi='CONFIRMED'
        ORDER BY id`,
       [batchId]
     );
-    await streamContractExport(res, r.rows, dinasInisiasi, dinasTarget);
+    await streamContractExport(res, r.rows, dinasInisiasi, dinasTarget, format);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ ok: false, error: String(err) });
   } finally { try { await client.end(); } catch (e) {} }
@@ -556,17 +600,18 @@ router.get('/export/:batchId', requireRole('TAB'), async (req, res) => {
 router.get('/export-pair/:dinasInisiasi/:dinasTarget', requireRole('TAB'), async (req, res) => {
   if (!process.env.DATABASE_URL) return res.status(400).json({ ok: false, error: 'DB not configured' });
   const { dinasInisiasi, dinasTarget } = req.params;
+  const format = req.query.format === 'tab' ? 'tab' : 'contract';
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   try {
     await client.connect();
-    const cols = CONTRACT_FIELDS.map((f) => f.key);
+    const cols = format === 'tab' ? FORMAT_TAB_SQL_COLS : CONTRACT_FIELDS.map((f) => f.key);
     const r = await client.query(
       `SELECT ${cols.join(',')} FROM rdt.transactions
        WHERE dinas_inisiasi=$1 AND dinas_target=$2 AND export_batch_id IS NULL AND status_konfirmasi='CONFIRMED'
        ORDER BY id`,
       [dinasInisiasi, dinasTarget]
     );
-    await streamContractExport(res, r.rows, dinasInisiasi, dinasTarget);
+    await streamContractExport(res, r.rows, dinasInisiasi, dinasTarget, format);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ ok: false, error: String(err) });
   } finally { try { await client.end(); } catch (e) {} }

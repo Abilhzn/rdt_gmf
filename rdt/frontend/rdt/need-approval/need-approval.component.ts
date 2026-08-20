@@ -185,4 +185,25 @@ export class NeedApprovalComponent implements OnInit {
       },
     });
   }
+
+  // SRS.md "TERJAWAB 15 Agu" — additional output option: same rows as download() above, mapped
+  // instead to the official 8-column "Format TAB" sheet (Requester/Cost.Element/Amount/Curr./
+  // Recipient/Qty/UoM/Text). Purely a different export SHAPE of data already in the system, so
+  // it's safe to ship regardless of the still-open input-format question (see SRS.md).
+  downloadFormatTab(entry: WaitingEntry): void {
+    const key = this.pairKey(entry.dinas_inisiasi, entry.dinas_target);
+    this.downloadingPairKey = key;
+    this.exportBatches.getExportPair(entry.dinas_inisiasi, entry.dinas_target, 'tab').subscribe({
+      next: (res) => {
+        this.downloadingPairKey = null;
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const fallback = `${entry.dinas_inisiasi}-${entry.dinas_target}_${dateStr}_FormatTAB.xlsx`;
+        triggerBlobDownload(res.body!, filenameFromResponse(res.headers, fallback));
+      },
+      error: async (err) => {
+        this.downloadingPairKey = null;
+        await this.modal.alert('Gagal mengunduh: ' + extractErrorMessage(err, String(err)));
+      },
+    });
+  }
 }

@@ -9,8 +9,7 @@
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
   <h3 class="card__subtitle">Menunggu Repost</h3>
-  <!-- Audit "kaku" 17 Agu: skeleton rows instead of a blank gap while loading, replaces the
-       missing loading-state distinction (see need-approval.component.ts's `loading` field). -->
+  <!-- Skeleton rows saat loading, bukan blank gap — lihat `loading` field di .ts-nya. -->
   <div class="skeleton-list" *ngIf="loading">
     <div class="skeleton-row" *ngFor="let i of [1, 2, 3]"></div>
   </div>
@@ -20,26 +19,27 @@
       <div class="batch-row__id">{{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</div>
       <div class="batch-row__period">
         {{ w.total }} transaksi <span class="state-label">{{ w.state_label }}</span>
-        <!-- REQ-RDT-SAP-21 (DIBALIK 14 Agu)/SAP-22: overdue pairs stay in this list now, tagged
-             here too (not just Dashboard) — sticky, cap tidak hilang walau periode baru berjalan. -->
+        <!-- Pasangan overdue tetap di list ini, ditag juga di sini (bukan cuma Dashboard) —
+             sticky, gak hilang walau periode baru mulai. -->
         <span *ngIf="w.overdue" class="state-label state-label--overdue">Overdue</span>
       </div>
       <div class="batch-row__action">
-        <!-- REQ-RDT-SAP-05/06 (revised 31 Jul): download available immediately, no Confirm needed first. -->
+        <!-- Download langsung tersedia, gak perlu Confirm dulu. -->
         <button
           class="btn btn--ghost"
           type="button"
           [disabled]="downloadingPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)"
           (click)="download(w)"
         >&#8659; Download</button>
-        <!-- REQ-RDT-SAP-06 (rename 3 Agu): "Lihat Transparansi" -> "Confirm Reposted" — klik
-             menampilkan transparansi SEKALIGUS form deskripsi+subdoc, satu layar (lihat
-             .transparency-panel di bawah), bukan dua langkah terpisah. Tombol Confirm yang
-             benar-benar mengeksekusi tetap di paling bawah panel itu, tidak berubah.
-             B4 (3 Agu bug fix): label sudah berubah jadi "Tutup" saat panel terbuka, tapi click
-             handler-nya tetap manggil openTransparency lagi (reset+reload panel yang sama),
-             BUKAN closeTransparency — jadi panel tidak pernah benar-benar tertutup lewat tombol
-             ini. Sekarang toggle beneran ke closeTransparency saat sudah terbuka. -->
+        <button
+          class="btn btn--ghost"
+          type="button"
+          title="Format TAB (Requester/Cost.Element/Amount/Curr./Recipient/Qty/UoM/Text, 8 kolom)"
+          [disabled]="downloadingPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)"
+          (click)="downloadFormatTab(w)"
+        >&#8659; Download (Format TAB)</button>
+        <!-- Klik tampilkan transparansi SEKALIGUS form deskripsi+subdoc, satu layar
+             (.transparency-panel di bawah). Toggle ke closeTransparency saat panel sudah terbuka. -->
         <button
           class="btn btn--ghost"
           type="button"
@@ -52,20 +52,16 @@
 
     <div class="transparency-panel" *ngIf="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)">
       <p class="alert alert--error" *ngIf="transparencyError">{{ transparencyError }}</p>
-      <!-- REQ-RDT-SAP-23 (8 Agu, "sederhanakan Confirm Reposted"): the ~12-column preview table
-           that used to render here is GONE — TAB already saw the data via Download (REQ-RDT-SAP-06)
-           or the breakdown drill-down (REQ-RDT-SAP-15) before ever getting to this step; forcing it
-           onto the screen again just to fill in a subdoc number was the thing being simplified away.
-           transparencyRows itself is still fetched (openTransparency below) — chunkCount/
-           chunkTransactionIds still need it to size the subdoc inputs and split transaction_ids per
-           chunk — it's just not rendered as a table anymore. -->
+      <!-- Preview table 12-kolom sengaja gak dirender lagi di sini — TAB udah lihat datanya
+           lewat Download/breakdown drill-down sebelumnya. transparencyRows tetap di-fetch
+           (dibutuhin buat sizing subdoc input per chunk), cuma gak ditampilkan sebagai tabel. -->
       <p class="note" *ngIf="transparencyRows.length">
         {{ transparencyRows.length }} transaksi CONFIRMED siap di-repost. Lihat detail lengkap lewat
         tombol Download di atas, atau breakdown per pasangan di Summary Progress All Dinas.
       </p>
 
-      <!-- REQ-RDT-SAP-05 (revised 31 Jul): ONE form — deskripsi penutup + nomor subdoc pertama
-           sekaligus. Submit ini SEKALIGUS bikin batch dan attach subdoc pertamanya. -->
+      <!-- Satu form — deskripsi penutup + nomor subdoc pertama sekaligus. Submit ini bikin
+           batch DAN attach subdoc pertamanya. -->
       <label class="batch-note-label">
         Deskripsi penutup (opsional)
         <rdt-mention-input
@@ -76,10 +72,9 @@
           placeholder="mis. repost sudah beres, terima kasih ke semua dinas terkait"
         ></rdt-mention-input>
       </label>
-      <!-- REQ-RDT-SAP-08/11 REVISI (5 Agu): pasangan yang di-chunk >300 baris (lihat
-           streamContractExport, chunk-1.xlsx/chunk-2.xlsx/dst) butuh SATU nomor subdoc per chunk,
-           bukan satu input generik — kolom terpisah "Repost 1"/"Repost 2"/dst, sesuai urutan file
-           yang barusan diunduh. Pasangan yang gak di-chunk (chunkCount===1) tetap 1 input polos. -->
+      <!-- Pasangan yang di-chunk >300 baris (chunk-1.xlsx/chunk-2.xlsx/dst) butuh satu nomor
+           subdoc per chunk — kolom terpisah "Repost 1"/"Repost 2"/dst sesuai urutan file. Yang
+           gak di-chunk tetap 1 input polos. -->
       <ng-container *ngIf="chunkCount === 1; else chunkedSubdocInputs">
         <label class="batch-note-label">
           Nomor subdoc SAP (wajib — hasil posting manual dari file yang sudah diunduh)
@@ -105,8 +100,8 @@
           [title]="canConfirm() ? '' : 'Deskripsi penutup dan nomor subdoc wajib diisi'"
           (click)="confirmPair(w.dinas_inisiasi, w.dinas_target)"
         >Confirm {{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</button>
-        <!-- B4 (3 Agu): panel harus bisa ditutup/dibatalkan tanpa wajib mengisi/menyelesaikan
-             form Confirm — closeTransparency() tidak menyentuh data apapun, cuma menutup panel. -->
+        <!-- Panel bisa ditutup tanpa wajib isi form Confirm — closeTransparency() gak menyentuh
+             data, cuma menutup panel. -->
         <button class="btn btn--ghost" type="button" [disabled]="confirming" (click)="closeTransparency()">✕ Batal</button>
       </div>
     </div>
