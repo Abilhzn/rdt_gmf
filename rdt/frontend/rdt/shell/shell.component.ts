@@ -12,7 +12,7 @@ import { ExportBatchService } from '../services/export-batch.service';
 const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   'share-cost': 'Share-Cost',
-  'setting-periode': 'Setting Periode',
+  'setting-periode': 'Period Settings',
 };
 
 // Persistent sidebar wrapping <router-outlet>. "Guidance Application"/"Feedback Application"
@@ -118,7 +118,7 @@ export class ShellComponent implements OnInit {
     const isTab = this.currentUser.current?.role === 'TAB';
     // Label per-role: TAB lihat title berbeda dari PIC biasa di beberapa halaman.
     if (segment === 'repost-history') {
-      this.pageTitle = isTab ? 'Riwayat Repost TAB' : `Repost History ${this.currentUser.current?.dinas || ''}`;
+      this.pageTitle = isTab ? 'TAB Repost History' : `Repost History ${this.currentUser.current?.dinas || ''}`;
     } else if (segment === 'repost') {
       this.pageTitle = 'Upload Detail Transaction';
     } else if (segment === 'confirm') {

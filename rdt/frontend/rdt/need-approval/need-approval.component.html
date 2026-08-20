@@ -24,20 +24,15 @@
         <span *ngIf="w.overdue" class="state-label state-label--overdue">Overdue</span>
       </div>
       <div class="batch-row__action">
-        <!-- Download langsung tersedia, gak perlu Confirm dulu. -->
+        <!-- Download langsung tersedia, gak perlu Confirm dulu. Format TAB satu-satunya format
+             sekarang (REQ-RDT-SAP-06 diganti total, 15 Agu) — detail transaksi lengkap sudah ada
+             di SAP sendiri, repost cuma soal pindah kepemilikan. -->
         <button
           class="btn btn--ghost"
           type="button"
-          [disabled]="downloadingPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)"
-          (click)="download(w)"
-        >&#8659; Download</button>
-        <button
-          class="btn btn--ghost"
-          type="button"
-          title="Format TAB (Requester/Cost.Element/Amount/Curr./Recipient/Qty/UoM/Text, 8 kolom)"
           [disabled]="downloadingPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)"
           (click)="downloadFormatTab(w)"
-        >&#8659; Download (Format TAB)</button>
+        >&#8659; Download Format Repost SAP</button>
         <!-- Klik tampilkan transparansi SEKALIGUS form deskripsi+subdoc, satu layar
              (.transparency-panel di bawah). Toggle ke closeTransparency saat panel sudah terbuka. -->
         <button

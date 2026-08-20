@@ -231,11 +231,11 @@ export class ExportBatchService {
   }
 
   // Download directly off a still-unbatched pair (no batch/confirm needed yet), for the
-  // "Waiting to repost" list. format='tab' gets the 8-column Format TAB output (SRS.md "TERJAWAB
-  // 15 Agu") instead of the default full 53-column contract format.
-  getExportPair(dinasInisiasi: string, dinasTarget: string, format?: 'tab'): Observable<HttpResponse<Blob>> {
-    const qs = format === 'tab' ? '?format=tab' : '';
-    return this.http.get(`${this.base}/export-pair/${encodeURIComponent(dinasInisiasi)}/${encodeURIComponent(dinasTarget)}${qs}`, {
+  // "Waiting to repost" list. Format TAB (8-column, SRS.md "TERJAWAB 15 Agu") is the only format
+  // now — REQ-RDT-SAP-06 diganti total (15 Agu), full-53-column download removed. Backend route
+  // still accepts ?format=contract too (harmless, unused from here).
+  getExportPair(dinasInisiasi: string, dinasTarget: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.base}/export-pair/${encodeURIComponent(dinasInisiasi)}/${encodeURIComponent(dinasTarget)}?format=tab`, {
       headers: this.currentUser.authHeaders(),
       responseType: 'blob',
       observe: 'response',

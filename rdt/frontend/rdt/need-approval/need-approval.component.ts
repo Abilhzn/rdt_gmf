@@ -11,8 +11,8 @@ import { extractErrorMessage } from '../shared/error-message.util';
 // Approval unit is one PASANGAN (dinas_inisiasi, dinas_target): a WAITING entry appears (computed,
 // not stored) once that specific pair is resolved — other pairs from the same dinas_inisiasi never
 // block or get blocked by it. TAB can open full transparency for that one pair (including
-// DECLINED/reassigned history), and can download the pair's Excel (full 53 contract columns)
-// directly off this list. Download doesn't wait for Confirm — it's one button per waiting entry.
+// DECLINED/reassigned history), and can download the pair's Format TAB Excel directly off this
+// list. Download doesn't wait for Confirm — it's one button per waiting entry.
 // Confirm is ONE form (closing description + first subdoc number together, submitted in a single
 // call): a batch is created WITH its first subdoc already attached, so it goes straight from this
 // page's "Waiting" list into Riwayat Repost TAB.
@@ -148,14 +148,14 @@ export class NeedApprovalComponent implements OnInit {
             });
           } catch (err: any) {
             this.confirming = false;
-            await this.modal.alert(`Batch sudah tersimpan dengan ${chunk - 1} subdoc, tapi subdoc chunk ${chunk} gagal disimpan: ${extractErrorMessage(err, String(err))}. Tambahkan sisanya dari Riwayat Repost TAB.`);
+            await this.modal.alert(`Batch sudah tersimpan dengan ${chunk - 1} subdoc, tapi subdoc chunk ${chunk} gagal disimpan: ${extractErrorMessage(err, String(err))}. Tambahkan sisanya dari TAB Repost History.`);
             this.closeTransparency();
             this.load();
             return;
           }
         }
         this.confirming = false;
-        await this.modal.success(`Repost ${dinasInisiasi} → ${dinasTarget} sudah dikonfirmasi dan tercatat di Riwayat Repost TAB.`);
+        await this.modal.success(`Repost ${dinasInisiasi} → ${dinasTarget} sudah dikonfirmasi dan tercatat di TAB Repost History.`);
         this.closeTransparency();
         this.load();
       },
@@ -167,33 +167,15 @@ export class NeedApprovalComponent implements OnInit {
   }
 
   // Download is available the instant a pair shows up here — no batch/Confirm needed first. Reads
-  // directly off the pair's still-unbatched CONFIRMED rows. >300 rows comes back as a .zip instead
-  // of .xlsx — the actual filename (with the right extension) comes from the response.
+  // directly off the pair's still-unbatched CONFIRMED rows, mapped to the official 8-column Format
+  // TAB sheet (Requester/Cost.Element/Amount/Curr./Recipient/Qty/UoM/Text) — the only format now
+  // (REQ-RDT-SAP-06 diganti total, 15 Agu: full-53-column download removed, Format TAB is enough
+  // since SAP already has the full detail, repost is just an ownership transfer). >300 rows comes
+  // back as a .zip instead of .xlsx — the actual filename comes from the response.
   download(entry: WaitingEntry): void {
     const key = this.pairKey(entry.dinas_inisiasi, entry.dinas_target);
     this.downloadingPairKey = key;
     this.exportBatches.getExportPair(entry.dinas_inisiasi, entry.dinas_target).subscribe({
-      next: (res) => {
-        this.downloadingPairKey = null;
-        const dateStr = new Date().toISOString().slice(0, 10);
-        const fallback = `${entry.dinas_inisiasi}-${entry.dinas_target}_${dateStr}.xlsx`;
-        triggerBlobDownload(res.body!, filenameFromResponse(res.headers, fallback));
-      },
-      error: async (err) => {
-        this.downloadingPairKey = null;
-        await this.modal.alert('Gagal mengunduh: ' + extractErrorMessage(err, String(err)));
-      },
-    });
-  }
-
-  // SRS.md "TERJAWAB 15 Agu" — additional output option: same rows as download() above, mapped
-  // instead to the official 8-column "Format TAB" sheet (Requester/Cost.Element/Amount/Curr./
-  // Recipient/Qty/UoM/Text). Purely a different export SHAPE of data already in the system, so
-  // it's safe to ship regardless of the still-open input-format question (see SRS.md).
-  downloadFormatTab(entry: WaitingEntry): void {
-    const key = this.pairKey(entry.dinas_inisiasi, entry.dinas_target);
-    this.downloadingPairKey = key;
-    this.exportBatches.getExportPair(entry.dinas_inisiasi, entry.dinas_target, 'tab').subscribe({
       next: (res) => {
         this.downloadingPairKey = null;
         const dateStr = new Date().toISOString().slice(0, 10);
