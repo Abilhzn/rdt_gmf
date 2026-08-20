@@ -135,7 +135,14 @@ Pemilik proyek ingin PIC dinas bisa mengakses RDT dari luar jaringan kantor (rem
 
 Membaca unggahan file Excel dari pengguna (sheet rekapitulasi + sheet detail), memecahnya menjadi baris data individual di PostgreSQL.
 
-> **PENTING**: requirement di bawah sudah direvisi berdasarkan analisis file input nyata dari salah satu dinas (`contoh_input/06. DT TB - Jun 2026.xlsx`). Baca section 3.1.1 (Struktur File Input Nyata) sebelum implementasi — struktur aslinya jauh lebih kompleks dari asumsi "satu template standar".
+> **PENTING (20 Agu) — SEBAGIAN REQUIREMENT DI BAWAH SUDAH DIGANTIKAN**: `REQ-RDT-EXT-01/02/05`
+> di bawah ini mendeskripsikan parser versi LAMA (deteksi sheet via header `Account`/`Cost Ctr`,
+> `dinas_target` dari prefix kolom `Remarks`). Sejak file template resmi `Format CBO` diterima dan
+> dikonfirmasi GANTIIN format lama total (lihat section "TERJAWAB 15 Agu" di bawah, REQ-RDT-SAP
+> area), parser sekarang baca `dinas_target` LANGSUNG dari kolom `Recipient` — gak ada lagi
+> parsing prefix Remarks/deteksi header Cost Ctr. Section 3.1.1 (analisis struktur file lama)
+> tetap dipertahankan di bawah sebagai catatan historis (kenapa keputusan awal diambil), BUKAN
+> deskripsi cara kerja sistem sekarang.
 
 **Functional Requirements**
 - `REQ-RDT-EXT-01`: Sistem harus memiliki parser (backend Node.js) yang dapat membaca dan mengekstrak data dari beberapa sheet Excel sekaligus tanpa intervensi manual. Parser harus mengidentifikasi sheet detail transaksi **berdasarkan isi header-nya** (baris pertama diawali kolom `Account`, `Cost Ctr`, `Profit Ctr`, ...), bukan berdasarkan nama sheet — karena nama sheet berbeda-beda per dinas dan per bulan. Sheet pivot/rekap diidentifikasi dengan aturan terpisah (lihat REQ-RDT-EXT-07) dan sheet referensi lookup (lihat 3.1.1) harus di-skip, bukan diekstrak sebagai transaksi.
@@ -388,7 +395,15 @@ Mencegah ekspor final jika masih ada selisih rekonsiliasi; memformat data menjad
 >
 > `REQ-RDT-SAP-06`: File download 53 kolom kontrak penuh (Account s/d Value Date,
 > lihat 3.1.1) untuk transaksi CONFIRMED pasangan itu — lihat REQ-RDT-SAP-05 poin 1
-> soal KAPAN tombol ini muncul (lebih awal dari yang terimplementasi sekarang). Dinas
+> soal KAPAN tombol ini muncul (lebih awal dari yang terimplementasi sekarang).
+> **CATATAN 20 Agu — lihat status TERBARU, bukan cuma paragraf ini**: requirement
+> ini didiskusikan ulang beberapa kali di section "3.13"/"TERJAWAB 15 Agu" di
+> bawah (soal apakah download 53-kolom lama DIHAPUS diganti Format TAB, atau
+> Format TAB cuma OPSI TAMBAHAN). **Status kode yang BENERAN jalan sekarang**:
+> Format TAB ditambahkan sebagai OPSI TAMBAHAN (2 tombol di Wait to Repost),
+> download 53-kolom lama TIDAK dihapus — beda dari paragraf "DIBATALKAN 15 Agu"
+> di bawah yang minta 53-kolom dihapus total jadi 1 tombol. **Ini belum
+> diselaraskan** — perlu keputusan project owner mana yang final. Dinas
 > TIDAK butuh rekap fancy dari sistem — sumber (transkrip rapat) menegaskan yang
 > mereka cari cuma nomor **refdoc/subdoc** untuk cross-check ke rekapan internal
 > mereka sendiri, jadi UI harus menonjolkan subdoc, bukan menyembunyikannya di balik
@@ -1400,7 +1415,12 @@ di atas dibiarkan apa adanya sebagai record historis, bukan direvisi.
 ### 3.11 Frozen Column di Tabel Confirmation (baru 5 Agu)
 
 Saat konfirmasi (halaman Detail Confirmation), tabel menampilkan semua ~53 kolom
-kontrak (REQ-RDT-NAV-04). Kolom **"Notes"**, **"Jika Reject" (dropdown redirect)**,
+kontrak (REQ-RDT-NAV-04) — **note ini SUDAH DIGANTIKAN oleh "Kolom preview DT
+dipersempit (baru 8 Agu)" di section 3.13/SAP-04 (preview sekarang cuma ~11
+kolom kurasi, bukan 53), lalu diganti lagi total oleh migrasi Format CBO (20
+Agu) — preview sekarang hanya field yang genuinely ada di data (~8 kolom).
+Prinsip sticky-column di bawah ini tetap berlaku, cuma jumlah kolomnya sudah
+jauh lebih sedikit dari "53" yang disebut paragraf ini.** Kolom **"Notes"**, **"Jika Reject" (dropdown redirect)**,
 dan **checkbox "Select"** HARUS **sticky/frozen secara horizontal** (`position:
 sticky`), supaya tetap terlihat & bisa diklik tanpa perlu scroll kiri-kanan
 sepanjang 53 kolom data. Pola ini setara "freeze panes" di Excel — kolom aksi
@@ -1467,6 +1487,16 @@ kolom data yang scroll di antaranya.
   > 53 kolom kontrak PENUH, karena itu harus cocok skema import SAP. Yang
   > dipersempit di sini CUMA tampilan tabel di layar (preview), bukan isi file
   > yang dihasilkan — dua artifact berbeda, jangan disamakan.
+  > **DIBATALKAN 15 Agu — REQ-RDT-SAP-06 diganti total**: setelah `Format TAB`
+  > resmi diterima (lihat catatan "TERJAWAB 15 Agu" di bawah) dan diimplementasikan
+  > sebagai opsi tambahan, ternyata **cukup Format TAB doang** — download 53-kolom
+  > lama DIHAPUS, bukan lagi "opsi tambahan" berdampingan. Alasan (dikonfirmasi
+  > pemilik proyek): detail transaksi lengkap SUDAH ADA di SAP itu sendiri (repost
+  > cuma soal pindah kepemilikan, bukan re-supply detail — lihat definisi
+  > fundamental "Repost" di section 0.1), jadi gak ada gunanya kasih 53 kolom kalau
+  > cuma 8 kolom `Format TAB` yang beneran dibutuhin buat posting SAP. Tombol
+  > download di "Wait to Repost" jadi SATU tombol saja (bukan 2), label diganti
+  > **"Download Format Repost SAP"**, format yang dipakai SELALU `Format TAB`.
 - `REQ-RDT-SAP-15` **(baru 8 Agu, breakdown per pasangan di Summary Progress All
   Dinas)**: masukan dari senior TAB — tabel "Summary Progress All Dinas" (TAB)
   sekarang cuma nunjukin TOTAL teragregasi per dinas_inisiasi (mis. TJ = 487
@@ -1512,12 +1542,15 @@ kolom data yang scroll di antaranya.
 > - `Text` = **CONCATENATE**: `Requester + " to " + Recipient + " " + Ref.Doc.
 >   + " " + Period` (digabung dari kolom `Format CBO`, bukan field baru).
 >
-> **BELUM DIJAWAB (JANGAN DITEBAK)**: apakah template resmi ini MENGGANTIKAN
-> format lama (TB/TJ/TM yang beda-beda, parsing prefix Remarks) mulai sekarang,
-> ATAU ini format BARU yang cuma berlaku untuk upload ke depan sementara data
-> lama tetap diproses cara lama (kedua format didukung berdampingan)? Ini
-> nentuin apakah parser TB/TJ/TM-style yang sudah dibangun (pivot-cache,
-> resolve dinas_target dari Remarks, dst) dipertahankan atau diganti total.
+> **TERJAWAB 20 Agu**: template resmi ini **MENGGANTIKAN format lama total**,
+> bukan berdampingan. Parser TB/TJ/TM-style yang sebelumnya dibangun (pivot-cache,
+> resolve dinas_target dari Remarks, sub-dinas suffix guessing) sudah **dihapus
+> seluruhnya** — `excelParser.js` sekarang cuma baca Format CBO (`dinas_target`
+> langsung dari kolom `Recipient`). Aturan baru sekalian ditambahkan: baris
+> dengan `Requester` == `Recipient` (dinas sama di dua kolom itu) otomatis
+> `EXCLUDED` (self-repost), menggantikan aturan lama "prefix Remarks = dinas
+> pengunggah sendiri". Lihat `rdt/docs/progress_log/14_2026-08-20.md` untuk
+> detail implementasi + verifikasi.
 - `REQ-RDT-SAP-16` **(baru 8 Agu, PEMBALIKAN ALUR deadline — koreksi penting)**:
   Alur deadline SEKARANG (per REQ-RDT-SAP-14) itu REAKTIF — TAB cuma bisa bulk-set
   deadline buat periode yang SUDAH PUNYA transaksi aktif (query bulk-set butuh
@@ -1625,6 +1658,98 @@ tambahan, untuk bagian yang disebut eksplisit di bawah.
   daftar repost yang masih aktif (dengan tombol Override Deadline per baris,
   gaya tabel yang sudah dirancang di 3.12) ada di HALAMAN YANG SAMA, list-nya
   di BAWAH form, bukan di halaman/tab terpisah yang perlu navigasi lagi.
+- `REQ-RDT-UI-13` **(baru 15 Agu, nama fitur/halaman ke Inggris)**: beberapa
+  nama halaman/section masih Indonesia atau campur — ganti ke Inggris
+  (SCOPE TERBATAS: nama fitur/judul halaman/nav SAJA, BUKAN label tombol/pesan
+  error/empty-state yang baru saja diselaraskan ke Indonesia minggu ini —
+  JANGAN sentuh itu, itu keputusan terpisah, jangan dibalik):
+  - "Setting Periode" → **"Period Settings"**
+  - "Setting Deadline" → **"Deadline Settings"**
+  - "'Repost' Active" → **"Active Reposts"**
+  - "Riwayat Repost TAB" → **"TAB Repost History"**
+  - "Summary Progress All Dinas" → tetap **"Summary Progress All Dinas"**
+    (kata "Dinas" TIDAK diterjemahkan — istilah domain GMF, sama perlakuannya
+    kayak "TAB"/"CBO"/"CSS" yang juga dibiarkan aslinya).
+  Audit juga nama halaman/nav LAIN yang mungkin kelewat dari daftar ini (kalau
+  ada yang masih Indonesia/campur, ikutkan juga) — laporkan temuan tambahan
+  sebelum eksekusi kalau nemu, jangan diam-diam diperluas ke luar scope
+  "nama fitur" (misal jangan ikut translate isi microcopy).
+
+### 3.14 Guidance Application (baru 15 Agu — mengaktifkan nav item yang selama
+ini disabled)
+
+Sidebar item "Guidance Application" (REQ-RDT-NAV-01) sejak awal berstatus
+**disabled/grayed-out** (placeholder, belum ada konten). Isi sekarang dengan
+visualisasi flowchart alur RDT per sudut pandang (Pengaju/Diajukan/TAB) —
+sumbernya `Flowchart_RDT_GMF.pdf` versi TERBARU (15 Agu, sudah mencakup
+koreksi Ask TA/REQ-RDT-LEDGER-10 dan cabang Share-Cost).
+
+**Tampilkan flowchart yang RELEVAN ke role user yang login**: PIC lihat flow
+Pengaju DAN Diajukan (dia bisa jadi keduanya tergantung transaksi), TAB lihat
+flow TAB. Boleh berbentuk tab/switcher kalau satu user perlu lihat lebih dari
+satu flow.
+
+Mermaid diagram siap pakai (dikonversi dari PDF terbaru, coding agent tinggal
+render, TIDAK perlu re-interpretasi gambar PDF dari nol):
+
+```mermaid
+flowchart TD
+  A1[Start] --> A2["Login (Sebagai Pengaju)"]
+  A2 --> A3[Upload Detail Transaction]
+  A3 --> A4["Monitoring lewat Dashboard & Follow up"]
+  A4 --> A5{Confirm oleh yang diajukan?}
+  A5 -->|No| A6[Reassign] --> A4
+  A5 -->|Yes| A7[Waiting to repost by TAB]
+  A7 --> A8[Reposting]
+  A8 --> A9["Reposted by TAB, get Sub-Doc number"]
+  A9 --> A10[End]
+```
+
+```mermaid
+flowchart TD
+  B1[Start] --> B2["Login (Sebagai yang diajukan)"]
+  B2 --> B3["Cek Dashboard Status repost Confirmation Status"]
+  B3 --> B4{"apakah ada yang mengajukan RDT ke user dalam 1 periode?"}
+  B4 -->|Tidak| B10[End]
+  B4 -->|Ya| B5{"apakah ada yang harus di-confirm?"}
+  B5 -->|Tidak| B7[Waiting to repost by TAB]
+  B5 -->|Ya| B6{"apakah terkonfirmasi milik user?"}
+  B6 -->|Ya| B9[Confirm] --> B5
+  B6 -->|Tidak| B8["Reject and/or Reassign"] --> B3
+  B7 --> B11[Reposting]
+  B11 --> B12["Reposted by TAB, get Sub-Doc number"]
+  B12 --> B10
+```
+
+```mermaid
+flowchart TD
+  C1[Start] --> C2["Login (Sebagai TAB)"]
+  C2 --> C3[Need Identification]
+  C2 --> C13["Monitoring lewat Dashboard Summary Progress All Dinas"]
+  C3 --> C4[Corp]
+  C3 --> C5[Ask TA]
+  C3 --> C6[Share-Cost]
+  C4 --> C7{"apakah terkonfirmasi milik user?"}
+  C7 -->|Tidak| C8["Reject and/or Reassign"] --> C3
+  C7 -->|Ya| C9[Confirm]
+  C5 --> C14["Diskusi dibelakang layar dengan dinas terkait"]
+  C14 --> C15["Assign after investigation ke Dinas terkait"]
+  C15 --> C9
+  C6 --> C16["Split dengan Dinas terkait dan assign layaknya 'Upload DT'"]
+  C16 --> C13
+  C9 --> C11[Repost to SAP]
+  C13 --> C10{"apakah ada yang masih 'wait to confirm'?"}
+  C10 -->|Ya| C17["Follow up dinas terkait (optional)"] --> C13
+  C10 -->|Tidak| C11
+  C11 --> C18["Submit Sub-Doc number and close the repost"]
+  C18 --> C19[Archive Reposted DT]
+  C19 --> C20[End]
+```
+
+Setelah konten ini ada, ubah nav item "Guidance Application" dari disabled
+menjadi aktif (bisa diklik). Rendering pakai library Mermaid.js kalau frontend
+belum punya (cek dulu apakah sudah ada dependency serupa terpakai di tempat
+lain sebelum nambah baru).
   Migration `018` buka constraint `NOT NULL` di kolom
   `rdt.export_batches.closing_description`.
   **REVISI sama hari**: notifikasi ke dinas target TETAP JALAN walau field ini

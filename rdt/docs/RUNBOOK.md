@@ -39,10 +39,9 @@ urutannya begini.
 
 ## 3. Kalau `rdt/backend` gagal start dengan "Migration failed, aborting start"
 
-Paling sering ini DNS/network sesaat ke Supabase (`EAI_AGAIN`, pernah kejadian pas sesi 12 Agu) —
-coba `npm start` lagi sekali. Kalau tetap gagal, cek internet/DNS beneran putus, atau
-`DATABASE_URL` di `rdt/backend/.env` gak valid lagi (Supabase project kena pause/connection
-string berubah).
+Database sekarang PostgreSQL lokal — cek dulu servicenya beneran jalan (`pg_isready` atau buka
+pgAdmin/psql). Kalau service-nya hidup tapi tetap gagal, cek `DATABASE_URL` di
+`rdt/backend/.env` masih valid (user/password/nama database `rdt_dev` cocok).
 
 ## 4. Kalau dev-shell (`ng serve`) nyala tapi kelakuannya aneh/nge-stale
 
@@ -58,6 +57,6 @@ runtime data — file ini gak ke-commit, cuma ada di mesin yang service-nya jala
 
 ## 6. Restore dari backup
 
-Lihat `dump_db.md` (backup Supabase manual) dan `rdt/backend/tools/backupDatabase.js` /
-`tools/restoreDatabase.js` (tool sendiri, gak butuh Docker) — checklist 2.1 punya detail lengkap +
-bukti udah pernah dites beneran.
+Pakai `rdt/backend/tools/backupDatabase.js` / `tools/restoreDatabase.js` (tool sendiri, gak butuh
+Docker, jalan ke database Postgres manapun lewat `DATABASE_URL`) — checklist 2.1 punya detail
+lengkap + bukti udah pernah dites beneran.

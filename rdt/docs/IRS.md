@@ -13,9 +13,10 @@ Streamlit/Postgres lokal) yang sudah sepenuhnya obsolete.
 
 Versi 1.0 IRS ditulis untuk visi paling awal project ini (aplikasi Streamlit
 berdiri sendiri, VM Ubuntu terpisah, PostgreSQL lokal, akses diblokir total dari
-internet). **Tidak ada satupun dari itu yang masih berlaku**: stack sekarang
-Node.js/Angular (bukan Python/Streamlit), database dev sekarang Supabase (butuh
-internet, bukan diblokir), dan yang paling fundamental \u2014 **RDT sekarang dikonfirmasi
+internet). Sebagian tidak lagi berlaku: stack sekarang Node.js/Angular (bukan
+Python/Streamlit). Database dev sempat pindah ke Supabase (butuh internet) lalu
+kembali lagi ke PostgreSQL lokal (20 Agu) \u2014 lihat tabel section 2. Yang paling
+fundamental \u2014 **RDT sekarang dikonfirmasi
 sebagai app yang di-"suntik" ke platform OCX milik GMF**, bukan aplikasi berdiri
 sendiri dengan VM sendiri.
 
@@ -45,7 +46,7 @@ sendiri dengan VM sendiri.
 | Server produksi | GMF punya sendiri (bukan cloud pihak ketiga) |
 | Model integrasi | App di-plug-in ke OCX, bukan berdiri sendiri |
 | Auth/session produksi | Diwariskan dari OCX (bukan sistem auth RDT sendiri) |
-| Database saat DEVELOPMENT | Supabase (eksplisit hanya buat dev, lihat CLAUDE.md) |
+| Database saat DEVELOPMENT | PostgreSQL lokal (`rdt_dev`) — sempat Supabase, dipindah balik 20 Agu, lihat CLAUDE.md |
 | Database saat PRODUKSI | **Belum dikonfirmasi** \u2014 kemungkinan besar server Postgres GMF sendiri, tapi butuh konfirmasi eksplisit dari IT, JANGAN diasumsikan Supabase tetap dipakai |
 
 ---

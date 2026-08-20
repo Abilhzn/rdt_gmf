@@ -135,6 +135,11 @@ finansial. Ini artinya:
 ## 2. 💾 KEANDALAN & BACKUP (gap terbesar — belum PERNAH dibahas)
 
 ### 2.1 🔴 Backup Database
+> **Catatan (20 Agu)**: entri di bawah ini dari waktu database masih Supabase — sekarang sudah
+> pindah ke PostgreSQL lokal, `dump_db.md` yang dirujuk beberapa kali di bawah sudah dihapus
+> (Supabase-specific, gak relevan lagi). `backupDatabase.js`/`restoreDatabase.js` tetap relevan
+> (generic, jalan ke connection string Postgres manapun) — dibiarkan apa adanya sebagai rekam
+> jejak, bukan diedit ulang.
 - [x] **Cek pengaturan backup otomatis Supabase (12 Agu)** — project `rdt`
       di tier gratis: **TIDAK ADA Point-in-Time Recovery/backup otomatis
       sama sekali** (fitur itu baru mulai paket Pro, $25/bulan). Confirmed
