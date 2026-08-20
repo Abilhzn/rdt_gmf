@@ -13,7 +13,7 @@ $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
 $radius-xl: 12px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual.
+// Outline, bukan shadow, di seluruh elemen visual.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -90,10 +90,10 @@ $radius-md: 8px;
     &:hover { background: #004a73; }
     &:disabled { background: $line; color: $ink-600; cursor: not-allowed; box-shadow: none; }
   }
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
   &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
-  // Feedback tambahan 7 Agu: "Lihat thread & riwayat lengkap" link per batch row — same variant
-  // confirm.component.scss already defines for its own Dashboard-Detailing link.
+  // "Lihat thread & riwayat lengkap" link per batch row — same variant confirm.component.scss
+  // already defines for its own Dashboard-Detailing link.
   &--link {
     background: none;
     box-shadow: none;
@@ -123,7 +123,7 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   border-radius: $radius-md;
   transition: background 120ms ease;
 
-  // Audit "kaku" 17 Agu: pure scanning aid, same as need-approval's own .batch-row:hover.
+  // Pure scanning aid, same as need-approval's own .batch-row:hover.
   &:hover { background: $page-bg; }
 
   &__id { width: 60px; font-weight: 700; }
@@ -131,9 +131,8 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   &__action { flex: 1; text-align: right; }
 }
 
-// Project owner request (31 Jul sore): month "sheets" styled like separate Excel workbook tabs —
-// active tab visually merges into the panel below via the shared white background + the
-// negative margin/border-color trick.
+// Month "sheets" styled like separate Excel workbook tabs — active tab visually merges into the
+// panel below via the shared white background + the negative margin/border-color trick.
 .month-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -179,8 +178,7 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   font-size: 11.5px;
   font-weight: 600;
 
-  // REQ-RDT-SAP-14 (3 Agu): red, sits alongside the normal state-label (not instead of it).
-  // REQ-RDT-UI-03: outline, not shadow.
+  // Red, sits alongside the normal state-label (not instead of it). Outline, not shadow.
   &--overdue {
     background: $danger-050;
     color: $danger-600;
@@ -188,10 +186,10 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   }
 }
 
-// REQ-RDT-SAP-14 (11 Agu): the .deadline-* styles that used to live here (Setting Periode panel)
-// moved to setting-periode.component.scss along with the markup/logic — see that component.
+// The .deadline-* styles that used to live here (Setting Periode panel) moved to
+// setting-periode.component.scss along with the markup/logic — see that component.
 
-// ---------- loading skeleton (audit "kaku" 17 Agu) ----------
+// ---------- loading skeleton ----------
 .skeleton-list { display: flex; flex-direction: column; gap: 10px; }
 .skeleton-row {
   height: 20px;
@@ -205,7 +203,7 @@ hr { border: none; border-top: 1px solid $line; margin: 20px 0 16px; }
   100% { background-position: 0 50%; }
 }
 
-// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+// ---------- reduced motion ----------
 @media (prefers-reduced-motion: reduce) {
   .btn, .batch-row, .month-tab { transition: none; }
   .skeleton-row { animation: none; background: $page-bg; }

@@ -290,7 +290,7 @@ export class ConfirmComponent implements OnInit {
     });
   }
 
-  // ---------- Investigation/Ask TA sub-tab (REQ-RDT-LEDGER-10) ----------
+  // ---------- Investigation/Ask TA sub-tab ----------
   loadInvestigation(): void {
     this.investigationDescription = '';
     this.selectedInvestigationIds.clear();

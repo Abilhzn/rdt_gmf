@@ -7,11 +7,8 @@
   <p class="alert alert--error" *ngIf="statusError">{{ statusError }}</p>
 
   <ng-container *ngIf="!isInvestigation">
-    <!-- Project owner request (28 Jul, reordered 28 Jul per follow-up feedback — thread ABOVE the
-         Deskripsi box, not below): show the pair's existing discussion before the Deskripsi
-         textarea AND the transaction list, so the confirming user has context before deciding
-         Ya/Tidak per row. Read-only (posting/replying stays on Dashboard-Detailing, reached via
-         goToThreadDetail). -->
+    <!-- Diskusi pasangan ditampilkan sebelum form Deskripsi/tabel, biar user punya konteks
+         sebelum putuskan Ya/Tidak. Read-only — posting/reply tetap di Dashboard-Detailing. -->
     <section class="card thread-card" *ngIf="showThread">
       <h2>Diskusi {{ filterFromDinas }} → {{ selectedTarget }}</h2>
       <div>
@@ -69,8 +66,8 @@
       </ul>
     </div>
 
-    <!-- REQ-RDT-NAV-05 (baru 3 Agu): baris declined/reassigned pindah ke tab/sheet terpisah,
-         mirip tab sheet Excel — tab ini SAMA SEKALI TIDAK dirender kalau declinedRows kosong. -->
+    <!-- Baris declined/reassigned pindah ke tab terpisah — tab ini tidak dirender kalau
+         declinedRows kosong. -->
     <div class="queue-tabs" *ngIf="declinedRows.length">
       <button type="button" class="queue-tab" [class.queue-tab--active]="activeQueueTab === 'pending'" (click)="selectQueueTab('pending')">
         Perlu Dikonfirmasi ({{ pendingRows.length }})
@@ -81,7 +78,7 @@
     </div>
 
     <ng-container *ngIf="pendingRows.length && activeQueueTab === 'pending'">
-      <!-- REQ-RDT-LEDGER-09: one button per source upload — a file, not a per-row action. -->
+      <!-- Satu tombol per source upload (per file), bukan per-baris. -->
       <div class="original-file-downloads" *ngIf="downloadableUploads.length">
         <button
           *ngFor="let u of downloadableUploads"
@@ -98,18 +95,12 @@
                 Dinas Pengaju
                 <rdt-multi-value-filter placeholder="Tempel banyak Dinas Pengaju sekaligus..." (valuesChange)="onPendingColumnFilterChange('dinas_inisiasi', $event)"></rdt-multi-value-filter>
               </th>
-              <!-- REQ-RDT-NAV-04 (RESTRUKTUR 8 Agu — MEMBATALKAN "sama persis Upload Detail
-                   Transaction, semua kolom" 5 Agu): kolom dinamis sekarang 11 kolom+Notes tetap,
-                   sama di semua fitur preview — lihat buildPreviewColumns di .ts-nya. -->
-              <!-- SRS 3.11 (REQ-RDT-UI-06 diperluas, 5 Agu; notes-vs-remark bug fixed 5 Agu): Notes
-                   (the uploading user's own per-row note, reviewer_note — NOT Remark), Jika
-                   Reject, dan Select All frozen horizontal at the right edge of this table — see
-                   .sticky-notes-col/.sticky-reject-col/.sticky-select-col below. Matches the Figma
-                   reference's own Select All placement (node 20:712: far right of the table, not
-                   the left) and these 3 columns' existing rightmost order here. -->
+              <!-- Kolom dinamis: 11 kolom kontrak tetap + Notes, sama di semua fitur preview
+                   (lihat buildPreviewColumns). Notes (reviewer_note, BUKAN Remark), "Jika Reject",
+                   dan Select All di-pin di ujung kanan tabel (lihat .sticky-*-col di bawah). -->
               <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric" [class.sticky-notes-col]="col.key === 'reviewer_note'">
                 {{ col.label }}
-                <!-- REQ-RDT-NAV-09 (diperluas): filter multi-value di SETIAP kolom. -->
+                <!-- Filter multi-value di setiap kolom. -->
                 <rdt-multi-value-filter [placeholder]="'Tempel banyak ' + col.label + ' sekaligus...'" (valuesChange)="onPendingColumnFilterChange(col.key, $event)"></rdt-multi-value-filter>
               </th>
               <th class="sticky-reject-col">Jika Reject</th>
@@ -117,8 +108,8 @@
                 <label class="select-all-label">
                   <input type="checkbox" (change)="toggleSelectAll($any($event.target).checked)" />Select All
                 </label>
-                <!-- REQ-RDT-SAP-18 (8 Agu): only when a column filter is active — pointless (same
-                     as Select All above) otherwise, so hidden rather than always shown. -->
+                <!-- Hanya muncul saat ada filter kolom aktif — di luar itu sama saja dengan
+                     Select All di atas. -->
                 <label class="select-all-label" *ngIf="hasActivePendingFilter">
                   <input type="checkbox" (change)="toggleSelectAllFiltered($any($event.target).checked)" />Select yang ke-filter
                 </label>
@@ -127,13 +118,10 @@
           </thead>
           <tbody>
             <tr *ngFor="let r of pagedPendingRows">
-              <!-- A5 (3 Agu): chain arrow was missing everywhere except Dashboard-Detailing — the
-                   aggregate badge above can only show a breadcrumb when EVERY row in the current
-                   filter agrees on the same path (see badgeText), so a reassigned row sitting in a
-                   mixed queue still needs its OWN chain visible here, per row. REQ-RDT-UI-05
-                   "Rincian per-hop" (4 Agu): clicking it opens a small popover with the same
-                   per-hop breakdown used elsewhere — a table cell has no room to widen sideways
-                   like the Dashboard cards, so this floats instead (see .chain-popover below). -->
+              <!-- Badge breadcrumb di atas cuma tampil kalau SEMUA baris di filter sekarang punya
+                   jalur yang sama — baris reassigned di queue campuran tetap butuh chain sendiri,
+                   per baris. Klik buka popover rincian per-hop (table cell gak cukup lebar buat
+                   expand ke samping seperti card Dashboard). -->
               <td class="chain-popover-wrap" *ngIf="r.chain && r.chain.length > 2; else plainInisiasi">
                 <button type="button" class="chain-cell" [title]="r.chain.join(' → ')" (click)="toggleChainPopover($event, r.id)">
                   {{ r.chain.join(' → ') }}
@@ -149,7 +137,7 @@
                 </div>
               </td>
               <ng-template #plainInisiasi><td>{{ r.dinas_inisiasi }}</td></ng-template>
-              <!-- REQ-RDT-NAV-04 (DITEGASKAN LAGI 5 Agu): kolom dinamis, sama sumber dengan header. -->
+              <!-- Kolom dinamis, sama sumber dengan header. -->
               <ng-container *ngFor="let col of previewColumns">
                 <td *ngIf="col.numeric" class="rows__num">{{ getCellValue(r, col.key) | number: '1.2-2' }}</td>
                 <td *ngIf="col.key === 'reviewer_note'" class="rows__remark sticky-notes-col" [title]="r.reviewer_note || ''">{{ r.reviewer_note }}</td>
@@ -167,7 +155,7 @@
         </table>
       </div>
 
-      <!-- REQ-RDT-NAV-07: reusable Google-style pager, shared with Repost's review table. -->
+      <!-- Pager reusable, sama dengan tabel review di halaman Repost. -->
       <rdt-pagination [page]="page" [totalItems]="pendingRows.length" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></rdt-pagination>
     </ng-container>
 
@@ -210,11 +198,8 @@
     </ng-container>
   </ng-container>
 
-  <!-- REQ-RDT-LEDGER-10 restructure (29 Jul): Investigation/Ask TA sub-tab — was a standalone
-       InvestigationComponent/route, folded in here as a second TAB-only sub-nav choice alongside
-       Corp (REQ-RDT-AUTH-05, corrected 31 Jul, dropped 'TA' from this sub-nav). Completely
-       different shape from the normal queue above (assign-a-dinas, not Ya/Tidak), so it's a clean
-       swap rather than trying to unify the two. -->
+  <!-- Sub-tab Investigation/Ask TA — TAB-only, alongside Corp. Bentuknya beda total dari queue
+       normal di atas (assign-dinas, bukan Ya/Tidak), jadi ditukar langsung, bukan disatukan. -->
   <ng-container *ngIf="isInvestigation">
     <p class="note">
       Baris ini dinas targetnya belum jelas — cek Ref.Doc/PO atau tanya dinas terkait, lalu assign
@@ -226,7 +211,7 @@
     </div>
     <p class="note" *ngIf="!investigationRows.length">Tidak ada baris yang menunggu investigasi.</p>
     <ng-container *ngIf="investigationRows.length">
-      <!-- REQ-RDT-LEDGER-09, extended 5 Agu ke antrian Investigation -- sama pola dengan queue PENDING. -->
+      <!-- Sama pola download-per-upload dengan queue PENDING. -->
       <div class="original-file-downloads" *ngIf="downloadableInvestigationUploads.length">
         <button
           *ngFor="let u of downloadableInvestigationUploads"
@@ -259,9 +244,8 @@
               </th>
               <th>
                 Account
-                <!-- REQ-RDT-NAV-09 (diperluas): filter per kolom. Menyaring baris yang
-                     tampil/bisa dipilih via checkbox — TIDAK menyaring "Assign All" (tetap semua
-                     baris). -->
+                <!-- Filter per kolom — menyaring baris yang tampil/bisa dipilih via checkbox,
+                     TIDAK menyaring "Assign All" (tetap semua baris). -->
                 <rdt-multi-value-filter placeholder="Tempel banyak Account sekaligus..." (valuesChange)="onInvestigationColumnFilterChange('account', $event)"></rdt-multi-value-filter>
               </th>
               <th>

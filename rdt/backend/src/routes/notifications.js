@@ -1,4 +1,4 @@
-// REQ-RDT-COMMENT-03: simple @mention notifications — badge counter + list, nothing more.
+// Simple @mention notifications — badge counter + list, nothing more.
 // Purely informational: reading/marking-read here never touches transaction state.
 const express = require('express');
 const { Client } = require('pg');

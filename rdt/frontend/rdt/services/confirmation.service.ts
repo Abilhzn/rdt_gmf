@@ -20,8 +20,7 @@ export interface PendingRow {
   reviewer_note?: string;
   ref_doc?: string;
   dinas_inisiasi?: string;
-  /** REQ-RDT-LEDGER-09: which upload this row came from, so the UI can offer a download
-   * button for the original file per distinct upload. */
+  /** Upload asal baris ini, buat tombol download file original per upload. */
   upload_id?: number;
   upload_filename?: string;
   /** This row's own full redirect breadcrumb (initiator -> every intermediate hop -> current

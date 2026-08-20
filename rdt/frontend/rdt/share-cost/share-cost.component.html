@@ -56,7 +56,7 @@
         <span *ngIf="selected.ref_doc">Ref.Doc {{ selected.ref_doc }}</span>
         <span class="split-original__nominal">{{ selected.nominal | number: '1.2-2' }}</span>
       </div>
-      <!-- REQ-RDT-LEDGER-09, extended 5 Agu ke Share-Cost -- takut dibutuhkan sebelum split. -->
+      <!-- Tombol download file asli, sama pola dengan fitur lain, disiapkan sebelum split. -->
       <div class="original-file-downloads" *ngIf="selected.upload_id">
         <button class="btn btn--ghost" type="button" (click)="downloadOriginal()"
         >⬇ Download file asli: {{ selected.upload_filename }}</button>

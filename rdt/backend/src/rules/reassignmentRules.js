@@ -1,4 +1,4 @@
-// Pure validation rules for REQ-RDT-LEDGER-07 REASSIGN — separated from routes/reassignment.js
+// Pure validation rules for REASSIGN — separated from routes/reassignment.js
 // so the business rules (cap, eligible targets) are unit-testable without a DB connection.
 
 const REASSIGN_CAP = 3;

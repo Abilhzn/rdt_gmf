@@ -1,15 +1,13 @@
 <div class="page-card">
-  <!-- SRS 3.13 "Struktur navigasi disederhanakan lagi" (14 Agu): SATU halaman, form Setting
-       Deadline di atas, tabel Repost Active di bawah — bukan 2 sub-halaman terpisah lagi. -->
+  <!-- Satu halaman: form Setting Deadline di atas, tabel Repost Active di bawah. -->
   <p class="note intro">
     Deadline mengikat kapan <strong>dinas target</strong> harus Confirm/Reject, bukan kapan TAB
     repost. Lewat deadline, periode repost otomatis geser ke bulan berikutnya. Opsional — tanpa
     deadline, repost berjalan normal.
   </p>
 
-  <!-- REQ-RDT-SAP-16/20 — the ONE Setting Deadline action: settable ANYTIME (before any dinas has
-       even uploaded for this periode), and if pasangan aktif sudah ada sekarang, langsung ikut
-       ter-set juga — sekali klik, bukan dua aksi terpisah lagi. -->
+  <!-- Deadline bisa di-set kapan aja (sebelum ada upload pun boleh) — pasangan aktif yang udah
+       ada langsung ikut ter-set, satu klik. -->
   <div class="section-panel">
     <h3 class="card__subtitle">Setting Deadline</h3>
     <p class="note">
@@ -43,7 +41,7 @@
             <td>{{ dl.periode }}</td>
             <td>{{ dl.deadline_at | idDate }}</td>
             <td>
-              <!-- REQ-RDT-SAP-19: hanya bisa dihapus kalau deadline-nya belum lewat. -->
+              <!-- Hanya bisa dihapus kalau deadline-nya belum lewat. -->
               <button
                 class="btn btn--ghost"
                 type="button"
@@ -60,8 +58,8 @@
     <p class="empty-state" *ngIf="!existingDefaultDeadlines.length">Belum ada deadline default yang pernah di-set.</p>
   </div>
 
-  <!-- Was RepostActiveComponent's page, now a second .section-panel on the same page, langsung di
-       bawah form — tidak perlu klik ke halaman/tab lain. -->
+  <!-- Section kedua di halaman yang sama, langsung di bawah form — gak perlu pindah
+       halaman/tab. -->
   <div class="section-panel">
     <h3 class="card__subtitle">Repost Active</h3>
     <p class="note">

@@ -1,9 +1,8 @@
 <div class="page-card">
   <div class="view-header-row">
-    <!-- REQ-RDT-NAV-03: full redirect breadcrumb (e.g. "TJ → TC → TL"), not just the two
-         endpoints — see breadcrumb getter. REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): when it's a
-         REAL multi-hop chain (not just the 2-point fallback), a badge next to it opens the same
-         per-hop breakdown panel used on the Dashboard cards — closes out REQ-RDT-NAV-03 here too. -->
+    <!-- Breadcrumb redirect penuh (mis. "TJ → TC → TL"), bukan cuma dua endpoint — lihat
+         breadcrumb getter. Kalau beneran multi-hop, badge di sampingnya buka panel rincian
+         per-hop yang sama dengan card Dashboard. -->
     <div class="context-badge-wrap">
       <div class="context-badge">
         <ng-container *ngFor="let d of breadcrumb; let last = last">{{ d }}<span *ngIf="!last"> → </span></ng-container>
@@ -13,9 +12,8 @@
       </button>
     </div>
     <div class="view-header-row__actions">
-      <!-- B2 (3 Agu): card clicks land here now instead of jumping straight to Confirmation —
-           this is the one-click path onward to actually Confirm/Reject, shown only while there's
-           still something PENDING on this pair. -->
+      <!-- Satu klik lanjut ke Confirm/Reject — cuma tampil kalau pasangan ini masih ada yang
+           PENDING. -->
       <button class="btn btn--primary" type="button" *ngIf="canGoToConfirm" (click)="goToConfirm()">Confirm Reposted →</button>
       <button class="btn btn--ghost" type="button" (click)="backToDashboard()">‹ Kembali ke Dashboard</button>
     </div>
@@ -37,12 +35,10 @@
     </div>
   </div>
 
-  <!-- REQ-RDT-NAV-03 (3 Agu, re-flagged still-open): the header breadcrumb above only shows a
-       chain when EVERY transaction in the pair took the identical redirect path — with more than
-       a handful of transactions that's almost never true, so it silently falls back to the plain
-       2-point display for the whole pair. Nothing else on this page showed a per-transaction
-       chain at all. This table is that: one row per redirected transaction with its OWN full
-       path, only rendered when at least one exists. -->
+  <!-- Breadcrumb header cuma tampil chain kalau SEMUA transaksi di pasangan ini pakai jalur
+       identik — jarang terjadi kalau transaksinya banyak, jadi fallback ke tampilan 2-titik
+       polos. Tabel ini isinya satu baris per transaksi yang di-redirect, dengan jalur lengkapnya
+       masing-masing. -->
   <ng-container *ngIf="redirectedTransactions.length">
     <h3 class="thread-title">Transaksi yang pernah di-redirect ({{ redirectedTransactions.length }})</h3>
     <table class="redirect-table">
@@ -77,8 +73,8 @@
       <div class="thread-comment__body">
         <span class="thread-comment__name">{{ row.comment.author_display_name }}</span>
         <span class="thread-comment__meta">{{ row.comment.created_at | idDate }}</span>
-        <!-- REQ-RDT-COMMENT-03 (diperjelas 3 Agu): mention yang ke-resolve dirender ter-link,
-             bukan teks polos — lihat shared/mention-text.component.ts. -->
+        <!-- Mention yang ke-resolve dirender ter-link, bukan teks polos — lihat
+             shared/mention-text.component.ts. -->
         <p class="thread-comment__text"><rdt-mention-text [body]="row.comment.body"></rdt-mention-text></p>
         <button class="btn btn--link" type="button" (click)="setReplyTarget(row.comment)">Balas</button>
       </div>
@@ -86,10 +82,8 @@
   </div>
   <p class="note" *ngIf="loaded && !threadRows.length">Belum ada komentar pada pasangan dinas ini.</p>
 
-  <!-- REQ-RDT-COMMENT-03 (diperluas 3 Agu): satu implementasi @mention dipakai ulang. -->
-  <!-- REQ-RDT-UI-11 (8 Agu, generalized from Catatan Reviewer's earlier fix): fixed size + BIG,
-       internal scroll for long text — not grow-to-fit-content (autoGrow's default), which read as
-       "stingy" once content got long. -->
+  <!-- Satu implementasi @mention dipakai ulang. Fixed size + BIG, internal scroll untuk teks
+       panjang — bukan grow-to-fit. -->
   <rdt-mention-input
     [(ngModel)]="commentBody"
     [rows]="3"

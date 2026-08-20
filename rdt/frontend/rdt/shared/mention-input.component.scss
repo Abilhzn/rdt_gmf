@@ -24,8 +24,7 @@ $radius-md: 8px;
   &:focus { outline: none; border-color: $accent; }
 }
 
-// REQ-RDT-UI-03: outline, not shadow — built fresh with this rule rather than shadow (matches
-// what pagination/multi-value-filter's own popups already carry over to).
+// Outline, not shadow — matches what pagination/multi-value-filter's own popups already carry.
 .mvi-list {
   position: absolute;
   z-index: 20;

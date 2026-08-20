@@ -14,7 +14,7 @@ $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03: outline, bukan shadow.
+// Outline, bukan shadow.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -73,8 +73,7 @@ $radius-md: 8px;
 
 .table-scroll { overflow-x: auto; }
 
-// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
-// pagination ke 50 baris/halaman.
+// Font tabel dikecilkan sedikit, sejalan dengan pagination 50 baris/halaman.
 .rows {
   width: 100%;
   border-collapse: collapse;
@@ -103,8 +102,8 @@ $radius-md: 8px;
   color: $ink;
 }
 
-// Audit tipografi (18 Agu): nominal finansial — numeric-hero (tabular-nums + weight 800 + tracking
-// dirapatkan), ukuran font TETAP inline (bukan display digit berdiri sendiri kayak KPI card).
+// Nominal finansial — numeric-hero (tabular-nums + weight 800 + tracking dirapatkan), ukuran
+// font TETAP inline (bukan display digit berdiri sendiri kayak KPI card).
 .split-original__nominal { @include t.numeric-hero; }
 
 .split-row {
@@ -151,9 +150,8 @@ $radius-md: 8px;
 // ::ng-deep: passed as [extraClass] into <rdt-mention-input>, which lives inside a CHILD
 // component's own template — see shared/mention-input.component.scss's note on why this needs
 // ::ng-deep to be reached from here.
-// Feedback tambahan 7 Agu: fixed height + internal scroll instead of growing on every keystroke —
-// see confirm.component.scss's matching note.
-// REQ-RDT-UI-11 (8 Agu): 90px read as stingy — bigger, still fixed + internal scroll.
+// Fixed height + internal scroll instead of growing on every keystroke — see
+// confirm.component.scss's matching note.
 ::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;

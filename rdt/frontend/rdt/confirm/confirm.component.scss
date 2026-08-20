@@ -13,14 +13,12 @@ $danger-600: #b3261e;
 $danger-050: #fdecea;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px/10px, not Figma's literal 16-32px — project
-// owner asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
+// 12px/10px radius, not Figma's literal 16-32px — less rounded, matches the app's radius scale.
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): berlaku ke SELURUH elemen visual dashboard sekarang —
-// outline, bukan shadow.
+// Berlaku ke seluruh elemen visual dashboard — outline, bukan shadow.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -65,10 +63,8 @@ $radius-md: 8px;
   transition: background 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 
   &--primary { background: $accent; color: #fff; box-shadow: $shadow-sm; &:hover { background: #004a73; } }
-  // Micro-interaction (audit "kaku" 17 Agu): busy state used to be a bare text swap
-  // ("Menyimpan...") with zero visual feedback — spinner ring replaces the label instead, same
-  // button width so it doesn't jump. Scoped to &--primary (spinner border assumes white on
-  // $accent).
+  // Busy state shows a spinner ring instead of a bare text swap, same button width so it doesn't
+  // jump. Scoped to &--primary (spinner border assumes white on $accent).
   &--primary.btn--busy {
     position: relative;
     color: transparent;
@@ -85,8 +81,8 @@ $radius-md: 8px;
       animation: btn-spin 0.6s linear infinite;
     }
   }
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
-  // penanda visual sebagai gantinya. Shadow tetap boleh untuk card/container biasa.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai penanda visual gantinya.
+  // Shadow tetap boleh untuk card/container biasa.
   &--ghost {
     background: #fff;
     color: $ink;
@@ -103,9 +99,9 @@ $radius-md: 8px;
   }
 }
 
-// ---------- discussion preview (project owner request, 28 Jul — "liatin dulu chatnya" before
-// deciding Ya/Tidak) — same card/thread-comment pattern as pages/repost-budgeting.component.scss
-// and dashboard-detail.component.scss. ----------
+// ---------- discussion preview — "liatin dulu chatnya" before deciding Ya/Tidak; same
+// card/thread-comment pattern as pages/repost-budgeting.component.scss and
+// dashboard-detail.component.scss. ----------
 .card {
   background: #fff;
   border-radius: $radius-lg;
@@ -116,8 +112,7 @@ $radius-md: 8px;
   h2 { margin: 0 0 14px; font-size: 16px; font-weight: 700; color: $ink; }
 }
 
-// Extra breathing room now that the thread sits directly above the Confirm/Reject legend +
-// Deskripsi box (reordered 28 Jul per follow-up feedback).
+// Extra breathing room — thread sits directly above the Confirm/Reject legend + Deskripsi box.
 .thread-card { margin-bottom: 20px; }
 
 .card__actions { margin-top: 14px; display: flex; gap: 10px; }
@@ -169,8 +164,8 @@ input[type='checkbox'] {
   input[type='checkbox'] { margin-right: 6px; vertical-align: middle; }
 }
 
-// REQ-RDT-NAV-05 (baru 3 Agu): pending vs declined/reassign queue switched via Excel-workbook-
-// style tabs — same visual language as repost-history.component.scss's .month-tabs.
+// Pending vs declined/reassign queue switched via Excel-workbook-style tabs — same visual
+// language as repost-history.component.scss's .month-tabs.
 .queue-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -203,8 +198,7 @@ input[type='checkbox'] {
 
 .table-scroll { overflow-x: auto; }
 
-// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
-// pagination ke 50 baris/halaman.
+// Font tabel dikecilkan sedikit, sejalan dengan pagination 50 baris/halaman.
 .rows {
   width: 100%;
   border-collapse: collapse;
@@ -217,9 +211,9 @@ input[type='checkbox'] {
   tbody tr:hover td { background: #f5f9fb; }
 }
 
-// A5 (3 Agu): per-row redirect breadcrumb in the "Dinas Pengaju" column — smaller/tighter than
-// the plain dinas code it replaces since it can be 3+ segments long (e.g. "TJ → TE → TL").
-// REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): now a button, opens .chain-popover below on click.
+// Per-row redirect breadcrumb in the "Dinas Pengaju" column — smaller/tighter than the plain
+// dinas code it replaces since it can be 3+ segments long (e.g. "TJ → TE → TL"). A button, opens
+// .chain-popover below on click.
 .chain-cell {
   font-size: 11.5px;
   font-weight: 600;
@@ -254,16 +248,13 @@ input[type='checkbox'] {
   cursor: default;
 }
 
-// REQ-RDT-UI-06 diperluas (section 3.11, 5 Agu): the ~53-column Detail Confirmation table's
-// "Notes" (Remark), "Jika Reject" (redirect dropdown), and "Select" checkbox stay reachable
-// without scrolling the whole table horizontally — pinned as a 3-column sticky group at the
-// RIGHT edge (matches the Figma reference, node 20:712 "Confirmation-RDT": its own
-// "Select All" checkbox sits at the far right of the mockup table, not the left; these 3
-// columns are already the rightmost 3 in this table's real column order, so "right" is also
-// the natural place, not just the Figma-matching one). Same "solid background + left-edge
-// shadow" requirement as repost-budgeting.component.scss's single-column .reviewer-note-col —
-// stacked here via cumulative `right` offsets so the 3 columns overlap correctly instead of
-// stacking on top of each other.
+// The ~53-column Detail Confirmation table's "Notes" (Remark), "Jika Reject" (redirect dropdown),
+// and "Select" checkbox stay reachable without scrolling the whole table horizontally — pinned as
+// a 3-column sticky group at the right edge (they're already the rightmost 3 columns in this
+// table's real order, and matches the Figma reference's own far-right "Select All"). Same "solid
+// background + left-edge shadow" requirement as repost-budgeting.component.scss's single-column
+// .reviewer-note-col — stacked here via cumulative `right` offsets so the 3 columns overlap
+// correctly instead of stacking on top of each other.
 $sticky-select-w: 64px;
 $sticky-reject-w: 150px;
 $sticky-notes-w: 190px;
@@ -314,8 +305,8 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
   font-weight: 700;
   text-transform: none;
 
-  // REQ-RDT-SAP-18 (8 Agu): a second select-all-label (filter-aware) can stack below the first
-  // when a column filter is active — small gap so they don't read as one cramped block.
+  // A second select-all-label (filter-aware) can stack below the first when a column filter is
+  // active — small gap so they don't read as one cramped block.
   & + & { margin-top: 6px; }
 }
 
@@ -323,7 +314,7 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
   display: flex;
   gap: 12px;
   align-items: center;
-  // REQ-RDT-UI-04 (1 Agu, spacing audit): 6px was too tight for 2 selects + 2 buttons in a row.
+  // 10px, not 6px — needs room for 2 selects + 2 buttons in a row.
   padding: 10px 0;
   border-bottom: 1px dashed $line;
 
@@ -369,9 +360,8 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
   font-weight: 600;
   color: $ink-600;
   flex: 1 1 320px;
-  // REQ-RDT-UI-04 (1 Agu, spacing audit): standalone uses (Deskripsi/Keterangan textarea sitting
-  // directly above a table) had zero gap below — inside .batch-resolve-footer's flex gap already
-  // covers this, a little extra there is harmless.
+  // Standalone uses (Deskripsi/Keterangan textarea sitting directly above a table) had zero gap
+  // below — inside .batch-resolve-footer this is redundant with the flex gap, harmless.
   margin-bottom: 12px;
 }
 
@@ -385,13 +375,9 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
 // ::ng-deep: passed as [extraClass] into <rdt-mention-input>, which lives inside a CHILD
 // component's own template — see shared/mention-input.component.scss's note on why this needs
 // ::ng-deep to be reached from here.
-// Feedback tambahan 7 Agu: was growing on every keystroke via MentionInputComponent's default
-// autoGrow behavior, reading as too small/disproportionate to the surrounding empty space —
-// fixed height matching the space around it instead, with internal scroll for long text (see
-// [autoGrow]="false" at each call site in confirm.component.html and mention-input.component.ts's
-// autoGrow input).
-// REQ-RDT-UI-11 (8 Agu): "fixed" alone wasn't the whole ask — 90px read as stingy for the ruang
-// yang tersedia around it. Bigger, still fixed + internal scroll (not grow-to-fit).
+// Fixed height matching the space around it, with internal scroll for long text — not
+// MentionInputComponent's default autoGrow-on-keystroke behavior (see [autoGrow]="false" at each
+// call site in confirm.component.html and mention-input.component.ts's autoGrow input).
 ::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
@@ -411,13 +397,13 @@ thead .sticky-notes-col { z-index: 3; background: $page-bg; }
   background: #fff;
 }
 
-// Pager styling now lives in shared/pagination.component.scss (REQ-RDT-NAV-07).
+// Pager styling now lives in shared/pagination.component.scss.
 
 @keyframes btn-spin {
   100% { transform: rotate(360deg); }
 }
 
-// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+// ---------- reduced motion ----------
 @media (prefers-reduced-motion: reduce) {
   .btn, tbody tr td { transition: none; }
   .btn--busy::after { animation: none; }

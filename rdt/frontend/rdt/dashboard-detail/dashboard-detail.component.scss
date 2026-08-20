@@ -1,6 +1,6 @@
-// REQ-RDT-NAV-03/REQ-RDT-COMMENT — tokens taken literally from the updated Figma (fileKey
-// ZLbcosQTNTZdWQRusRYH0R), same values as shell.component.scss / home.component.scss — see
-// shell.component.scss for the "why literal, not just structural" note.
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R), same values as
+// shell.component.scss / home.component.scss — see shell.component.scss for the "why literal,
+// not just structural" note.
 
 @use '../shared/typography' as t;
 
@@ -13,13 +13,12 @@ $danger-600: #b3261e;
 $danger-050: #fdecea;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px/10px, not Figma's literal 16-32px — project
-// owner asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
+// 12px/10px radius, not Figma's literal 16-32px — less rounded, matches the app's radius scale.
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual.
+// Outline, bukan shadow, di seluruh elemen visual.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -52,10 +51,9 @@ $radius-md: 8px;
   border-radius: $radius-md;
 }
 
-// REQ-RDT-UI-05 "Rincian per-hop" (4 Agu): same badge look as home.component's
-// pair-card__chain-badge, opens DOWNWARD here (not sideways) — this is a single page header with
-// full page width below it, not a narrow card in a list, so a below-panel reads more naturally
-// than widening the header row itself would.
+// Same badge look as home.component's pair-card__chain-badge, opens downward here (not sideways)
+// — this is a single page header with full page width below it, not a narrow card in a list, so
+// a below-panel reads more naturally than widening the header row itself would.
 .chain-detail-badge {
   display: inline-flex;
   align-items: center;
@@ -133,10 +131,8 @@ $radius-md: 8px;
 
 .thread-title { margin: 24px 0 4px; font-size: 14px; }
 
-// REQ-RDT-NAV-03 (3 Agu): per-transaction redirect chain, only rendered when >=1 row was
-// actually redirected — REQ-RDT-UI-03: border, not shadow.
-// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
-// pagination ke 50 baris/halaman.
+// Per-transaction redirect chain, only rendered when >=1 row was actually redirected — border,
+// not shadow. Font dikecilkan sedikit, sejalan dengan pagination 50 baris/halaman.
 .redirect-table {
   width: 100%;
   border-collapse: collapse;
@@ -169,8 +165,8 @@ $radius-md: 8px;
 // ::ng-deep: this class is passed as [extraClass] into <rdt-mention-input>, which lives inside a
 // CHILD component's own template — Angular's default emulated encapsulation otherwise can't have
 // this component's stylesheet reach it (see mention-input.component.scss's note on the same).
-// REQ-RDT-UI-11 (8 Agu): fixed + BIG (not grow-to-fit-content, which read as "stingy" once
-// content got long) — internal scroll instead, same treatment as .batch-note/.reviewer-note-input.
+// Fixed height and BIG (not grow-to-fit-content) — internal scroll instead, same treatment as
+// .batch-note/.reviewer-note-input.
 ::ng-deep .repost-desc {
   width: 100%;
   box-sizing: border-box;
@@ -215,8 +211,7 @@ $radius-md: 8px;
     &:hover:not(:disabled) { background: #004a73; }
   }
 
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
-  // penanda visual sebagai gantinya.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai penanda visual gantinya.
   &--ghost {
     background: #fff;
     color: $ink;

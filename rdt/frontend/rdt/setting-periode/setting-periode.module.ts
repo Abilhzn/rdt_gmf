@@ -5,9 +5,7 @@ import { RouterModule } from '@angular/router';
 import { SharedModule } from '../shared/shared.module';
 import { SettingPeriodeComponent } from './setting-periode.component';
 
-// SRS 3.13 "Struktur navigasi disederhanakan lagi" (14 Agu): was split into 2 sub-pages
-// ('deadline'/'active' child routes, REQ-RDT-SAP-20, 13 Agu) — DIBATALKAN, back to ONE flat
-// component/route, no sub-nav.
+// Satu flat component/route, tanpa sub-nav — sempat di-split jadi 2 sub-halaman, dibatalkan.
 @NgModule({
   declarations: [SettingPeriodeComponent],
   imports: [

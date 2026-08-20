@@ -5,8 +5,8 @@ import { map } from 'rxjs/operators';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { Notification } from './notification.model';
 
-// REQ-RDT-COMMENT-03 — simple @mention notification badge + list. Purely informational: reading
-// or marking-read here never touches transaction state (see routes/notifications.js).
+// Simple @mention notification badge + list. Purely informational: reading/marking-read never
+// touches transaction state (see routes/notifications.js).
 @Injectable({ providedIn: 'root' })
 export class NotificationsService {
   private readonly base = '/api/notifications';

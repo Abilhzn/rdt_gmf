@@ -28,15 +28,14 @@ $muted-050:  #eef1f4;
 
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px/10px, not Figma's literal 16-32px — project
-// owner asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
+// 12px/10px radius, not Figma's literal 16-32px — less rounded, matches the app's radius scale.
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
 // Page title/eyebrow now live in shell.component.html's shared topbar — this component
 // only owns its own content card + split layout.
-// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual.
+// Outline, bukan shadow, di seluruh elemen visual.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -64,9 +63,9 @@ $radius-md: 8px;
 
   h3 { margin: 0 0 16px; font-size: 15px; color: $ink; font-weight: 500; }
   .btn { display: block; width: 100%; margin-bottom: 12px; }
-  // Both Confirm and Cancel render white here per the Figma (only Confirmation's Submit button
-  // is solid-blue-filled) — override regardless of btn--primary/ghost class. REQ-RDT-UI-03
-  // (1 Agu): white/ghost buttons use border, not shadow.
+  // Both Confirm and Cancel render white here (only Confirmation's Submit button is
+  // solid-blue-filled) — override regardless of btn--primary/ghost class; white/ghost buttons
+  // use border, not shadow.
   .btn--primary, .btn--ghost { background: #fff; color: $ink; border: 1px solid $line; }
   .btn--primary:hover, .btn--ghost:hover { border-color: $accent; }
 }
@@ -85,7 +84,7 @@ $radius-md: 8px;
 // emulated encapsulation otherwise wouldn't let this rule reach (see mention-input.component
 // .scss's note on the same thing). Still applies normally to the plain <input type="month"> in
 // THIS component's own template too.
-// REQ-RDT-UI-11 (8 Agu): fixed + BIG (not grow-to-fit-content) — internal scroll instead.
+// Fixed height and BIG (not grow-to-fit-content) — internal scroll instead.
 ::ng-deep .repost-desc {
   width: 100%;
   box-sizing: border-box;
@@ -175,10 +174,8 @@ $radius-md: 8px;
 
   &:disabled { opacity: 0.55; cursor: not-allowed; }
 
-  // Micro-interaction (audit "kaku" 17 Agu): busy state used to be a bare text swap ("Menyimpan...")
-  // with zero visual feedback — small spinner ring replaces the label instead, same width so the
-  // button doesn't jump. Only meaningful on a solid-color button (spinner border assumes white on
-  // $accent), so scoped to &--primary.
+  // Busy state shows a small spinner ring instead of a bare text swap, same width so the button
+  // doesn't jump. Spinner border assumes white on $accent, so scoped to &--primary.
   &--primary.btn--busy {
     position: relative;
     color: transparent;
@@ -203,8 +200,7 @@ $radius-md: 8px;
     &:hover:not(:disabled) { background: #004a73; }
   }
 
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
-  // penanda visual sebagai gantinya.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai penanda visual gantinya.
   &--ghost {
     background: #fff;
     color: $ink;
@@ -254,9 +250,9 @@ $radius-md: 8px;
     display: flex;
     align-items: baseline;
     gap: 8px;
-    // Audit tipografi (18 Agu): angka doang -> numeric-align (tabular-nums); token size, bukan
-    // hardcode 20px. Bukan "hero" (KPI/persentase/nominal finansial) jadi tanpa numeric-hero's
-    // weight/tracking bump — ini row-count biasa (PENDING/EXCLUDED/INVALID).
+    // numeric-align (tabular-nums), token size bukan hardcode. Bukan "hero" (KPI/persentase/
+    // nominal finansial) jadi tanpa numeric-hero's weight/tracking bump — ini row-count biasa
+    // (PENDING/EXCLUDED/INVALID).
     strong { @include t.numeric-align; font-size: t.$fs-heading; }
   }
 
@@ -282,12 +278,10 @@ $radius-md: 8px;
 // ---------- tables ----------
 .table-scroll { overflow-x: auto; }
 
-// REQ-RDT-UI-08/NAV-04 (4 Agu, 3rd report of the same bug): "Catatan Reviewer" is the rightmost
-// of 50+ columns — pin it via position: sticky so it's always reachable without scrolling the
-// whole table horizontally every time, instead of the wrapping-textarea-only fix from 3 Agu
-// (that fixed scrolling INSIDE the cell, not having to scroll the TABLE to reach the cell at
-// all, which is what's still being reported). Solid backgrounds + a shadow on the left edge are
-// required for a sticky column to read correctly — otherwise scrolling content shows through.
+// "Catatan Reviewer" is the rightmost of 50+ columns — pinned via position:sticky so it's always
+// reachable without scrolling the whole table horizontally. Solid background + a shadow on the
+// left edge are required for a sticky column to read correctly — otherwise scrolling content
+// shows through.
 .reviewer-note-col {
   position: sticky;
   right: 0;
@@ -301,8 +295,7 @@ thead .reviewer-note-col {
   background: $page-bg;
 }
 
-// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
-// pagination ke 50 baris/halaman.
+// Font tabel dikecilkan sedikit, sejalan dengan pagination 50 baris/halaman.
 .matrix,
 .rows {
   width: 100%;
@@ -355,16 +348,10 @@ thead .reviewer-note-col {
   tbody tr:hover td { background: #f5f9fb; }
 }
 
-// REQ-RDT-NAV-04: editable "Catatan Reviewer" cell, sized to sit inline in a table row.
-// (3 Agu fix) Was a single-line <input> — text past its width just scrolled sideways instead of
-// being readable. REQ-RDT-UI-11 (8 Agu, generalizes/corrects the 3 Agu fix): "no scrollbar, wrap
-// instead" read as fixed-but-stingy once notes got long (content just clipped past `overflow:
-// hidden`, invisible past the fixed 2-row height) — wider, taller, and internal scroll now,
-// consistent with every other note field's REQ-RDT-UI-11 treatment.
-// REQ-RDT-UI-11 REVISI (13 Agu): 80px read too tall sitting inline in a table row — shorter now,
-// but STILL a fixed height + internal scroll (not shrink-to-content/autoGrow) — only this field;
-// .repost-desc above (the main Keterangan field) is untouched.
-// ::ng-deep: passed as [extraClass] into <rdt-mention-input> now — see .repost-desc's note above.
+// Editable "Catatan Reviewer" cell, sized to sit inline in a table row — fixed height + internal
+// scroll (not shrink-to-content/autoGrow), shorter than .repost-desc above since it's inline in a
+// row rather than the main Keterangan field.
+// ::ng-deep: passed as [extraClass] into <rdt-mention-input> — see .repost-desc's note above.
 ::ng-deep .reviewer-note-input {
   width: 280px;
   border: 1px solid $line;
@@ -386,8 +373,7 @@ thead .reviewer-note-col {
   }
 }
 
-// REQ-RDT-EXT-09 point 3: flags a PIVOT_DERIVED (synthetic aggregate) row next to Sheet —
-// REQ-RDT-UI-03: outline, not shadow.
+// Flags a PIVOT_DERIVED (synthetic aggregate) row next to Sheet. Outline, not shadow.
 .granularity-badge {
   display: inline-block;
   margin-left: 6px;
@@ -431,7 +417,7 @@ thead .reviewer-note-col {
   &__search { flex: 1 1 220px; input { width: 100%; } }
 }
 
-// Pager styling now lives in shared/pagination.component.scss (REQ-RDT-NAV-07).
+// Pager styling now lives in shared/pagination.component.scss.
 
 // ---------- responsive ----------
 @media (max-width: 720px) {

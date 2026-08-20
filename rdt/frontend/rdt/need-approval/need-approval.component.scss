@@ -11,13 +11,11 @@ $page-bg: #f2f2f2;
 $danger-600: #b3261e; $danger-050: #fdecea;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px, not Figma's literal 32px — project owner
-// asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
+// 12px radius, not Figma's literal 32px — less rounded, matches the app's radius scale.
 $radius-xl: 12px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): berlaku ke SELURUH elemen visual dashboard sekarang,
-// bukan cuma tombol putih — outline, bukan shadow.
+// Berlaku ke seluruh elemen visual dashboard, bukan cuma tombol putih — outline, bukan shadow.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -53,8 +51,8 @@ $radius-md: 8px;
     &:hover { background: #004a73; }
     &:disabled { background: $line; color: $ink-600; cursor: not-allowed; box-shadow: none; }
   }
-  // Micro-interaction (audit "kaku" 17 Agu): spinner ring replaces the label during a busy
-  // action instead of a bare disabled state — same pattern as repost-budgeting/confirm.
+  // Spinner ring replaces the label during a busy action instead of a bare disabled state —
+  // same pattern as repost-budgeting/confirm.
   &--primary.btn--busy {
     position: relative;
     color: transparent;
@@ -71,7 +69,7 @@ $radius-md: 8px;
       animation: btn-spin 0.6s linear infinite;
     }
   }
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
   &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
 }
 
@@ -92,23 +90,22 @@ $radius-md: 8px;
   border-radius: $radius-md;
   transition: background 120ms ease;
 
-  // Audit "kaku" 17 Agu: pure scanning aid (row isn't itself a click target, the buttons inside
-  // are) — same reasoning REQ-RDT-SAP-14's tbody tr:hover already applies to Confirmation's table.
+  // Pure scanning aid (row isn't itself a click target, the buttons inside are) — same reasoning
+  // Confirmation's tbody tr:hover already applies to its own table.
   &:hover { background: $page-bg; }
 
   &__id { width: 60px; font-weight: 700; }
   &__period { width: 220px; }
-  // REQ-RDT-UI-04 (1 Agu, spacing audit): Download + Lihat transparansi buttons were flush
-  // against each other with no gap.
+  // Gap so the Download + Lihat transparansi buttons aren't flush against each other.
   &__action { flex: 1; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 }
 
 hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
-// REQ-RDT-UI-04 (1 Agu, spacing audit): top margin so this heading doesn't sit flush against
-// whatever button/alert came right before it (e.g. "Muat ulang" / the error alert).
+// Top margin so this heading doesn't sit flush against whatever button/alert came right before
+// it (e.g. "Muat ulang" / the error alert).
 .card__subtitle { margin: 20px 0 8px; font-size: t.$fs-subtitle; font-weight: 700; color: $ink; }
 
-// REQ-RDT-SAP-04 transparency view.
+// Transparency view.
 .transparency-panel {
   background: $page-bg;
   border-radius: $radius-md;
@@ -128,9 +125,8 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
 
 // ::ng-deep: passed as [extraClass] into <rdt-mention-input> — see shared/mention-input.component
 // .scss's note on why this needs ::ng-deep to reach a child component's own template.
-// Feedback tambahan 7 Agu: fixed height + internal scroll instead of growing on every keystroke —
-// see confirm.component.scss's matching note.
-// REQ-RDT-UI-11 (8 Agu): 90px read as stingy — bigger, still fixed + internal scroll.
+// Fixed height + internal scroll instead of growing on every keystroke — see confirm.component
+// .scss's matching note.
 ::ng-deep .batch-note {
   border: 1px solid $line;
   border-radius: $radius-md;
@@ -142,7 +138,7 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   resize: vertical;
 }
 
-// REQ-RDT-SAP-07 state label — small pill next to the row's date/total, same tone as .note.
+// State label — small pill next to the row's date/total, same tone as .note.
 .state-label {
   display: inline-block;
   margin-left: 8px;
@@ -153,8 +149,8 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   font-size: 11.5px;
   font-weight: 600;
 
-  // REQ-RDT-SAP-21 (DIBALIK 14 Agu)/SAP-22: same red-outline tone as repost-history's/
-  // setting-periode's own .state-label--overdue — sticky "Overdue" tag, now shown here too.
+  // Same red-outline tone as repost-history's/setting-periode's own .state-label--overdue —
+  // sticky "Overdue" tag.
   &--overdue {
     background: $danger-050;
     color: $danger-600;
@@ -162,7 +158,7 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   }
 }
 
-// REQ-RDT-SAP-08 subdoc entry — inline input + button under a confirmed row.
+// Subdoc entry — inline input + button under a confirmed row.
 .subdoc-row {
   display: flex;
   gap: 8px;
@@ -181,8 +177,7 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
 
 .table-scroll { overflow-x: auto; }
 
-// REQ-RDT-NAV-07 (direvisi 5 Agu): font tabel dikecilkan sedikit bersamaan dengan turunnya
-// pagination ke 50 baris/halaman.
+// Font tabel dikecilkan sedikit, sejalan dengan pagination 50 baris/halaman.
 .rows {
   width: 100%;
   border-collapse: collapse;
@@ -198,7 +193,7 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   100% { transform: rotate(360deg); }
 }
 
-// ---------- loading skeleton (audit "kaku" 17 Agu) ----------
+// ---------- loading skeleton ----------
 // Plain shimmering bars, same row height as a real .batch-row — no library, just a moving
 // gradient. Row count (3) is a rough guess at "typical" list length, not tied to real data.
 .skeleton-list { display: flex; flex-direction: column; gap: 10px; }
@@ -214,7 +209,7 @@ hr { border: none; border-top: 1px solid $line; margin: 24px 0 16px; }
   100% { background-position: 0 50%; }
 }
 
-// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+// ---------- reduced motion ----------
 @media (prefers-reduced-motion: reduce) {
   .btn, .batch-row { transition: none; }
   .btn--busy::after { animation: none; }

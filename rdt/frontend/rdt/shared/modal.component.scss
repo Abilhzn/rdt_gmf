@@ -6,8 +6,7 @@ $accent: #006298;
 $line: #cccccc;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
-// REQ-RDT-UI-02 (28 Jul, override draf Figma): 10px, not Figma's literal 16px — project owner
-// asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
+// 10px radius, not Figma's literal 16px — less rounded, matches the app's radius scale.
 $radius-lg: 10px;
 $radius-md: 8px;
 
@@ -97,6 +96,6 @@ $ok-600: #1e7f4f;
   transition: background 120ms ease, border-color 120ms ease;
 
   &--primary { background: $accent; color: #fff; box-shadow: $shadow-sm; &:hover { background: #004a73; } }
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
   &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
 }

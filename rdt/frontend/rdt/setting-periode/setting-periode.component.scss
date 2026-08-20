@@ -1,9 +1,9 @@
 // Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R) — see
 // shell.component.scss for the "why literal, not just structural" note. Same values as
-// repost-history.component.scss (this page was split out of it, 11 Agu) plus $green, reused
-// verbatim from home.component.scss's own state-badge palette (amber=waiting on a dinas,
-// blue=waiting on TAB, green=done, red=overdue) rather than inventing a new color for "applied
-// successfully" here — one semantic vocabulary across the whole app, not a page-local one.
+// repost-history.component.scss (this page was split out of it) plus $green, reused verbatim
+// from home.component.scss's own state-badge palette (amber=waiting on a dinas, blue=waiting on
+// TAB, green=done, red=overdue) rather than inventing a new color for "applied successfully"
+// here — one semantic vocabulary across the whole app, not a page-local one.
 @use '../shared/typography' as t;
 
 $accent: #006298;
@@ -12,14 +12,14 @@ $ink-600: #52616e;
 $line: #cccccc;
 $page-bg: #f2f2f2;
 $danger-600: #b3261e; $danger-050: #fdecea;
-// Checklist section 3 (12 Agu): darkened for WCAG AA text contrast (4.81:1 on white) — see
-// home.component.scss's own token comment for the full before/after numbers.
+// Darkened for WCAG AA text contrast (4.81:1 on white) — see home.component.scss's own token
+// comment for the full before/after numbers.
 $green: #188257; $green-050: rgba(24, 130, 87, 0.1);
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03 (1 Agu, DIPERLUAS 3 Agu): outline, bukan shadow, di seluruh elemen visual.
+// Outline, bukan shadow, di seluruh elemen visual.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -92,8 +92,8 @@ $radius-md: 8px;
   border: none;
   transition: background 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 
-  // Micro-interaction (audit "kaku" 17 Agu): spinner ring replaces the label during a busy
-  // action instead of a bare disabled state — same pattern as repost-budgeting/confirm/need-approval.
+  // Spinner ring replaces the label during a busy action instead of a bare disabled state —
+  // same pattern as repost-budgeting/confirm/need-approval.
   &--primary.btn--busy {
     position: relative;
     color: transparent;
@@ -116,7 +116,7 @@ $radius-md: 8px;
     &:hover { background: #004a73; }
     &:disabled { background: $line; color: $ink-600; cursor: not-allowed; box-shadow: none; }
   }
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai gantinya.
   &--ghost { background: #fff; color: $ink; border: 1px solid $line; &:hover { border-color: $accent; } }
 }
 
@@ -231,7 +231,7 @@ $radius-md: 8px;
   &--active { background: $page-bg; color: $ink-600; }
 }
 
-// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+// ---------- reduced motion ----------
 @media (prefers-reduced-motion: reduce) {
   .btn, .month-tab { transition: none; }
   .btn--busy::after { animation: none; }

@@ -25,11 +25,10 @@
   </div>
   <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
-  <!-- REQ-RDT-SAP-14 (11 Agu, user request: "taruh di sidebar-nya TAB"): the "Setting Periode"
-       deadline panel that used to live here (a collapsed <details>) moved out to its own routed
-       page + sidebar nav item — see setting-periode.component and shell.component.html. -->
+  <!-- Panel deadline "Setting Periode" udah pindah ke halaman + nav item sendiri — lihat
+       setting-periode.component. -->
 
-  <!-- REQ-RDT-NAV-09: paste banyak nomor subdoc sekaligus untuk cross-check cepat. -->
+  <!-- Paste banyak nomor subdoc sekaligus untuk cross-check cepat. -->
   <rdt-multi-value-filter
     *ngIf="batches.length"
     placeholder="Tempel banyak nomor subdoc sekaligus (satu per baris/koma)..."
@@ -37,17 +36,16 @@
   ></rdt-multi-value-filter>
 
   <hr />
-  <!-- Checklist section 3 (12 Agu, loading-state audit): loading dulu, baru bedain "genuinely
-       kosong" vs "belum kelar loading" — sebelumnya dua-duanya keliatan sama (blank). -->
-  <!-- Audit "kaku" 17 Agu: skeleton rows instead of plain "Memuat..." text. -->
+  <!-- Skeleton rows saat loading, bedain "genuinely kosong" vs "belum kelar loading" —
+       sebelumnya dua-duanya blank. -->
   <div class="skeleton-list" *ngIf="loading">
     <div class="skeleton-row" *ngFor="let i of [1, 2, 3]"></div>
   </div>
   <p class="note" *ngIf="!loading && !batches.length">Belum ada pasangan yang di-repost dengan subdoc.</p>
   <p class="note" *ngIf="!loading && batches.length && !filteredBatches.length">Tidak ada pasangan yang cocok dengan filter subdoc.</p>
 
-  <!-- Project owner request (31 Jul sore): satu "sheet" per bulan-tahun (MM-YYYY), seperti sheet
-       terpisah di satu file Excel — dipisah dari confirmed_at, bukan tab baru per fitur. -->
+  <!-- Satu "sheet" per bulan-tahun (MM-YYYY), kayak sheet terpisah di satu file Excel — dipisah
+       dari confirmed_at, bukan tab baru per fitur. -->
   <ng-container *ngIf="monthGroups.length">
     <div class="month-tabs">
       <button
@@ -65,9 +63,8 @@
           <div class="batch-row__id">{{ b.dinas_inisiasi }} &rarr; {{ b.dinas_target }}</div>
           <div class="batch-row__period">
             {{ b.confirmed_at | idDate }} <span class="state-label">{{ b.state_label }}</span>
-            <!-- REQ-RDT-SAP-14 (REVISI TOTAL 5 Agu): berdampingan dengan state_label, bukan
-                 menggantikan. Makna baru: dinas target confirm/reject SETELAH deadline TAB untuk
-                 pasangan+periode ini, bukan cuma "TAB telat repost". -->
+            <!-- Berdampingan dengan state_label, bukan menggantikan. Artinya: dinas target
+                 confirm/reject SETELAH deadline, bukan cuma "TAB telat repost". -->
             <span
               *ngIf="b.overdue"
               class="state-label state-label--overdue"
@@ -79,8 +76,8 @@
           </div>
         </div>
         <div class="note" style="margin-bottom:2px"><rdt-mention-text [body]="b.closing_description"></rdt-mention-text></div>
-        <!-- Feedback tambahan 7 Agu: reuses Dashboard-Detailing's existing thread+chain view for
-             this archived pair, rather than building a new detail view here. -->
+        <!-- Reuse thread+chain view Dashboard-Detailing yang udah ada, bukan bikin detail view
+             baru. -->
         <button class="btn btn--link" type="button" (click)="goToDetail(b)">Lihat thread &amp; riwayat lengkap &rarr;</button>
         <ul class="subdoc-list">
           <li *ngFor="let s of b.subdocs">{{ s.subdoc_number }} — {{ s.transaction_ids.length }} baris</li>

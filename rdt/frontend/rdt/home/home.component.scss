@@ -9,16 +9,13 @@ $ink-600: #52616e;
 $line: #cccccc;
 $danger-600: #b3261e;
 $danger-050: #fdecea;
-// REQ-RDT-NAV-02 (Figma 78:242/78:243) — literal colors from that mockup for the KPI cards/
-// segmented progress bar/rollup table (green=confirmed, amber=open, red=declined).
+// Literal colors from the Figma mockup for the KPI cards/segmented progress bar/rollup table
+// (green=confirmed, amber=open, red=declined).
 $ink-900: #1a1f26;
 $ink-500: #666b75;
-// Checklist section 3 (12 Agu): $green/$amber were both under WCAG AA's 4.5:1 text-contrast
-// minimum as literal text color on white (green 3.62:1, amber a badly-failing 2.72:1) — the
-// "kuning/orange di atas putih sering kurang kontras" case the checklist flagged by name.
-// Darkened, same hue family (still reads as green/amber/red at a glance), now 4.81:1/4.58:1 —
-// verified with a straight WCAG relative-luminance contrast calc against #fff. $red was already
-// fine (4.65:1), left as-is.
+// Darkened from the original green/amber — as literal text color on white both were under WCAG
+// AA's 4.5:1 contrast minimum (green 3.62:1, amber 2.72:1); now 4.81:1/4.58:1, same hue family.
+// $red was already compliant (4.65:1), left as-is.
 $green: #188257;
 $green-bg: rgba(24, 130, 87, 0.14);
 $amber: #a36914;
@@ -26,13 +23,12 @@ $amber-bg: rgba(163, 105, 20, 0.14);
 $red: #d14040;
 $red-bg: rgba(209, 64, 64, 0.14);
 $bar-track: #ebedf0;
-// REQ-RDT-UI-02 (28 Jul, override draf Figma): 12px, not Figma's literal 32px — project owner
-// asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
+// 12px radius, not Figma's literal 32px — less rounded, matches the app's radius scale.
 $radius-xl: 12px;
 $radius-lg: 10px;
 $radius-md: 8px;
 
-// REQ-RDT-UI-03: outline, bukan shadow, di seluruh elemen visual dashboard.
+// Outline, not shadow, for every visual dashboard element.
 .page-card {
   background: #fff;
   border-radius: $radius-xl;
@@ -43,8 +39,7 @@ $radius-md: 8px;
 .note { margin: 0 0 10px; font-size: 12.5px; color: $ink-600; }
 .note--error { color: $red; }
 
-// Visually hidden but still announced to screen readers — same pattern as the a11y pass in
-// section 4 of the launch checklist (12 Agu).
+// Visually hidden but still announced to screen readers.
 .sr-only {
   position: absolute;
   width: 1px; height: 1px;
@@ -92,9 +87,8 @@ $radius-md: 8px;
 // via home.component.html's #pairCard ng-template. ----------
 .pair-card-list { display: flex; flex-direction: column; gap: 12px; }
 
-// "Jalur Repost" (18 Agu): .pair-card used to be the OUTER flex row (main content + divider +
-// sideways chain detail as 3 flex siblings) — the expanded hop detail now renders INLINE below
-// the route strip, inside __main, so this goes back to a plain block card.
+// .pair-card is a plain block card — the hop-detail chain renders inline below the route strip
+// inside __main, rather than as a sideways flex sibling.
 .pair-card {
   background: #fff;
   border-radius: $radius-lg;
@@ -103,16 +97,14 @@ $radius-md: 8px;
 
   &__main {
     min-width: 0;
-    // Densitas (5 Agu, ronde 2): sama alasan seperti .kpi-card di atas — dirapatkan dari 22/30/26
-    // biar sejalan sama referensi yang lebih compact.
+    // Tighter padding to match the compact reference design.
     padding: 18px 22px 20px;
     position: relative;
 
     &--clickable {
       cursor: pointer;
-      // Checklist section 3 (12 Agu): now focusable (role="button" + tabindex, see .html) — needs
-      // its own visible focus ring, browsers don't draw one on a <div> by default like they would
-      // on a real <button>.
+      // Focusable (role="button" + tabindex, see .html) needs its own visible focus ring —
+      // browsers don't draw one on a <div> by default like they would on a real <button>.
       &:focus-visible { outline: 2px solid $accent; outline-offset: 2px; }
     }
   }
@@ -125,9 +117,8 @@ $radius-md: 8px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   }
 
-  // Desain rapih (5 Agu): referensi pemilik proyek gak punya garis pembatas di bawah judul —
-  // pembeda header/body cukup lewat jarak (margin), bukan border, biar kartu kelihatan lebih
-  // ringan/rapih (satu lagi elemen "chrome" yang gak perlu, sama kayak count-badge di atas).
+  // No border under the header — separation from the body comes from margin spacing alone, so
+  // the card reads lighter (one less "chrome" element).
   &__header {
     display: flex;
     align-items: center;
@@ -136,7 +127,7 @@ $radius-md: 8px;
     margin-bottom: 10px;
   }
 
-  // REQ-RDT-SAP-22 (8 Agu): small red "Overdue" tag, pojok kanan atas kartu pasangan.
+  // Small red "Overdue" tag, top-right corner of the pair card.
   &__overdue-tag {
     color: $danger-600;
     font-size: 11px;
@@ -146,9 +137,8 @@ $radius-md: 8px;
     flex: 0 0 auto;
   }
 
-  // Digedein (5 Agu, revisi): sama alasan seperti .kpi-card di atas.
-  // &__count dihapus (5 Agu, desain rapih): duplikasi "Total X" yang sudah tampil di legend
-  // bar, dan gak ada di desain referensi pemilik proyek.
+  // Sized up to match .kpi-card's title treatment. (__count itself was removed — it duplicated
+  // the "Total X" already shown in the legend bar.)
   &__title { font-size: 19px; font-weight: 600; color: $ink; }
 
   &__body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -156,9 +146,8 @@ $radius-md: 8px;
   // display:block + margin-bottom gives a guaranteed gap regardless of layout (bar-row's plain
   // span flow vs donut's flex row).
   &__reply { display: flex; align-items: center; gap: 4px; font-size: 14.5px; color: $ink-600; margin-bottom: 10px; }
-  // Bug fix (7 Agu): icon was never added when this span was built — text-only "N comment" read
-  // ambiguous without it. Reuses the same inline Lucide "message-square" path shell.component.html
-  // already uses for the sidebar's Feedback Application nav item, per REQ-RDT-UI-04's icon-set rule.
+  // Reuses the same inline Lucide "message-square" path shell.component.html uses for the
+  // sidebar's Feedback Application nav item, for a consistent icon set.
   &__reply-icon { flex: 0 0 auto; width: 13px; height: 13px; }
   &__state-label {
     display: inline-block;
@@ -175,8 +164,8 @@ $radius-md: 8px;
     &--amber { background: rgba(217, 140, 26, 0.14); color: #d98c1a; }
     &--blue { background: rgba(0, 98, 152, 0.14); color: $accent; }
     &--green { background: rgba(28, 153, 102, 0.14); color: #1c9966; }
-    // Symmetry fix (5 Agu): invisible but still occupies its box, so bar-left's flex column
-    // reserves the same height whether or not this card actually has a state_label.
+    // Invisible but still occupies its box, so bar-left's flex column reserves consistent height
+    // whether or not the card actually has a state label.
     &--empty { background: transparent; color: transparent; }
   }
   &__notif { margin-top: 12px; font-size: 12px; color: $danger-600; font-weight: 600; }
@@ -190,10 +179,8 @@ $radius-md: 8px;
   }
 }
 
-// ---------- "Jalur Repost" (18 Agu, audit tanda-tangan visual) ----------
-// Elemen visual utama kartu sekarang, ganti donut/badge kecil yang sebelumnya cuma detail
-// tersembunyi. Reused $accent (biru) untuk hop aktif — BUKAN $amber/coklat, sesuai keputusan
-// project owner 18 Agu (mockup awal pakai amber, direvisi sebelum masuk template asli).
+// ---------- route strip — the card's main visual element now (previously a hidden donut/badge).
+// Uses $accent (blue) for the active hop, not $amber/coklat. ----------
 .route {
   display: flex;
   align-items: center;
@@ -262,8 +249,8 @@ $radius-md: 8px;
   border-radius: 999px;
 }
 
-// A2 (Figma 78:242 re-pull): 2-column bar-mode body — left column (state-label pill + comment
-// count, stacked) sits BESIDE the bar+legend column, not below a full-width bar.
+// 2-column bar-mode body — left column (state-label pill + comment count, stacked) sits beside
+// the bar+legend column, not below a full-width bar.
 .pair-card__bar-body {
   display: flex;
   align-items: flex-start;
@@ -315,18 +302,10 @@ $radius-md: 8px;
 }
 
 // ---------- KPI summary row — 4 cards (PIC) or 5 (TAB), same card shell either way. ----------
-// SIMETRI (5 Agu): grid auto-fit + 1fr STRETCHES cards to fill whatever's left on a wrapped row —
-// TAB's 5-card row (vs a plain PIC's 4) wraps to 3+2 on typical widths, and 1fr made that trailing
-// 2-card row's cards visibly wider than the row above it, the exact "gak simetris" the project
-// owner flagged. flex-wrap (0 1 220px) was the first fix for that, but re-audited 5 Agu on a
-// common 1366px-wide laptop viewport (a real GMF desktop resolution, not just a narrow edge case):
-// even with wrap still ON, a card's own min-width floor plus 5x220px genuinely doesn't fit that
-// container's ~960px, so TAB's row wrapped to 4+1 — a single orphaned card on its own row with a
-// big empty gap next to it, which is its OWN kind of "gak simetris" (arguably worse than the
-// stretch bug it replaced, since it's visible on a common resolution, not a hypothetical one).
 // nowrap + horizontal scroll (same contained-scroll pattern as .table-scroll elsewhere in this
-// app) keeps every card EXACTLY 220px on EVERY screen — the row scrolls instead of ever breaking
-// into an uneven second row.
+// app) keeps every card EXACTLY 220px on every screen, instead of an auto-fit/wrap grid that
+// stretches or unevenly wraps cards — TAB's 5-card row wraps to an uneven 4+1/3+2 split on
+// common laptop widths otherwise.
 .kpi-row {
   display: flex;
   flex-wrap: nowrap;
@@ -337,22 +316,10 @@ $radius-md: 8px;
 }
 
 .kpi-card {
-  // SIMETRI (5 Agu): non-growing fixed basis — see .kpi-row's own comment. Every card is exactly
-  // this width regardless of which row it wraps to; only shrinks (never grows) on a narrow screen.
-  // Digedein (5 Agu, revisi): project owner minta ukuran dashboard agak dibesarkan lagi setelah
-  // permintaan "kecilin" sebelumnya — 220->240px, padding/icon/font naik proporsional. Kartu jadi
-  // butuh scroll horizontal sedikit lebih cepat di layar sempit (bukan regresi — masih pola
-  // nowrap+scroll yang sama, cuma ambang lebar-nya bergeser), trade-off yang disengaja di sini.
-  // BUG (5 Agu, dilaporkan dari screenshot langsung): flex-wrap:wrap DI SINI (bukan cuma di
-  // .kpi-row) bikin ikon dan angka/label bisa ke-split jadi 2 baris terpisah begitu lebar kartu
-  // menyempit sedikit saja — persis kebalikan dari desain referensi (ikon SELALU sejajar di
-  // samping angka). nowrap memastikan ikon+body selalu satu baris; __body punya min-width:0
-  // jadi tetap bisa menyusut, cuma gak akan pernah "jatuh" ke baris baru lagi.
-  //
-  // Densitas (5 Agu, ronde 2 — perbandingan piksel langsung vs *-rapih.png): padding/icon
-  // dikembalikan lebih rapat dari revisi "digedein" sebelumnya — referensi jauh lebih compact
-  // (kartu kerasa "kosong"/boros ruang di versi longgar), align-items:center biar icon tetap
-  // sejajar vertikal dengan body walau card jadi lebih pendek.
+  // Non-growing fixed basis (240px) — every card is exactly this width regardless of which row
+  // it wraps to; only shrinks (never grows) on a narrow screen. Padding/icon/font scale with it.
+  // nowrap keeps icon+body always on one line (__body's min-width:0 lets it shrink instead of
+  // wrapping onto a second line when the card narrows).
   flex: 0 1 230px;
   min-width: 200px;
   display: flex;
@@ -383,9 +350,8 @@ $radius-md: 8px;
   }
 
   &__body { flex: 1 1 auto; min-width: 0; }
-  // Audit tipografi (18 Agu): 27px -> t.$fs-kpi (28px), disamakan sama .pair-card__percent lewat
-  // shared token, bukan hardcode terpisah lagi. numeric-hero = tabular-nums + weight 800 + tracking
-  // dirapatkan sedikit — "kepribadian" angka tanpa font-family baru (lihat _typography.scss).
+  // Shared t.$fs-kpi token (28px) instead of a separate hardcode, matches .pair-card__percent.
+  // numeric-hero = tabular-nums + weight 800 + tighter tracking (see _typography.scss).
   &__value { @include t.numeric-hero; font-size: t.$fs-kpi; color: $ink-900; line-height: 1.2; }
   // Label and note share ONE row (label left, note right-aligned).
   &__meta-row {
@@ -412,13 +378,10 @@ $radius-md: 8px;
 
 // ---------- segmented progress bar — replaces the donut ring on 'own'/TAB-'need' pair cards +
 // the rollup table's Progress column. ----------
-// Desain rapih (5 Agu): persentase jadi elemen paling menonjol di sisi kanan kartu (setara
-// ukuran nilai KPI, bukan cuma sedikit lebih besar dari teks biasa) — align-items:center di
-// atas sudah bikin ini sejajar vertikal dengan bar, tinggal font-size-nya dinaikkan biar bobot
-// visualnya sesuai.
+// Percent is the most visually prominent element on the card's right side, same size as the KPI
+// value.
 .pair-card__bar-row { display: flex; align-items: center; gap: 16px; }
-// Audit tipografi (18 Agu): sama seperti .kpi-card__value di atas — disatukan ke t.$fs-kpi +
-// numeric-hero (dulu 28px/weight 700 literal, kebetulan udah sama px-nya tapi bukan dari token).
+// Shares t.$fs-kpi + numeric-hero with .kpi-card__value above (was a literal 28px/700 before).
 .pair-card__percent { @include t.numeric-hero; font-size: t.$fs-kpi; flex: 0 0 auto; }
 
 .segment-bar {
@@ -464,9 +427,8 @@ $radius-md: 8px;
 // ---------- per-dinas rollup table (TAB-only) ----------
 .table-scroll { overflow-x: auto; }
 
-// Digedein (5 Agu, revisi): sama alasan seperti .kpi-card/.pair-card di atas — tabel ini gak
-// ikut REQ-RDT-NAV-07's pagination (bukan tabel DT baris-per-transaksi), tapi font-nya kebawa
-// ikut kecil bareng revisi 100->50 kemarin, makanya perlu dinaikkan lagi terpisah di sini.
+// Bumped up separately from the KPI/pair-card font sizing above — this table doesn't share those
+// cards' pagination and needs its own readable size.
 .rollup-table {
   width: 100%;
   border-collapse: collapse;
@@ -485,7 +447,7 @@ $radius-md: 8px;
   &__percent { color: $accent; font-weight: 700; font-size: 14.5px; }
   &__progress-col { width: 240px; }
 
-  // REQ-RDT-SAP-15 (8 Agu): "lihat detail" icon column, ujung kanan tiap baris.
+  // "Lihat detail" icon column, right end of each row.
   &__detail-col { width: 40px; text-align: center; }
   &__detail-btn {
     display: inline-flex;
@@ -515,26 +477,21 @@ $radius-md: 8px;
 .rollup-status {
   display: inline-block;
   padding: 5px 13px;
-  // Symmetry audit (7 Agu, no reference screenshot this round — see B2#4): was a hardcoded 13px,
-  // not matching either of this file's two established pill/badge treatments (.pair-card__state
-  // -label's $radius-md=8px, or .pair-card__chain-badge's explicit 999px full-pill) — TAB sees
-  // .pair-card__state-label pills on the "Need Identification" sub-view and .rollup-status pills
-  // on "Summary Progress All Dinas", same underlying REQ-RDT-SAP-07 concept, different shape.
-  // Aligned to 999px (the pill this element is already closest in proportions to) rather than
-  // inventing a third value.
+  // 999px full pill — matches .pair-card__state-label's closest pill proportions rather than
+  // inventing a third radius value (this file's other option is $radius-md=8px).
   border-radius: 999px;
   font-size: 11.5px;
   font-weight: 600;
 
   &--investigation { background: $red-bg; color: $red; }
   &--reposted { background: $green-bg; color: $green; }
-  // Bug fix (7 Agu): the two tones below were missing — dashboard.js's per-dinas-rollup route
-  // only ever emitted 'investigation'/'reposted' before, so every other row had no status at all.
+  // pending/waiting-repost tones — dashboard.js's per-dinas-rollup route can emit these statuses
+  // too, not just investigation/reposted.
   &--pending { background: $amber-bg; color: $amber; }
   &--waiting-repost { background: rgba(0, 98, 152, 0.14); color: $accent; }
 }
 
-// ---------- loading skeleton (audit "kaku" 17 Agu) ----------
+// ---------- loading skeleton ----------
 // Rough KPI-row + pair-card shapes, not pixel-exact — just enough so the page doesn't look
 // abruptly empty before real data lands.
 .skeleton-dashboard { display: flex; flex-direction: column; gap: 12px; }
@@ -553,7 +510,7 @@ $radius-md: 8px;
   100% { background-position: 0 50%; }
 }
 
-// ---------- reduced motion (audit "kaku" 17 Agu) ----------
+// ---------- reduced motion ----------
 @media (prefers-reduced-motion: reduce) {
   .btn, .pair-card, .route-node, .rollup-table__detail-btn { transition: none; }
   .skeleton-block { animation: none; background: $bar-track; }

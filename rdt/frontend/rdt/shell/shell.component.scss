@@ -1,8 +1,7 @@
-// REQ-RDT-NAV-01 — persistent sidebar shell. Tokens taken LITERALLY from the updated Figma
-// (fileKey ZLbcosQTNTZdWQRusRYH0R) — confirmed with the project owner that layout, shadow,
-// data viz, AND color are fixed/final here, not just a structural reference like the
-// earlier draft. Duplicated across components since there's no shared global stylesheet in
-// this repo by design — see src/README.md.
+// Persistent sidebar shell. Tokens taken literally from the updated Figma (fileKey
+// ZLbcosQTNTZdWQRusRYH0R) — layout, shadow, data viz, AND color are fixed/final here, not just a
+// structural reference. Duplicated across components since there's no shared global stylesheet
+// in this repo by design — see src/README.md.
 
 $page-bg: #f2f2f2;
 $accent: #006298;
@@ -12,18 +11,15 @@ $line: #cccccc;
 $shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
 $shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
 $radius-md: 8px;
-// REQ-RDT-UI-02 (28 Jul, override draf Figma): 10px, not Figma's literal 16px — project owner
-// asked explicitly for "jangan round banget" — consistent with the rest of the app's radius scale.
+// 10px radius, not Figma's literal 16px — less rounded, matches the app's radius scale.
 $radius-lg: 10px;
 $danger-600: #b3261e;
 
-// REQ-RDT-UI-06 (4 Agu): sidebar must stay fixed/pinned, not scroll with page content —
-// previously `min-height: 100vh` on both .app-shell/.sidebar only set a FLOOR, so once
-// .main-area's content grew taller than the viewport the whole page (sidebar included)
-// scrolled together in normal document flow. Pinning `height: 100vh` + `overflow: hidden` here
-// and making .main-area the only `overflow-y: auto` region is the standard fixed-sidebar shell
-// pattern — .sidebar itself also gets its own overflow-y so it doesn't clip on very small
-// viewports with many nav items, independent of whatever .main-area is doing.
+// Sidebar stays fixed/pinned, not scrolling with page content: `height: 100vh` + `overflow:
+// hidden` here, with .main-area as the only `overflow-y: auto` region — the standard
+// fixed-sidebar shell pattern (a `min-height: 100vh` floor alone lets the whole page scroll
+// together once content grows taller than the viewport). .sidebar itself also gets its own
+// overflow-y so it doesn't clip on very small viewports with many nav items.
 .app-shell {
   display: flex;
   align-items: flex-start;
@@ -31,20 +27,11 @@ $danger-600: #b3261e;
   overflow: hidden;
 }
 
-// REQ-RDT-UI-06 (DIBATALKAN 8 Agu, "setelah dicoba beneran jalan" — REVERT total 13 Agu dari
-// hover-collapse/pin, lihat shell.component.ts's header comment for kenapa): fixed lebar penuh
-// SELAMANYA, tidak ada collapsed/expanded state apapun — width sedikit lebih ramping dari versi
-// paling awal (permintaan "dikecilkan" 4 Agu masih valid), tapi STATIS, sama sekali gak berubah
-// berdasarkan hover/klik/interaksi apapun.
+// Fixed lebar penuh selamanya — tidak ada collapsed/expanded state apapun, sama sekali gak
+// berubah berdasarkan hover/klik/interaksi apapun (lihat shell.component.ts's header comment).
 .sidebar {
-  // Item: Figma node 27:96 draws the nav rail at 450/1920px = 23.4% of viewport width
-  // (confirmed with project owner over the annotation text, which said 41.7% but didn't match
-  // the actual drawn box — going with the box). flex-basis as a percentage, not a fixed px, so
-  // it scales with viewport like the Figma frame's "fill" sizing intent (item 1), bounded so it
+  // flex-basis as a percentage, not a fixed px, so it scales with viewport width, bounded so it
   // stays usable at both very narrow and very wide viewports.
-  // REQ-RDT-UI-06 REVISI (5 Agu): narrowed a bit further per project owner request — 23.4% read
-  // as too wide relative to the content area at typical desktop widths. min/max bounds scaled
-  // down proportionally so the same "usable at both extremes" guarantee still holds.
   flex: 0 0 18%;
   width: 18%;
   min-width: 200px;
@@ -78,8 +65,8 @@ $danger-600: #b3261e;
 
 .nav-group { display: flex; flex-direction: column; }
 
-// Sizes bumped up a notch (28 Jul, project owner request) — nav-link/nav-icon/font-size all a
-// bit larger than the original Figma-literal values, sidebar buttons read as too small/cramped.
+// nav-link/nav-icon/font-size all a bit larger than the original Figma-literal values — sidebar
+// buttons read as too small/cramped otherwise.
 .nav-icon {
   display: inline-flex;
   align-items: center;
@@ -116,9 +103,9 @@ $danger-600: #b3261e;
   }
 }
 
-// REQ-RDT-NAV-02a: sidebar badge on the "Dashboard" item itself, visible from any page (not
-// just while Dashboard is open) — count of initiator dinas with an actionable transaction
-// waiting on my confirmation. Absent entirely at 0 rather than showing "0" (see template *ngIf).
+// Sidebar badge on the "Dashboard" item itself, visible from any page (not just while Dashboard
+// is open) — count of initiator dinas with an actionable transaction waiting on my confirmation.
+// Absent entirely at 0 rather than showing "0" (see template *ngIf).
 .nav-badge {
   margin-left: auto;
   background: $danger-600;
@@ -134,11 +121,10 @@ $danger-600: #b3261e;
   justify-content: center;
 }
 
-// REQ-RDT-UI-12 (8 Agu, DIKLARIFIKASI): tree-view collapse/expand toggle, one per nav-group that
-// actually has a nav-subnav (Dashboard, Confirmation) — separate control from REQ-RDT-UI-06's
-// sidebar-width collapse, a different feature entirely. Sits at the far right of the nav-link row
-// (margin-left: auto, after .nav-badge when both are present — Dashboard's badge stays leftmost
-// of the two, matching its own already-established position).
+// Tree-view collapse/expand toggle, one per nav-group that actually has a nav-subnav (Dashboard,
+// Confirmation) — a separate feature from the sidebar's own width, which is always static. Sits
+// at the far right of the nav-link row (margin-left: auto, after .nav-badge when both are
+// present — Dashboard's badge stays leftmost of the two).
 .nav-group-toggle {
   margin-left: auto;
   flex: 0 0 auto;
@@ -159,12 +145,10 @@ $danger-600: #b3261e;
   &:hover { background: rgba(0, 0, 0, 0.08); color: $ink; }
 }
 
-// REQ-RDT-NAV-02a: "Need to Confirm" / "Own Repost" sub-links nested under the Dashboard item
-// (Figma nodes 1:2/69:209 show them as persistent sidebar sub-links, not a page-level tab strip).
-// margin-left centers the connector line under the Dashboard icon: .nav-link's own 14px left
-// padding + half the 34px .nav-icon width = 31px to the icon's horizontal center, minus 1px for
-// the line's own 2px width (28 Jul request — was 17px, which sat under the "Dashboard" text
-// instead of the icon).
+// "Need to Confirm" / "Own Repost" sub-links nested under the Dashboard item — persistent
+// sidebar sub-links, not a page-level tab strip. margin-left centers the connector line under
+// the Dashboard icon: .nav-link's own 14px left padding + half the 34px .nav-icon width = 31px
+// to the icon's horizontal center, minus 1px for the line's own 2px width.
 .nav-subnav {
   display: flex;
   flex-direction: column;
@@ -214,8 +198,8 @@ $danger-600: #b3261e;
 
 .page-title { margin: 0; font-size: 30px; font-weight: 800; color: $ink; letter-spacing: 0.03em; }
 
-// SRS 3.13 (14 Agu, point 2) — reminder banner, not an alert: informational tint (accent, not
-// danger) since it's just "here's the deadline", not a warning that something's already wrong.
+// Reminder banner, not an alert — informational tint (accent, not danger) since it's just
+// "here's the deadline", not a warning that something's already wrong.
 .deadline-banner {
   margin-bottom: 18px;
   padding: 10px 16px;
@@ -226,10 +210,10 @@ $danger-600: #b3261e;
   font-size: 13.5px;
 }
 
-// ---------- clickable user badge + notif bell + dropdown menus (REQ-RDT-NAV-01/08) ----------
+// ---------- clickable user badge + notif bell + dropdown menus ----------
 .user-menu-wrap { position: relative; }
 
-// REQ-RDT-UI-03 (1 Agu): white button, no shadow — border instead.
+// White button, no shadow — border instead.
 .user-badge {
   display: inline-flex;
   align-items: center;
@@ -247,7 +231,7 @@ $danger-600: #b3261e;
 
   &:hover { border-color: $accent; }
 
-  // Lucide bell icon (28 Jul, replaces the 🔔 emoji), blue like the rest of the icon set.
+  // Lucide bell icon, blue like the rest of the icon set.
   .notif-bell-icon { width: 20px; height: 20px; flex: 0 0 auto; color: $accent; }
 
   &::before {
@@ -302,8 +286,7 @@ $danger-600: #b3261e;
   border: none;
   transition: background 120ms ease, box-shadow 120ms ease;
 
-  // REQ-RDT-UI-03 (1 Agu): tombol putih/ghost TIDAK pakai shadow — outline/border sebagai
-  // penanda visual sebagai gantinya.
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai penanda visual gantinya.
   &--ghost {
     background: #fff;
     color: $ink;
