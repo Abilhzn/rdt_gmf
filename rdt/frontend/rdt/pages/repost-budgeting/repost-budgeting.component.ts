@@ -88,7 +88,6 @@ export class RepostBudgetingComponent implements OnInit, OnDestroy {
       .filter((f) => RepostBudgetingComponent.CURATED_CONTRACT_KEYS.includes(f.key))
       .map((f) => f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Value (In PCLC)', numeric: true } : { key: f.key, label: f.label });
     return [
-      { key: 'sub_group', label: 'Sub Group' },
       { key: 'dinas_inisiasi', label: 'Dinas Pengaju' },
       ...contractCols,
       { key: 'category', label: 'Group' },

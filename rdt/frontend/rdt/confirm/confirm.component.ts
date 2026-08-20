@@ -184,7 +184,6 @@ export class ConfirmComponent implements OnInit {
       .filter((f) => CURATED_CONTRACT_KEYS.includes(f.key))
       .map((f) => f.key === 'in_pclc' ? { key: 'in_pclc', label: 'Value (In PCLC)', numeric: true } : { key: f.key, label: f.label });
     return [
-      { key: 'sub_group', label: 'Sub Group' },
       ...contractCols,
       { key: 'category', label: 'Group' },
       { key: 'remark', label: 'Remark' },

@@ -160,15 +160,7 @@
                       {{ r.nominal | number: '1.2-2' }}
                     </td>
                     <td *ngIf="col.key === 'remark'" class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
-                    <!-- PIVOT_DERIVED rows are a synthetic one-row-per-pivot-cell aggregate with NO
-                         per-row Sub Group/document/cost-center data — flagging this next to Sub
-                         Group explains why the rest of the row is blank on these rows specifically,
-                         instead of reading as a data bug. -->
-                    <td *ngIf="col.key === 'sub_group'">
-                      {{ getCellValue(r, col.key) ?? '—' }}
-                      <span *ngIf="r.granularity === 'PIVOT_DERIVED'" class="granularity-badge" title="Baris agregat dari pivot, bukan baris transaksi individual — Sub Group dan kolom detail lain tidak tersedia untuk baris ini.">Agregat Pivot</span>
-                    </td>
-                    <td *ngIf="col.key !== 'remark' && col.key !== 'sub_group' && !col.numeric">
+                    <td *ngIf="col.key !== 'remark' && !col.numeric">
                       {{ getCellValue(r, col.key) ?? '—' }}
                     </td>
                   </ng-container>

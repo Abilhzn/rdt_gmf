@@ -1,69 +1,93 @@
 const path = require('path');
 const { parseExcelFile } = require('../src/parser/excelParser');
 
-// Increase timeout for Excel parsing on CI
 jest.setTimeout(300000);
 
-function aggregate(results) {
-  // Group by category (GL) and dinas_target, sum nominal
+function pendingByTarget(rows) {
   const out = {};
-  results.forEach((r) => {
-    if (r.status_konfirmasi !== 'PENDING') return;
-    const cat = r.category || 'Unknown';
-    const dt = r.dinas_target || 'Unknown';
-    out[cat] = out[cat] || {};
-    out[cat][dt] = (out[cat][dt] || 0) + Number(r.nominal || 0);
-  });
-  // round to 2 decimals
-  Object.keys(out).forEach((cat) => {
-    Object.keys(out[cat]).forEach((dt) => {
-      out[cat][dt] = Math.round(out[cat][dt] * 100) / 100;
-    });
+  rows.filter((r) => r.status_konfirmasi === 'PENDING').forEach((r) => {
+    out[r.dinas_target] = Math.round(((out[r.dinas_target] || 0) + Number(r.nominal || 0)) * 100) / 100;
   });
   return out;
 }
 
-test('parser aggregates match SRS pivot numbers', async () => {
+// Rewritten 20 Agu for the Format CBO-only parser (SRS.md "TERJAWAB 15 Agu"): dinas_target now
+// comes straight from the Recipient column, no more Remarks-prefix/pivot/pivot-cache machinery.
+// contoh_input/06. DT TB - Jun 2026.xlsx now carries the file's real detail data on its NEW
+// "DT TB - June 2026" sheet (Format CBO shape) — the old 63-column "Material" sheet is still in
+// the workbook (kept for reference) but the parser correctly ignores it (no Recipient column).
+// Per-dinas totals below are the exact same underlying data as the old Remarks-routed parser
+// produced (cross-checked against its GL-category breakdown: TC 85312.21+9420=94732.21, Corp
+// 3038.48+256.47=3294.95, TF/TJ/TL/TN unchanged) — same numbers, simpler derivation.
+test('TB Format CBO sheet: dinas_target read directly from Recipient, all rows PENDING', async () => {
   const file = path.join(__dirname, '..', '..', 'contoh_input', '06. DT TB - Jun 2026.xlsx');
-  const results = await parseExcelFile(file);
-  const agg = aggregate(results);
-  // Normalize category names to canonical SRS categories for assertion
-  const normalized = {};
-  Object.keys(agg).forEach((cat) => {
-    const key = String(cat || '').toLowerCase();
-    let canonical = cat;
-    if (key.includes('expend')) canonical = 'Expendable';
-    else if (key.includes('repair')) canonical = 'Repairable';
-    else if (key.includes('scrap') || key.includes('spare')) canonical = 'Scrap';
-    normalized[canonical] = Object.assign({}, normalized[canonical] || {}, agg[cat]);
-  });
-
-  // console.log('NORMALIZED AGG:', JSON.stringify(normalized, null, 2));
-
-  // Expected values from SRS. We'll assert presence and equality where available.
-  // Expendable category expected (likely in GL column values)
-  // The sample file's category naming might vary; we'll try to find matching numbers across categories
-
-  const expected = {
-    Expendable: { TC: 85312.21, TF: 360.21, TJ: 46353.37, TL: 112867.35, TN: 860.64 },
-    Repairable: { Corp: 3038.48, TC: 9420 },
-    Scrap: { Corp: 256.47 },
-  };
-
-  // verify expected numbers found in agg
-  Object.keys(expected).forEach((cat) => {
-    expect(normalized[cat]).toBeDefined();
-    Object.keys(expected[cat]).forEach((dt) => {
-      const got = normalized[cat][dt] || 0;
-      const want = expected[cat][dt];
-      expect(got).toBeCloseTo(want, 2);
-    });
+  const rows = await parseExcelFile(file, { uploaderDinas: 'TB' });
+  expect(rows.length).toBe(469);
+  expect(rows.every((r) => r.status_konfirmasi === 'PENDING')).toBe(true);
+  expect(pendingByTarget(rows)).toEqual({
+    TC: 94732.21, TF: 360.21, TJ: 46353.37, TL: 112867.35, TN: 860.64, Corp: 3294.95,
   });
 });
 
-// Retired 20 Agu: these 2 tests covered contoh_input/06. DT TJ JUN 2026 R1.xlsx (TJ-TE/TJ-TMM/
-// TJ-Scrap reconciliation sheets skipped, Remarks/Review-column routing onto the main sheet). That
-// fixture is intentionally not being replaced — TJ's real-world file has since moved to the
-// official "Format CBO" template (explicit Recipient column, see SRS.md "TERJAWAB 15 Agu"), which
-// the parser doesn't read yet (input-side change, still an open question). Once that's resolved,
-// replace these with equivalent coverage against the new format instead of this retired one.
+// TJ's Format CBO file: same 3 real "Ask TA" rows this app has tracked since REQ-RDT-LEDGER-10
+// (see investigation.test.js), now signaled via Recipient="Ask TA" instead of the old Review-
+// column fallback — same NEEDS_INVESTIGATION outcome, simpler path to it.
+test('TJ Format CBO sheet: "Ask TA" Recipient gets NEEDS_INVESTIGATION, rest resolve to real dinas', async () => {
+  const file = path.join(__dirname, '..', '..', 'contoh_input', '06. DT TJ - Jun 2026.xlsx');
+  const rows = await parseExcelFile(file, { uploaderDinas: 'TJ' });
+  expect(rows.length).toBe(490);
+  expect(pendingByTarget(rows)).toEqual({ TE: 84.36, TMM: 473933.51, TA: 1653.24 });
+  const investigationRows = rows.filter((r) => r.status_konfirmasi === 'NEEDS_INVESTIGATION');
+  expect(investigationRows.length).toBe(3);
+  expect(Math.round(investigationRows.reduce((s, r) => s + Number(r.nominal || 0), 0) * 100) / 100).toBeCloseTo(40393.29, 2);
+  expect(investigationRows.every((r) => !r.dinas_target)).toBe(true);
+  expect(rows.some((r) => r.status_konfirmasi === 'NEEDS_REVIEW')).toBe(false);
+});
+
+// No real contoh_input file happens to contain an unresolvable Recipient or a self-repost row —
+// build a tiny workbook on disk (parseExcelFile reads a real file, not a buffer) instead of
+// relying on a committed fixture just for these edge cases.
+async function buildFormatCboWorkbook(dataRows) {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Format CBO');
+  ws.addRow(['Requester', 'Account', 'Detail Group', 'Profit Ctr', 'Ref.Doc.', 'Period', 'Text', 'Material', 'In PCLC', 'Curr.', 'Remarks', 'Recipient']);
+  dataRows.forEach((r) => ws.addRow(r));
+  const tmpPath = path.join(require('os').tmpdir(), `parser-test-${Date.now()}-${Math.random().toString(36).slice(2)}.xlsx`);
+  await wb.xlsx.writeFile(tmpPath);
+  return tmpPath;
+}
+
+// A Recipient value that isn't "Ask TA" and isn't a known dinas code (mapping.seed.json alias or
+// dinas.codes.json roster entry) must surface as NEEDS_REVIEW, not silently misroute or default to
+// PENDING with no dinas_target.
+test('unrecognized Recipient value gets NEEDS_REVIEW with an explanatory reason', async () => {
+  const tmpPath = await buildFormatCboWorkbook([
+    ['TC', '40021005', 'Expendable-Material', 'ZGMFTCW', '1900099001', '006', 'test', '', 100, 'USD', '', 'NOTADINAS'],
+  ]);
+  const parsed = await parseExcelFile(tmpPath, { uploaderDinas: 'TC' });
+  require('fs').unlinkSync(tmpPath);
+
+  expect(parsed.length).toBe(1);
+  expect(parsed[0].status_konfirmasi).toBe('NEEDS_REVIEW');
+  expect(parsed[0].dinas_target).toBeNull();
+  expect(parsed[0].reason_if_invalid).toMatch(/NOTADINAS/);
+});
+
+// Self-repost: Requester and Recipient the same dinas never needs cross-dinas confirmation, same
+// as the old parser's uploaderDinas-vs-prefix EXCLUDED check — checked against the row's OWN
+// Requester column (case-insensitive) here, since Format CBO carries it explicitly per row.
+// uploaderDinas is deliberately set to something ELSE ('TAB', e.g. an admin re-uploading on a
+// dinas's behalf) so this only passes if the Requester-column comparison itself works, not just
+// the pre-existing uploaderDinas-vs-Recipient check.
+test('Requester === Recipient (same dinas on both, case-insensitive) gets EXCLUDED', async () => {
+  const tmpPath = await buildFormatCboWorkbook([
+    ['TC', '40021005', 'Expendable-Material', 'ZGMFTCW', '1900099001', '006', 'test', '', 100, 'USD', '', 'TC'],
+    ['tc', '40021005', 'Expendable-Material', 'ZGMFTCW', '1900099001', '006', 'test', '', 50, 'USD', '', 'TC'],
+  ]);
+  const parsed = await parseExcelFile(tmpPath, { uploaderDinas: 'TAB' });
+  require('fs').unlinkSync(tmpPath);
+
+  expect(parsed.length).toBe(2);
+  expect(parsed.every((r) => r.status_konfirmasi === 'EXCLUDED')).toBe(true);
+});

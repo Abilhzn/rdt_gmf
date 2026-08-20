@@ -18,15 +18,6 @@ export interface Transaction {
   invalid_reason?: string;
   reason_if_invalid?: string;
   raw_payload?: Record<string, any>;
-  /** The file's real "Sub Group" column, raw — NOT derived, and independent of `category` (which
-   * may ALSO read this same column as a GL fallback for dinas whose sheet has no literal "GL"
-   * column). null for any dinas whose sheet has no "Sub Group" column at all (e.g. TB). */
-  sub_group?: string | number | null;
-  /** 'DETAIL_ROW' = a real individual transaction line; 'PIVOT_DERIVED' = a synthetic
-   * one-row-per-pivot-cell aggregate (no per-row document/cost-center/Sub Group data exists at
-   * all for these — expected, not a mapping bug, see repost-budgeting.component.html's
-   * granularity badge). */
-  granularity?: 'DETAIL_ROW' | 'PIVOT_DERIVED';
   /** Free-text note a reviewer can attach to a row while still on the Review-before-upload step —
    * a real rdt.transactions column, and Confirmation's sticky "Notes" column reads this same
    * field. */

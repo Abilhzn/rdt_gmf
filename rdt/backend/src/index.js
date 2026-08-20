@@ -376,13 +376,27 @@ app.post('/api/commit', requireUser, express.json(), (req, res) => {
 // unaffected. On multipart requests, non-file fields arrive as strings, hence the JSON.parse below.
 app.post('/api/persist', requireUser, upload.single('file'), async (req, res) => {
   const body = req.body || {};
-  const rows = typeof body.rows === 'string' ? JSON.parse(body.rows) : body.rows;
+  // rows/aggregation arrive as JSON-encoded form fields (multipart, alongside the file) — malformed
+  // JSON here used to throw uncaught out of the route handler and crash the whole process, not just
+  // fail this one request. Parse defensively, same clean-400 pattern the rest of this route uses.
+  let rows;
+  try {
+    rows = typeof body.rows === 'string' ? JSON.parse(body.rows) : body.rows;
+  } catch (e) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e2) {} }
+    return res.status(400).json({ ok: false, error: 'invalid rows: not valid JSON' });
+  }
   if (!Array.isArray(rows)) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
     return res.status(400).json({ ok: false, error: 'invalid body, expected { rows: [] }' });
   }
   body.rows = rows;
-  body.aggregation = typeof body.aggregation === 'string' ? JSON.parse(body.aggregation) : body.aggregation;
+  try {
+    body.aggregation = typeof body.aggregation === 'string' ? JSON.parse(body.aggregation) : body.aggregation;
+  } catch (e) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e2) {} }
+    return res.status(400).json({ ok: false, error: 'invalid aggregation: not valid JSON' });
+  }
 
   // Periode tidak diminta dari client — selalu implisit = bulan sebelum bulan upload berjalan
   // (server time), lihat rules/periodEffective.js's currentAutoPeriode.
