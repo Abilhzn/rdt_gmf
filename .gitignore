@@ -37,9 +37,3 @@ rdt/backend/logs/
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
-
-# Claude Code local/runtime state — machine-specific, not shared config.
-# settings.local.json in particular tends to accumulate secrets pasted into allow-listed
-# Bash commands (DB passwords, etc.) over a session — never commit it.
-.claude/settings.local.json
-.claude/scheduled_tasks.lock

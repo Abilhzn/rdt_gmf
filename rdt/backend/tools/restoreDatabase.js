@@ -1,7 +1,7 @@
 // Checklist 2.1 (12 Agu) — companion to tools/backupDatabase.js. Loads a backup JSON file's row
 // data into a target schema that ALREADY HAS the structure applied (run sql/schema.sql +
-// sql/migrations/*.sql against the target database first — same as a fresh install, see
-// rdt/CLAUDE.md section 5 — this script never creates tables itself).
+// sql/migrations/*.sql against the target database first — same as a fresh install — this
+// script never creates tables itself).
 //
 // SAFETY: defaults to restoring into a schema called `rdt_restore_test`, NOT `rdt` — restoring
 // over the live schema by accident would silently duplicate-key-conflict or overwrite real data.

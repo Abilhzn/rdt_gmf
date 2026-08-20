@@ -46,7 +46,7 @@ sendiri dengan VM sendiri.
 | Server produksi | GMF punya sendiri (bukan cloud pihak ketiga) |
 | Model integrasi | App di-plug-in ke OCX, bukan berdiri sendiri |
 | Auth/session produksi | Diwariskan dari OCX (bukan sistem auth RDT sendiri) |
-| Database saat DEVELOPMENT | PostgreSQL lokal (`rdt_dev`) — sempat Supabase, dipindah balik 20 Agu, lihat CLAUDE.md |
+| Database saat DEVELOPMENT | PostgreSQL lokal (`rdt_dev`) — sempat Supabase, dipindah balik 20 Agu |
 | Database saat PRODUKSI | **Belum dikonfirmasi** \u2014 kemungkinan besar server Postgres GMF sendiri, tapi butuh konfirmasi eksplisit dari IT, JANGAN diasumsikan Supabase tetap dipakai |
 
 ---

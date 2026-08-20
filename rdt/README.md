@@ -2,7 +2,7 @@
 
 **Restrukturisasi 24 Jul 2026**: `rdt/` sekarang salah satu app di bawah
 root repo yang sama sebagai `auth/` dan `data_user/` (service bersama,
-dipakai app lain juga nantinya) — lihat `../CLAUDE.md`. Login/Select
+dipakai app lain juga nantinya). Login/Select
 Platform + `current-user.service.ts` sudah pindah ke `../auth/frontend/`,
 bukan di `frontend/rdt/` lagi.
 

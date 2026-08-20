@@ -26,4 +26,4 @@ actually gets consumed and validated.
   service and on `auth`/`rdt/backend`) to require an `X-Internal-Key` header on `/employees*`.
   **Unset by default** (fine for local dev, prints a startup warning) — set it once this service
   is reachable from anywhere beyond `localhost`.
-- Full business/architecture context: `../CLAUDE.md` (root) and `../rdt/CLAUDE.md`.
+- Full business/architecture context: `../rdt/docs/SRS.md` and `../rdt/docs/IRS.md`.

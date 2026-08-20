@@ -27,4 +27,4 @@ npm start   # http://localhost:4200/rdt — proxies /api, /auth-api, /data-api t
 - **Security headers**: `dev-shell/angular.json`'s `serve.headers` sets a dev-only CSP/
   `X-Frame-Options`/`X-Content-Type-Options` — see `dev-shell/README.md`'s own section on why
   it's deliberately looser than the backend services' and not representative of production.
-- Full business/architecture context: `../CLAUDE.md`.
+- Full business/architecture context: `../docs/SRS.md`.

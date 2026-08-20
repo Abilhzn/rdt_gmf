@@ -53,6 +53,6 @@ Bayangin RDT itu bukan 1 program besar, tapi **4 program kecil terpisah** yang s
 
 ## 5. Prioritas Kalau Mau Ngelanjutin
 
-1. **Sekarang**: dapetin rentang IP VPN/LAN dari IT → minta Claude Code bikin middleware jaringan
+1. **Sekarang**: dapetin rentang IP VPN/LAN dari IT → implementasikan middleware jaringan
 2. **Sebelum serius dipakai orang banyak**: HTTPS, rate limiting, session expiry
 3. **Terus-menerus**: jangan pernah commit `.env`/password ke Git, cek `.gitignore` rutin

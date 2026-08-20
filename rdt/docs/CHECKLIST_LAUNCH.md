@@ -37,7 +37,7 @@ finansial. Ini artinya:
 - [x] **`robots.txt` (12 Agu)** — `Disallow: /` ditambahkan di
       `rdt/frontend/dev-shell/public/robots.txt` (ke-serve otomatis lewat
       dev-shell buat testing lokal). **Catatan produksi**: RDT bukan app
-      standalone (lihat `rdt/CLAUDE.md` section 2) — di production dia
+      standalone (lihat `rdt/docs/IRS.md`) — di production dia
       ditempel ke OCX, jadi robots.txt yang beneran dipakai user itu OCX
       punya domain, bukan file ini. Perlu diteruskan ke tim OCX/IT supaya
       domain produksi juga punya `Disallow: /`.
@@ -71,9 +71,9 @@ finansial. Ini artinya:
       (aktif dikirim, baru beneran ditegakkan browser begitu HTTPS jalan).
       Angular dev-shell (`ng serve`, lokal doang) dapet CSP terpisah yang
       lebih longgar via `angular.json`'s `serve.headers` — production
-      header tetap tanggung jawab OCX (RDT bukan app standalone, lihat
-      `rdt/CLAUDE.md` section 2), lihat `rdt/frontend/dev-shell/README.md`
-      section "Security headers" buat penjelasan lengkap.
+      header tetap tanggung jawab OCX (RDT bukan app standalone), lihat
+      `rdt/frontend/dev-shell/README.md` section "Security headers" buat
+      penjelasan lengkap.
 - [x] **Rate limiting endpoint login (11 Agu)** — `express-rate-limit` di
       `auth/src/auth.routes.js`: 5 percobaan GAGAL per IP per 15 menit,
       lewat itu balas `429 {code:'RATE_LIMITED'}`. Login sukses gak ikut
@@ -126,8 +126,8 @@ finansial. Ini artinya:
       buat `.env`/`.env.*`/`confidential.txt`: **nol hasil**, gak pernah ada
       di riwayat sama sekali. Sweep isi SELURUH history (`git log --all -p`)
       buat pola `postgresql://user:pass@`, AWS key, PEM private key, Bearer
-      token panjang: cuma 1 match, itu pun placeholder contoh di
-      `rdt/CLAUDE.md` (`postgresql://postgres:PASSWORD@localhost:5432/rdt_dev`
+      token panjang: cuma 1 match, itu pun placeholder contoh
+      (`postgresql://postgres:PASSWORD@localhost:5432/rdt_dev`
       — literal kata "PASSWORD", bukan kredensial asli). Bersih.
 
 ---
@@ -345,7 +345,6 @@ finansial. Ini artinya:
 - [x] SRS lengkap (`docs/SRS.md`)
 - [x] Panduan teknis buat non-web-dev (`docs/PANDUAN_TEKNIS.md`)
 - [x] Panduan baca kode (`docs/PANDUAN_KODINGAN.md`)
-- [x] Memory/context project buat Claude Code (`CLAUDE.md`, tiap service)
 - [x] **README per service (12 Agu)** — `auth/README.md` dan
       `data_user/README.md` BELUM ADA sama sekali sampai sekarang, ditulis
       baru. `rdt/frontend/README.md` juga baru (belum ada top-level README

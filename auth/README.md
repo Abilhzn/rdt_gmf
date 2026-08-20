@@ -27,4 +27,4 @@ npm test             # jest — 13 tests, session/rate-limit/expiry behavior
   (`express-rate-limit`), successful logins don't count against it.
 - **`INTERNAL_SERVICE_KEY`** (optional env var): if set, sent as `X-Internal-Key` to `data_user`
   — see `data_user/README.md` for what it protects.
-- Full business/architecture context: `../CLAUDE.md` (root) and `../rdt/CLAUDE.md`.
+- Full business/architecture context: `../rdt/docs/SRS.md` and `../rdt/docs/IRS.md`.

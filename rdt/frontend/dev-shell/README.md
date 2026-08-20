@@ -38,5 +38,5 @@ locks theirs to `'none'` everywhere, since those are pure JSON APIs).
 HMR transforms, Angular's un-nonced inline component styles), not something
 to copy into production as-is. This ISN'T what production gets anyway — RDT
 isn't a standalone app, it's embedded into GMF's OCX platform in production
-(see `rdt/CLAUDE.md` section 2), which owns its own server/headers; this
+(see `rdt/docs/IRS.md`), which owns its own server/headers; this
 config only covers local `ng serve` testing.
