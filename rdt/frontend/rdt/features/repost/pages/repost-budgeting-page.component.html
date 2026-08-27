@@ -1,0 +1,77 @@
+<div class="page-card">
+  <div class="repost-split">
+    <div class="repost-main">
+
+      <!-- ===== Upload ===== -->
+      <section class="card">
+        <h2 class="card__title">Upload Repost Detail Transaction File</h2>
+
+        <rdt-file-dropzone [selectedFile]="selectedFile" (fileSelected)="onFileSelected($event)" (resetRequested)="reset()"></rdt-file-dropzone>
+
+        <div class="card__actions">
+          <span class="card__note" style="margin:0" *ngIf="!currentUser.current">
+            Pilih "Login sebagai" dulu — dinas pengunggah mengikuti akun yang login.
+          </span>
+          <span class="card__note" style="margin:0" *ngIf="currentUser.current">
+            Dinas pengunggah: {{ currentUser.current?.dinas }}
+          </span>
+          <button
+            class="btn btn--primary"
+            type="button"
+            [disabled]="!selectedFile || phase === 'parsing' || !currentUser.current"
+            (click)="parse()"
+          >
+            {{ phase === 'parsing' ? 'Memproses…' : 'Proses file' }}
+          </button>
+        </div>
+
+        <p class="alert alert--error" *ngIf="phase === 'error'">{{ errorMessage }}</p>
+      </section>
+
+      <!-- ===== Review: merged matrix + detail rows preview ===== -->
+      <ng-container *ngIf="phase === 'parsed' || phase === 'committing' || phase === 'committed'">
+        <section class="card">
+          <h2 class="card__title">Review Detail Transaction Before Upload</h2>
+
+          <!-- Matriks agregasi: bentuknya SENGAJA meniru pivot di file Excel dinas,
+               supaya PIC bisa mencocokkan angka aplikasi vs pivot mereka secara langsung. -->
+          <h3 class="card__subtitle">Rekap per dinas target</h3>
+          <p class="card__note">
+            Bandingkan tabel ini dengan sheet pivot di file Excel Anda — angkanya harus sama.
+            Jika berbeda, periksa baris INVALID/EXCLUDED sebelum menyimpan.
+          </p>
+          <rdt-aggregation-matrix [rows]="rows"></rdt-aggregation-matrix>
+
+          <rdt-preview-table [rows]="rows"></rdt-preview-table>
+        </section>
+      </ng-container>
+    </div>
+
+    <!-- ===== Confirm-to-Repost: sticky side panel (Figma: Confirm/Cancel) ===== -->
+    <aside class="repost-side" *ngIf="phase === 'parsed' || phase === 'committing' || phase === 'committed'">
+      <h3>Confirm to Repost</h3>
+      <!-- Periode DT selalu implisit (bulan sebelum bulan upload berjalan) — server yang
+           menentukan di POST repost/persist, tidak ada pilihan manual di sini. -->
+      <label class="repost-desc-label">
+        Keterangan (opsional)
+        <rdt-mention-input
+          [(ngModel)]="description"
+          [rows]="3"
+          [autoGrow]="false"
+          extraClass="repost-desc"
+          placeholder="Catatan tambahan untuk pengajuan ini... ketik @ untuk mention dinas atau orang"
+        ></rdt-mention-input>
+      </label>
+      <button
+        class="btn btn--primary"
+        type="button"
+        [class.btn--busy]="phase === 'committing'"
+        [disabled]="phase === 'committing' || phase === 'committed'"
+        (click)="commit()"
+      >
+        {{ phase === 'committing' ? 'Menyimpan…' : (phase === 'committed' ? 'Tersimpan ✓' : 'Confirm') }}
+      </button>
+      <button class="btn btn--ghost" type="button" (click)="reset()">Batal</button>
+    </aside>
+  </div>
+</div>

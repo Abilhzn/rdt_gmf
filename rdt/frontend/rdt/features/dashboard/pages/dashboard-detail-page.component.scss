@@ -1,0 +1,231 @@
+// Tokens taken literally from the updated Figma (fileKey ZLbcosQTNTZdWQRusRYH0R), same values as
+// shell.component.scss / home.component.scss — see shell.component.scss for the "why literal,
+// not just structural" note.
+
+@use '../../../shared/typography' as t;
+
+$accent: #006298;
+$ink: #000;
+$ink-600: #52616e;
+$line: #cccccc;
+$page-bg: #f2f2f2;
+$danger-600: #b3261e;
+$danger-050: #fdecea;
+$shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.5);
+$shadow-sm: 0 4px 7.5px rgba(0, 0, 0, 0.5);
+// 12px/10px radius, not Figma's literal 16-32px — less rounded, matches the app's radius scale.
+$radius-xl: 12px;
+$radius-lg: 10px;
+$radius-md: 8px;
+
+// Outline, bukan shadow, di seluruh elemen visual.
+.page-card {
+  background: #fff;
+  border-radius: $radius-xl;
+  border: 1px solid $line;
+  padding: 36px;
+  color: $ink;
+}
+
+.view-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+
+  &__actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+}
+
+.context-badge-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.context-badge {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 700;
+  color: $ink;
+  background: #fff;
+  border: 1px solid $line;
+  padding: 10px 20px;
+  border-radius: $radius-md;
+}
+
+// Same badge look as home.component's pair-card__chain-badge, opens downward here (not sideways)
+// — this is a single page header with full page width below it, not a narrow card in a list, so
+// a below-panel reads more naturally than widening the header row itself would.
+.chain-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid $accent;
+  border-radius: 999px;
+  background: #fff;
+  color: $accent;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:hover { background: rgba(0, 98, 152, 0.08); }
+}
+.chain-detail-badge-caret { font-size: 9px; }
+
+.chain-detail-panel {
+  margin-top: 12px;
+  padding: 18px 20px;
+  border: 1px solid $line;
+  border-radius: $radius-lg;
+  max-width: 360px;
+}
+
+.note { margin: 0 0 10px; font-size: 12.5px; color: $ink-600; }
+
+.alert {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: $radius-md;
+  font-size: 13.5px;
+  &--error { background: $danger-050; color: $danger-600; }
+}
+
+.dashboard-grid { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.home-grid { display: flex; flex-wrap: wrap; gap: 16px; }
+
+.dinas-circle-wrap {
+  max-width: 220px;
+  text-align: center;
+  background: #fff;
+  border-radius: $radius-lg;
+  padding: 16px 12px;
+  border: 1px solid $line;
+}
+
+.dinas-circle-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
+.dinas-circle-label { font-weight: 700; font-size: 14px; color: $ink; }
+
+.dinas-circle {
+  --pct: 0;
+  --ring-color: #{$accent};
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), #{$line} 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 9px;
+    background: #fff;
+    border-radius: 50%;
+  }
+
+  .pct-label { position: relative; z-index: 1; font-weight: 700; font-size: 15px; color: $ink; }
+}
+
+.thread-title { margin: 24px 0 4px; font-size: 14px; }
+
+// Per-transaction redirect chain, only rendered when >=1 row was actually redirected — border,
+// not shadow. Font dikecilkan sedikit, sejalan dengan pagination 50 baris/halaman.
+.redirect-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 8px;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  overflow: hidden;
+
+  th, td { padding: 7px 10px; border-bottom: 1px solid $line; text-align: left; }
+  thead th { background: $page-bg; font-weight: 700; color: $ink; font-size: t.$fs-caption; text-transform: uppercase; }
+  tbody tr:last-child td { border-bottom: none; }
+  &__num { text-align: right; @include t.numeric-align; }
+}
+
+.thread-comment {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed $line;
+
+  &__avatar { width: 32px; height: 32px; border-radius: 50%; background: #d9d9d9; flex: 0 0 auto; }
+  &__body { flex: 1; min-width: 0; }
+  &__name { font-weight: 700; font-size: 13px; }
+  &__meta { color: $ink-600; font-size: 11.5px; margin-left: 8px; }
+  &__text { margin: 4px 0; font-size: 13.5px; white-space: pre-wrap; }
+}
+
+// ---------- @mention (shared component, see shared/mention-input.component.ts) ----------
+// ::ng-deep: this class is passed as [extraClass] into <rdt-mention-input>, which lives inside a
+// CHILD component's own template — Angular's default emulated encapsulation otherwise can't have
+// this component's stylesheet reach it (see mention-input.component.scss's note on the same).
+// Fixed height and BIG (not grow-to-fit-content) — internal scroll instead, same treatment as
+// .batch-note/.reviewer-note-input.
+::ng-deep .repost-desc {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid $line;
+  border-radius: $radius-md;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-family: inherit;
+  height: 160px;
+  overflow-y: auto;
+  resize: vertical;
+  margin-top: 4px;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+// ---------- buttons ----------
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: $radius-md;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: background 120ms ease, box-shadow 120ms ease;
+
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  &--primary {
+    background: $accent;
+    color: #fff;
+    box-shadow: $shadow-sm;
+    &:hover:not(:disabled) { background: #004a73; }
+  }
+
+  // Tombol putih/ghost TIDAK pakai shadow — outline/border sebagai penanda visual gantinya.
+  &--ghost {
+    background: #fff;
+    color: $ink;
+    border: 1px solid $line;
+    &:hover:not(:disabled) { border-color: $accent; }
+  }
+
+  &--link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: $accent;
+    text-decoration: underline;
+    font-weight: 600;
+    box-shadow: none;
+  }
+}

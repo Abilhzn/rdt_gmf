@@ -18,10 +18,6 @@ build/
 graphify-out/
 
 # Backend runtime data (bukan source, jangan ikut commit)
-rdt/backend/staging/*
-!rdt/backend/staging/.gitkeep
-rdt/backend/uploads/*
-!rdt/backend/uploads/.gitkeep
 backend_run_output.txt
 backend_server.log
 backend_server.log.err
@@ -30,10 +26,12 @@ backend_server.log.err
 # eksplisit di sini biar jelas kalau ada yang cari.
 auth/logs/
 data_user/logs/
-rdt/backend/logs/
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+
+.claude/
+project/budgeting_gmf/rdt/docs/*

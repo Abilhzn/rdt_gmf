@@ -1,0 +1,97 @@
+<div class="page-card">
+  <div class="view-header-row">
+    <div class="context-badge">{{ badgeText }}</div>
+    <button class="btn btn--primary" type="button" [class.btn--busy]="submittingDecisions" [disabled]="submittingDecisions" (click)="submitDecisions()" *ngIf="pendingRows.length && !isInvestigation">{{ submittingDecisions ? 'Menyimpan...' : 'Submit' }}</button>
+  </div>
+
+  <p class="alert alert--error" *ngIf="statusError">{{ statusError }}</p>
+
+  <ng-container *ngIf="!isInvestigation">
+    <!-- Diskusi pasangan ditampilkan sebelum form Deskripsi/tabel, biar user punya konteks
+         sebelum putuskan Ya/Tidak. Read-only — posting/reply tetap di Dashboard-Detailing. -->
+    <rdt-comment-thread
+      *ngIf="showThread"
+      [fromDinas]="filterFromDinas"
+      [toDinas]="selectedTarget"
+      [comments]="threadRows"
+      [loaded]="threadLoaded"
+      (goToDetail)="goToThreadDetail()"
+    ></rdt-comment-thread>
+
+    <div class="checkbox-legend" *ngIf="pendingRows.length">
+      <span><input type="checkbox" checked disabled /> Confirm</span>
+      <span><input type="checkbox" disabled /> Reject</span>
+    </div>
+
+    <label class="batch-note-label" *ngIf="pendingRows.length">
+      Deskripsi (opsional)
+      <rdt-mention-input
+        [(ngModel)]="confirmDescription"
+        [rows]="2"
+        [autoGrow]="false"
+        extraClass="batch-note"
+        placeholder="Catatan untuk dinas pengaju... akan muncul sebagai balasan pada komentar repost mereka di Dashboard-Detailing"
+      ></rdt-mention-input>
+    </label>
+
+    <div class="just-declined" *ngIf="justDeclined.length">
+      <h3 class="card__subtitle">Baru saja ditolak, balik ke pengaju ({{ justDeclined.length }})</h3>
+      <p class="note">Item ini dikembalikan ke dinas pengaju untuk ditindaklanjuti (Tanggung Sendiri / Ajukan ulang).</p>
+      <ul class="just-declined__list">
+        <li *ngFor="let d of justDeclined">
+          {{ d.account }} — {{ d.nominal | number: '1.2-2' }} <span *ngIf="d.ref_doc">· Ref.Doc {{ d.ref_doc }}</span> · dari {{ d.dinas_inisiasi }}
+        </li>
+      </ul>
+    </div>
+
+    <div class="just-declined" *ngIf="justRedirected.length">
+      <h3 class="card__subtitle">Baru saja ditolak, langsung diarahkan ({{ justRedirected.length }})</h3>
+      <ul class="just-declined__list">
+        <li *ngFor="let d of justRedirected">
+          {{ d.account }} — {{ d.nominal | number: '1.2-2' }} <span *ngIf="d.ref_doc">· Ref.Doc {{ d.ref_doc }}</span> · dari {{ d.dinas_inisiasi }} → {{ d.redirected_to }}
+        </li>
+      </ul>
+    </div>
+
+    <!-- Baris declined/reassigned pindah ke tab terpisah — tab ini tidak dirender kalau
+         declinedRows kosong. -->
+    <div class="queue-tabs" *ngIf="declinedRows.length">
+      <button type="button" class="queue-tab" [class.queue-tab--active]="activeQueueTab === 'pending'" (click)="selectQueueTab('pending')">
+        Perlu Dikonfirmasi ({{ pendingRows.length }})
+      </button>
+      <button type="button" class="queue-tab" [class.queue-tab--active]="activeQueueTab === 'declined'" (click)="selectQueueTab('declined')">
+        Declined / Reassign ({{ declinedRows.length }})
+      </button>
+    </div>
+
+    <rdt-pending-queue
+      *ngIf="pendingRows.length && activeQueueTab === 'pending'"
+      [rows]="pendingRows"
+      [previewColumns]="previewColumns"
+      [dinasOptions]="dinasOptions"
+      [selectedTarget]="selectedTarget"
+      (downloadOriginal)="downloadOriginal($event.uploadId, $event.filename)"
+    ></rdt-pending-queue>
+
+    <rdt-declined-resolution
+      *ngIf="declinedRows.length && activeQueueTab === 'declined'"
+      [rows]="declinedRows"
+      [dinasOptions]="dinasOptions"
+      [dinas]="dinas"
+      (resolved)="loadStatus()"
+    ></rdt-declined-resolution>
+  </ng-container>
+
+  <!-- Sub-tab Investigation/Ask TA — TAB-only, alongside Corp. Bentuknya beda total dari queue
+       normal di atas (assign-dinas, bukan Ya/Tidak), jadi ditukar langsung, bukan disatukan. -->
+  <rdt-investigation-panel
+    *ngIf="isInvestigation"
+    [rows]="investigationRows"
+    [dinasOptions]="dinasOptions"
+    (changed)="loadInvestigation()"
+    (reload)="loadInvestigation()"
+    (downloadOriginal)="downloadOriginal($event.uploadId, $event.filename)"
+  ></rdt-investigation-panel>
+
+  <p class="note" *ngIf="emptyNote && !isInvestigation">{{ emptyNote }}</p>
+</div>

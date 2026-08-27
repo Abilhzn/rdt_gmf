@@ -1,0 +1,35 @@
+<h3 class="card__subtitle">Perlu keputusan Anda (DECLINED oleh dinas target)</h3>
+<p class="note">Tentukan tujuan tiap baris dulu, lalu klik "Confirm All" di bawah untuk menyelesaikan semuanya
+  sekaligus — atau pakai tombol per-baris untuk menyelesaikan satu per satu.</p>
+<div class="declined-row" *ngFor="let r of rows">
+  <div class="declined-row__info">
+    {{ r.account }} — {{ r.nominal | number: '1.2-2' }} <span *ngIf="r.ref_doc">· Ref.Doc {{ r.ref_doc }}</span>
+    <div class="note">
+      Ditolak oleh {{ r.dinas_target }} · reassign_count={{ r.reassign_count }}
+      <span *ngIf="r.reassign_count >= 3"> (batas tercapai, wajib Tanggung Sendiri)</span>
+    </div>
+  </div>
+  <div class="declined-row__actions">
+    <select (ngModelChange)="setPendingAction(r, $any($event))" [ngModel]="pendingActionByRowId[r.id] || ''">
+      <option value="">Belum ditentukan</option>
+      <option value="BORNE">Tanggung sendiri</option>
+      <option value="REASSIGN" *ngIf="r.reassign_count < 3">Ajukan ulang</option>
+    </select>
+    <select *ngIf="pendingActionByRowId[r.id] === 'REASSIGN'" [(ngModel)]="reassignTargetByRowId[r.id]">
+      <option value="">Ajukan ke...</option>
+      <option *ngFor="let d of reassignTargetsFor(r)" [value]="d.code">{{ d.code }}</option>
+    </select>
+    <button class="btn btn--ghost" type="button" [disabled]="resolvingRowId === r.id" (click)="resolveBorne(r)">{{ resolvingRowId === r.id ? 'Menyimpan...' : 'Tanggung sendiri' }}</button>
+    <button class="btn btn--primary" type="button" *ngIf="r.reassign_count < 3" [disabled]="resolvingRowId === r.id" (click)="resolveReassign(r)">{{ resolvingRowId === r.id ? 'Menyimpan...' : 'Ajukan' }}</button>
+  </div>
+</div>
+
+<div class="batch-resolve-footer">
+  <label class="batch-note-label">
+    Keterangan (opsional)
+    <rdt-mention-input [(ngModel)]="batchNote" [rows]="2" [autoGrow]="false" extraClass="batch-note" placeholder="Catatan tambahan untuk keputusan ini..."></rdt-mention-input>
+  </label>
+  <button class="btn btn--primary" type="button" [class.btn--busy]="submittingAll" [disabled]="!canSubmitAll() || submittingAll" (click)="submitAllResolutions()">
+    {{ submittingAll ? 'Menyimpan...' : 'Confirm All (' + stagedCount + ')' }}
+  </button>
+</div>

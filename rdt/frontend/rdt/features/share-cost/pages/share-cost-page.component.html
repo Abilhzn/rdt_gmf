@@ -1,0 +1,59 @@
+<div class="page-card">
+  <p class="note">
+    Split satu baris PENDING jadi beberapa baris dengan dinas target &amp; nominal berbeda-beda —
+    total nominal hasil split harus sama persis dengan baris asli. Hanya baris PENDING dengan
+    dinas target TAB yang bisa di-split.
+  </p>
+  <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <ng-container *ngIf="!selected">
+    <div class="search-row">
+      <input
+        class="search-input"
+        type="text"
+        [(ngModel)]="query"
+        (keydown.enter)="search()"
+        placeholder="Cari Account / Ref.Doc / Remark..."
+      />
+      <button class="btn btn--ghost" type="button" (click)="search()">Cari</button>
+    </div>
+
+    <p class="note" *ngIf="!loading && !candidates.length">Tidak ada baris PENDING yang cocok.</p>
+    <div class="table-scroll" *ngIf="candidates.length">
+      <table class="rows">
+        <thead>
+          <tr>
+            <th>Dinas Pengaju</th>
+            <th>Dinas Target</th>
+            <th>Account</th>
+            <th>Ref.Doc</th>
+            <th class="rows__num">Nominal</th>
+            <th>Remark</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of candidates">
+            <td>{{ row.dinas_inisiasi }}</td>
+            <td>{{ row.dinas_target }}</td>
+            <td>{{ row.account }}</td>
+            <td>{{ row.ref_doc }}</td>
+            <td class="rows__num">{{ row.nominal | number: '1.2-2' }}</td>
+            <td class="rows__remark" [title]="row.remark || ''">{{ row.remark }}</td>
+            <td><button class="btn btn--ghost" type="button" title="Split baris ini" (click)="selectRow(row)">Split</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+
+  <rdt-split-form
+    *ngIf="selected"
+    [selected]="selected"
+    [dinasOptions]="dinasOptions"
+    [submitting]="submitting"
+    (submitSplit)="onSubmitSplit($event)"
+    (cancelled)="cancelSelection()"
+    (downloadOriginal)="downloadOriginal()"
+  ></rdt-split-form>
+</div>

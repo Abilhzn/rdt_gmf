@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 // Checklist section 3 (12 Agu): "Custom 404/403 page yang informatif (bukan generic error
 // Angular)" — before this, a bad URL under /rdt/... just silently failed to navigate (no route
 // matched, no feedback at all) and a role-mismatched direct URL (e.g. a plain PIC hitting
-// /rdt/admin/mapping) got into the shell with no visual cue before its API calls started
+// /rdt/setting-periode) got into the shell with no visual cue before its API calls started
 // 403-ing. One component, configured via route `data`, covers both — same shape, different code/
 // copy, not two near-duplicate components.
 @Component({

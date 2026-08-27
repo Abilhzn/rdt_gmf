@@ -1,3 +1,6 @@
+<!-- Backdrop dismiss + bubbling guard, not interactive controls in their own right — the real
+     actions are the <button>s below, already keyboard-reachable. -->
+<!-- eslint-disable @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
 <div class="modal-overlay" *ngIf="modal.state$ | async as state" (click)="state.checkmark && modal.respond(true)">
   <div class="modal-box" [class.modal-box--checkmark]="state.checkmark" (click)="$event.stopPropagation()">
     <svg *ngIf="state.checkmark" class="checkmark" viewBox="0 0 52 52">

@@ -5,7 +5,10 @@
  * TODO(IT-AUTH): provisional/synthetic directory ONLY (employee-directory.seed.json). Replace
  * with a lookup against GMF IT's real employee/user table once its name and schema are
  * confirmed (see rdt/docs/SRS.md section 3.7 Open Question) — at that point this file's data
- * source changes, but callers (auth service, rdt/backend) keep using the same HTTP contract.
+ * source changes, but its one real caller (auth service) keeps using the same HTTP contract.
+ * (The old Express backend called it too, before it was removed 27 Agu 2026 in favor of the
+ * NestJS rewrite at rdt/backend — which keeps its own copy of the same seed data instead of
+ * calling this service, see rdt/backend/src/core/directory/.)
  */
 require('dotenv').config();
 
@@ -43,7 +46,7 @@ app.use(helmet({
 // Checklist 2.2 (12 Agu): every 5xx response logged to logs/error.log — see logger.js.
 app.use(errorLoggingMiddleware('data_user'));
 // Checklist 2.2 (12 Agu): bounds every request to SOME response instead of hanging forever —
-// see rdt/backend/src/index.js's own copy of this middleware for the full rationale.
+// see auth/src/index.js's own copy of this middleware for the full rationale.
 app.use((req, res, next) => {
   const timer = setTimeout(() => {
     if (!res.headersSent) {
@@ -70,10 +73,10 @@ app.get('/health', (req, res) => {
 });
 
 // Checklist 1.1 (12 Agu): this service had ZERO auth of any kind — anyone who could reach port
-// 4002 directly (not just through auth/rdt-backend) could dump the whole employee directory.
-// This is a service-to-service boundary (auth + rdt/backend call it, no end-user ever hits it
+// 4002 directly (not just through auth) could dump the whole employee directory.
+// This is a service-to-service boundary (auth calls it, no end-user ever hits it
 // directly), so a per-USER token doesn't fit — a shared internal key does, checked here and sent
-// by both callers' dataUserClient.js. INTERNAL_SERVICE_KEY unset = unenforced (matches this
+// by auth's dataUserClient.js. INTERNAL_SERVICE_KEY unset = unenforced (matches this
 // project's existing "provisional, warn once, don't hard-fail local dev" pattern, e.g.
 // migrate.js's `DATABASE_URL not set — skipping`) — set it once real network exposure exists.
 if (!process.env.INTERNAL_SERVICE_KEY) {
@@ -87,9 +90,9 @@ function requireInternalKey(req, res, next) {
   next();
 }
 
-// GET /employees — full directory (mirrors rdt/backend's old GET /api/directory). Used by:
-// auth service (credential verification), rdt/backend (comment author names, @mention
-// resolution, notification display names).
+// GET /employees — full directory (mirrors the old Express backend's GET /api/directory). Used
+// by auth service (credential verification). rdt/backend (NestJS) keeps its own copy of this
+// same seed data instead of calling this endpoint (see rdt/backend/src/core/directory/).
 app.get('/employees', requireInternalKey, (req, res) => {
   try {
     res.json({ ok: true, employees: loadDirectory() });

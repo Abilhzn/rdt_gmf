@@ -10,6 +10,8 @@
     <span class="mvf__badge" *ngIf="active">{{ values.length }}</span>
   </button>
 
+  <!-- Bubbling guard only (keeps popup open on inner click), not an interactive control itself. -->
+  <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
   <div class="mvf__popup" *ngIf="open" (click)="stopClick($event)">
     <textarea
       class="mvf__box"

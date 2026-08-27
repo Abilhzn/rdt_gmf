@@ -11,6 +11,12 @@ di-serve backend di `localhost:4000`) sudah **dihapus**. Angular adalah
 satu-satunya frontend sekarang — gak ada lagi kewajiban sinkronisasi dua
 sisi. Semua trial-and-test langsung di Angular dev-shell.
 
+**27 Agu 2026**: Backend Express lama (dipakai sebagai referensi selama
+rewrite NestJS) sudah **dihapus**, dan `backend-nest/` (folder rewrite-nya)
+di-rename jadi `backend/` — satu-satunya backend yang tersisa di repo ini
+buat handoff ke tim IT GMF. Lihat `docs/RENCANA_REWRITE_NESTJS.md` untuk
+arsitektur & keputusan rewrite-nya.
+
 ## `frontend/rdt/` — SOURCE ANGULAR UNTUK INTEGRASI NANTI
 Module Angular (component, service, model, guard, routing) yang TIDAK bisa
 jalan standalone dengan sendirinya — tidak ada Angular workspace
@@ -29,21 +35,23 @@ Angular lain WAJIB menyediakan alias yang sama, menunjuk ke lokasi
 `auth/frontend/` mereka.
 
 ## Kontrak API
-Sama untuk backend: `POST /api/parse`, `POST /api/persist`, `GET/PUT
-/api/mapping`, `GET/PUT /api/exclusions` (lihat `backend/src/index.js`).
-Login/session lewat `auth` service terpisah (`/auth-api/*`), directory
-employee lewat `data_user` service (`/data-api/*`).
+Backend: `rdt/backend` (NestJS) — lihat `backend/src/core/api-config.ts`-nya
+frontend (`core/api-config.ts` di sini) buat base path, atau `GET /docs` (Swagger) pas
+backend jalan buat daftar endpoint lengkap. Login/session lewat `auth` service terpisah
+(`/auth-api/*`), directory employee lewat `data_user` service (`/data-api/*`).
 
 ## Menjalankan
 
 Backend RDT butuh `auth` dan `data_user` service jalan juga (port 4001 dan
-4002) supaya fitur login/directory berfungsi:
+4002) supaya fitur login/directory berfungsi. Cara tercepat: double-click
+`start-all.bat` di root repo (4 service sekaligus, masing-masing di window-nya
+sendiri) — atau manual:
 
 ```bash
-cd auth && npm install && npm start        # port 4001
-cd data_user && npm install && npm start   # port 4002
-cd rdt/backend && npm install && npm start # port 4000, API only, tidak serve UI apapun
-npm test           # test parser vs angka pivot terverifikasi (SRS #8)
+cd auth && npm install && npm start              # port 4001
+cd data_user && npm install && npm start         # port 4002
+cd rdt/backend && npm install && npm start   # port 3000, API only, tidak serve UI apapun
+npm test           # 257 test — lihat backend/README.md
 ```
 
 Angular dev-shell (satu-satunya cara uji coba interaktif):

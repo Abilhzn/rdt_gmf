@@ -1,0 +1,113 @@
+<p class="note">
+  Baris ini dinas targetnya belum jelas — cek Ref.Doc/PO atau tanya dinas terkait, lalu assign
+  dinas targetnya. Assign bersifat final, tidak perlu konfirmasi ulang dari dinas target.
+  Hanya role TAB yang bisa bertindak di sini.
+</p>
+<div class="card__actions">
+  <button class="btn btn--ghost" type="button" (click)="reload.emit()">Muat ulang antrian</button>
+</div>
+<p class="note" *ngIf="!rows.length">Tidak ada baris yang menunggu investigasi.</p>
+<ng-container *ngIf="rows.length">
+  <div class="original-file-downloads" *ngIf="downloadableUploads.length">
+    <button
+      *ngFor="let u of downloadableUploads"
+      class="btn btn--ghost"
+      type="button"
+      (click)="downloadOriginal.emit({ uploadId: u.upload_id, filename: u.upload_filename })"
+    >⬇ Download file asli: {{ u.upload_filename }}</button>
+  </div>
+  <label class="batch-note-label">
+    Keterangan (opsional)
+    <rdt-mention-input
+      [(ngModel)]="description"
+      [rows]="2"
+      [autoGrow]="false"
+      extraClass="batch-note"
+      placeholder="Kenapa baris ini di-assign ke dinas yang dipilih... akan muncul sebagai komentar di Dashboard-Detailing pasangan dinas tersebut"
+    ></rdt-mention-input>
+  </label>
+  <div class="table-scroll">
+    <table class="rows">
+      <thead>
+        <tr>
+          <th>
+            <input type="checkbox" [checked]="allSelected" (change)="toggleSelectAll($any($event.target).checked)" title="Select All" />
+          </th>
+          <th>
+            Dinas Pengaju
+            <rdt-multi-value-filter placeholder="Tempel banyak Dinas Pengaju sekaligus..." (valuesChange)="onColumnFilterChange('dinas_inisiasi', $event)"></rdt-multi-value-filter>
+          </th>
+          <th>
+            Account
+            <rdt-multi-value-filter placeholder="Tempel banyak Account sekaligus..." (valuesChange)="onColumnFilterChange('account', $event)"></rdt-multi-value-filter>
+          </th>
+          <th>
+            Ref.Doc
+            <rdt-multi-value-filter placeholder="Tempel banyak Ref.Doc sekaligus..." (valuesChange)="onColumnFilterChange('ref_doc', $event)"></rdt-multi-value-filter>
+          </th>
+          <th class="rows__num">
+            Nominal
+            <rdt-multi-value-filter placeholder="Tempel banyak Nominal sekaligus..." (valuesChange)="onColumnFilterChange('nominal', $event)"></rdt-multi-value-filter>
+          </th>
+          <th>
+            Remark
+            <rdt-multi-value-filter placeholder="Tempel banyak Remark sekaligus..." (valuesChange)="onColumnFilterChange('remark', $event)"></rdt-multi-value-filter>
+          </th>
+          <th>
+            File Asal
+            <rdt-multi-value-filter placeholder="Tempel banyak nama file sekaligus..." (valuesChange)="onColumnFilterChange('upload_filename', $event)"></rdt-multi-value-filter>
+          </th>
+          <th>Assign ke</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of filteredRows">
+          <td>
+            <input type="checkbox" [checked]="isSelected(r.id)" (change)="toggleSelection(r.id, $any($event.target).checked)" />
+          </td>
+          <td>{{ r.dinas_inisiasi }}</td>
+          <td>{{ r.account }}</td>
+          <td>{{ r.ref_doc }}</td>
+          <td class="rows__num">{{ r.nominal | number: '1.2-2' }}</td>
+          <td class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
+          <td>{{ r.upload_filename }}</td>
+          <td>
+            <select [(ngModel)]="targetByRowId[r.id]">
+              <option value="">Pilih dinas...</option>
+              <option *ngFor="let d of dinasOptionsFor(r)" [value]="d.code">{{ d.code }}</option>
+            </select>
+          </td>
+          <td><button class="btn btn--primary" type="button" [disabled]="assigningRowId === r.id" (click)="assign(r)">{{ assigningRowId === r.id ? 'Menyimpan...' : 'Tetapkan Dinas' }}</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Bulk-select via checkbox + Select All, one shared target for all selected rows at once —
+       lighter than "Assign All" below, which needs every row's own target chosen first. Both
+       call the same backend batch endpoint. -->
+  <div class="batch-resolve-footer">
+    <select [(ngModel)]="bulkTargetDinas">
+      <option value="">Pilih dinas tujuan untuk baris terpilih...</option>
+      <option *ngFor="let d of bulkDinasOptions" [value]="d.code">{{ d.code }}</option>
+    </select>
+    <button
+      class="btn btn--primary"
+      type="button"
+      [disabled]="!canBulkAssign() || bulkAssigning"
+      [title]="canBulkAssign() ? '' : 'Pilih minimal satu baris dan satu dinas tujuan'"
+      (click)="bulkAssign()"
+    >{{ bulkAssigning ? 'Menyimpan...' : 'Tetapkan Terpilih (' + selectedIds.size + ') ke dinas ini' }}</button>
+  </div>
+
+  <div class="batch-resolve-footer">
+    <button
+      class="btn btn--primary"
+      type="button"
+      [disabled]="!canAssignAll() || assigningAll"
+      [title]="canAssignAll() ? '' : 'Pilih dinas target untuk setiap baris dulu'"
+      (click)="assignAll()"
+    >{{ assigningAll ? 'Menyimpan...' : 'Tetapkan Semua (' + rows.length + ')' }}</button>
+  </div>
+</ng-container>

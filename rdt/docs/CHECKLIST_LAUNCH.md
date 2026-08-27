@@ -130,6 +130,62 @@ finansial. Ini artinya:
       (`postgresql://postgres:PASSWORD@localhost:5432/rdt_dev`
       — literal kata "PASSWORD", bukan kredensial asli). Bersih.
 
+### 1.5 🟡 Catatan present-tense: status semua item 1.1–1.4 di `rdt/backend` (27 Agu)
+
+Semua item 1.1–1.4 di atas adalah rekam jejak audit terhadap `rdt/backend` (Express, port 4000),
+yang **sudah dihapus total dari repo ini**. Satu-satunya backend yang tersisa sekarang adalah
+`rdt/backend` (NestJS, port 3000) — arsitektur security-nya BEDA (Guard/Middleware NestJS,
+lihat `rdt/backend/src/core/security/`), jadi fix di atas tidak otomatis "ikut pindah".
+Verifikasi ulang terhadap kode `rdt/backend` yang sekarang ada (bukan audit baru yang
+seformal 1.1–1.4, cuma baca kode):
+
+- **`notification.controller.ts`/`persist.controller.ts`/`upload.controller.ts` tidak punya
+  `@UseGuards` eksplisit** — TAPI **ini BUKAN gap yang sama dengan 1.1** (dicek ulang 27 Agu
+  setelah temuan awal sempat disalahbaca alarmist): `IdentityMiddleware` global (`forRoutes('*')`)
+  nempelin identity ke `req.identity` di SETIAP request; di mode `ocx` (production),
+  `OcxIdentityProvider` sendiri yang THROW 401 kalau header OCX gak ada — jadi authentication
+  tetap wajib global, bukan opsional. Ketiga controller di atas sengaja gak pasang guard TAMBAHAN
+  karena scope-nya (dinas/user) diturunkan dari `@CurrentUser()` (identity server-side), bukan
+  dari input client — gak ada celah spoof. Satu-satunya sisi permisif: mode `IDENTITY_MODE=dev-mock`
+  (local dev only) fallback ke identity palsu kalau header kosong, TAPI itu sudah digembok fail-fast
+  `NODE_ENV=production && IDENTITY_MODE!=='ocx'` → app gagal start (lihat item Batch 7a di
+  `RENCANA_REWRITE_NESTJS.md` §8). Kesimpulan: tetap aman buat production.
+- **`helmet`/security headers (mirip 1.2)** — **[x] SUDAH ada** (27 Agu, sesudah temuan gap di
+  atas) — dipasang di `main.ts`. CSP sengaja di-off (beda dari `auth`/`data_user` yang JSON-only)
+  karena `rdt/backend` juga nyajiin Swagger UI beneran di `/docs`; header lain (HSTS, X-Frame-Options
+  DENY, X-Content-Type-Options nosniff, dst) tetap aktif pakai default helmet.
+- **Request timeout (mirip 2.2 API timeout)** — **[x] SUDAH ada** (27 Agu) — middleware 30 detik
+  di `main.ts`, pola sama persis dengan `auth`/`data_user`.
+- **Error logging ke file (mirip 2.2)** — **[x] SUDAH ada** (27 Agu) — `logs/error.log`, tiap 5xx
+  ke-log lewat `GlobalExceptionFilter` (`error-log.util.ts`), pola sama dengan `auth`/`data_user`.
+- **Session/token expiry via `auth` service (mirip 1.2)** — `rdt/backend` TIDAK memanggil
+  `auth`'s `/verify` sama sekali. Identity datang dari `IDENTITY_MODE` (`dev-mock` lokal atau
+  `ocx`, lihat `ocx-identity.provider.ts`) — kalau `ocx`, identity dipercaya langsung dari header
+  yang di-suntik OCX (`x-ocx-user-id`/`x-ocx-dinas`/`x-ocx-role`), tidak ada konsep TTL token di
+  sisi RDT sendiri (session lifetime jadi tanggung jawab OCX, bukan RDT — konsisten dengan
+  `IRS.md` section 1).
+- **`.env`/rahasia (1.4)** — masih valid: satu-satunya `.env` yang ada sekarang cuma
+  `rdt/backend/.env` (backend Express lama yang juga punya `.env` sendiri sudah dihapus bareng
+  foldernya), tetap kena pola `.gitignore` yang sama.
+- **Backup/restore tool (2.1)** — `rdt/backend/tools/backupDatabase.js`/`restoreDatabase.js` ikut
+  terhapus bersama foldernya, belum ada penggantinya di `rdt/backend`. Lihat
+  `rdt/docs/RUNBOOK.md` section 6.
+- **`/health` (2.2)** — `rdt/backend` PUNYA `/health` (`GET /health` →
+  `{status:'ok', db:'ok'|'unreachable'}`, `SELECT 1` ke Postgres) jadi item ini tetap terpenuhi,
+  cuma bentuk response-nya beda dari yang didokumentasikan (`db:'connected'/'error'`, itu bentuk
+  lama waktu masih ke Supabase).
+- **Error logging terpusat (2.2)** — TIDAK ADA `logs/error.log` di `rdt/backend`;
+  `GlobalExceptionFilter` cuma membentuk response JSON, tidak menulis file. Lihat
+  `rdt/docs/RUNBOOK.md` section 5.
+- **Parameterized query & transaksi atomic (1.3, 2.3)** — masih berlaku: `DatabaseService`
+  (`rdt/backend/src/core/database/database.service.ts`) pakai `pg` dengan `$1,$2,...` +
+  `withTransaction()` (BEGIN/COMMIT/ROLLBACK otomatis), dan `FOR UPDATE` masih dipakai di service
+  yang baca-lalu-tulis satu baris (mis. `confirmation.service.ts`'s `lockTransaction`).
+
+**Kesimpulan**: fase 1 (Keamanan) dan sebagian fase 2 (Monitoring) checklist ini perlu dikerjakan
+ULANG untuk `rdt/backend` sebelum data finansial asli masuk — jangan anggap lunas cuma karena
+item 1.1–2.2 sudah pernah dicentang untuk backend yang sekarang sudah dihapus.
+
 ---
 
 ## 2. 💾 KEANDALAN & BACKUP (gap terbesar — belum PERNAH dibahas)

@@ -3,9 +3,9 @@ import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { CurrentUserService } from '@auth/services/current-user.service';
 import { NotificationsService } from '../services/notifications.service';
-import { Notification } from '../services/notification.model';
-import { DashboardService } from '../services/dashboard.service';
-import { ExportBatchService } from '../services/export-batch.service';
+import { Notification } from '../shared/models/notification.model';
+import { DashboardService } from '../features/dashboard/services/dashboard.service';
+import { PeriodDeadlineReminderService } from '../core/services/period-deadline-reminder.service';
 
 // Display-label per route. 'repost'/'confirm'/'need-approval' are role-aware (lihat
 // NavigationEnd handler di bawah), jadi tidak masuk sini.
@@ -69,7 +69,7 @@ export class ShellComponent implements OnInit {
     public currentUser: CurrentUserService,
     private notificationsSvc: NotificationsService,
     private dashboardSvc: DashboardService,
-    private exportBatches: ExportBatchService,
+    private periodDeadlineReminder: PeriodDeadlineReminderService,
     private router: Router,
     private route: ActivatedRoute,
     private elementRef: ElementRef<HTMLElement>,
@@ -105,7 +105,7 @@ export class ShellComponent implements OnInit {
   // Loaded once at shell mount — single periode-wide value, tidak perlu re-fetch per navigasi.
   private loadDeadlineReminder(): void {
     if (!this.currentUser.current) { this.deadlineReminder = null; return; }
-    this.exportBatches.getCurrentDeadlineReminder().subscribe({
+    this.periodDeadlineReminder.getCurrentReminder().subscribe({
       next: (res) => { this.deadlineReminder = res.deadline_at ? { periode: res.periode, deadline_at: res.deadline_at } : null; },
       error: () => { /* purely informational — ignore, same convention as notif/dashboard badge */ },
     });

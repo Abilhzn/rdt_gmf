@@ -20,10 +20,15 @@ that it hasn't needed one; see `auth/test/auth.test.js` for coverage of the one 
 actually gets consumed and validated.
 
 ## Details worth knowing
-- **This is a service-to-service boundary** — `auth` and `rdt/backend` call it directly, no
-  end-user's browser ever talks to it. Because of that, it doesn't use the session-token auth
-  every other endpoint in this repo does; instead, set `INTERNAL_SERVICE_KEY` (same value on this
-  service and on `auth`/`rdt/backend`) to require an `X-Internal-Key` header on `/employees*`.
-  **Unset by default** (fine for local dev, prints a startup warning) — set it once this service
-  is reachable from anywhere beyond `localhost`.
+- **This is a service-to-service boundary** — `auth` calls it directly (credential verification
+  during login), no end-user's browser ever talks to it. Because of that, it doesn't use the
+  session-token auth every other endpoint in this repo does; instead, set `INTERNAL_SERVICE_KEY`
+  (same value on this service and on `auth`) to require an `X-Internal-Key` header on
+  `/employees*`. **Unset by default** (fine for local dev, prints a startup warning) — set it once
+  this service is reachable from anywhere beyond `localhost`.
+- **`rdt/backend` (NestJS) does NOT call this service** — it keeps its own copy of the same seed
+  data (`backend/src/core/directory/employee-directory.seed.json`, `DIRECTORY_MODE=seed`) so the
+  @mention/notification/comment features it serves don't have a runtime dependency on this
+  service being up. The old Express backend (removed 27 Agu 2026) did call it — this service now
+  only has one real caller, `auth`.
 - Full business/architecture context: `../rdt/docs/SRS.md` and `../rdt/docs/IRS.md`.

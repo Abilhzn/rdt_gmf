@@ -1,4 +1,0 @@
-{
-  "_comment": "Fallback list of active dinas codes, used only when DATABASE_URL is not configured. When DB is available, GET /api/dinas reads rdt.dinas directly (see src/migrate.js for the authoritative seed). Corrected 29 Jul 2026 alongside dinas.codes.json's roster fix (see its comment) — mirrors the same real GH structure. TMM added 31 Jul 2026 alongside dinas.codes.json (see its comment) — its own dinas, not a sub-unit of TM.",
-  "codes": ["TA","TB","TC","TD","TE","TF","TH","TI","TJ","TL","TM","TMM","TN","TP","TQ","TR","TS","TU","TV","TX","TZ","DFR","Corp"]
-}

@@ -8,7 +8,7 @@ persis di mana pola itu muncul di kode kita.
 
 ## BAGIAN 1 — JavaScript Dasar yang Dipakai DI MANA-MANA
 
-Sebelum masuk Express/Angular, ini 6 idiom JS yang bakal kamu lihat di HAMPIR SETIAP
+Sebelum masuk NestJS/Angular, ini 6 idiom JS yang bakal kamu lihat di HAMPIR SETIAP
 file. Kalau ini udah klik, baca kode apapun di project ini jadi jauh lebih gampang.
 
 ### 1a. `async`/`await` — nunggu sesuatu yang lambat (network, database)
@@ -78,63 +78,102 @@ kosong sebagai default".
 
 ---
 
-## BAGIAN 2 — Express.js (Backend): Middleware Chain
+## BAGIAN 2 — NestJS (Backend): Decorator + Guard, Bukan Middleware Chain
 
-File: `rdt/backend/src/middleware/auth.js`
+File: `rdt/backend/src/modules/repost/confirmation/confirmation.controller.ts` +
+`rdt/backend/src/core/security/dinas-access.guard.ts`
 
-**Konsep inti**: Express itu kayak **pipeline ETL** — satu request lewatin serangkaian
-"stage" berurutan, tiap stage bisa (a) lanjutin ke stage berikutnya, atau (b) berhenti
-di situ dan langsung balikin response (kayak validasi row yang gagal terus di-drop
-dari pipeline, gak lanjut ke stage berikutnya).
+**Konsep inti (masih mirip pipeline ETL, tapi cara nyusunnya beda)**: di Express (backend
+lama, `rdt/backend`, sudah dihapus dari repo ini), tiap "stage" ditulis manual sebagai
+fungsi yang disusun berurutan di route (`router.get('/:dinas', requireDinasAccess('dinas'),
+handler)`). NestJS (`rdt/backend`, backend yang aktif sekarang) masih ngejalanin
+stage-stage yang sama secara konsep (cek identitas → cek otorisasi → handler), tapi
+disusun pakai **decorator** (anotasi `@Sesuatu(...)` nempel di class/method) + **Guard**
+(class terpisah yang jawab ya/tidak "boleh lanjut?"), bukan array fungsi di satu baris.
 
-```js
-async function requireUser(req, res, next) {
-  if (!headers['X-Session-Token'] && !headers['X-User-Id']) {
-    return res.status(401).json({ ok: false, error: '...' });   // (b) BERHENTI di sini
+```ts
+@Controller('repost/confirmation')
+@UseGuards(DinasAccessGuard)             // <- "stage" otorisasi, jalan SEBELUM handler manapun di controller ini
+export class ConfirmationController extends BaseController {
+  constructor(private readonly confirmation: ConfirmationService) { super(); }
+
+  @Get(':dinas')
+  async getQueue(@Param('dinas') dinas: string) {
+    return this.ok(await this.confirmation.getQueue(dinas));
   }
-  req.rdtUser = body.user;
-  next();                                                          // (a) LANJUT ke stage berikutnya
 }
 ```
 
-- `req` = data request masuk (headers, body, params URL)
-- `res` = alat buat ngirim balik jawaban ke browser
-- `next` = fungsi "lanjut ke stage berikutnya" — kalau `next()` GAK dipanggil, request-nya
-  "macet" di situ (browser nunggu selamanya) kecuali kamu udah kirim `res.json(...)` duluan
+- `@Controller('repost/confirmation')` = "class ini nanganin semua route yang path-nya
+  diawali `/repost/confirmation`" — pengganti `router = express.Router()` + `app.use(...)`.
+- `@UseGuards(DinasAccessGuard)` di ATAS class = berlaku buat SEMUA handler di controller
+  ini (setara masang middleware sebelum tiap route di file `confirmation.js` lama). Bisa
+  juga dipasang per-handler (di atas satu `@Get()`/`@Post()` doang) kalau cuma satu endpoint
+  yang butuh guard itu — lihat `reassignment.controller.ts`.
+- `@Get(':dinas')` / `@Param('dinas')` = pengganti `router.get('/:dinas', ...)` +
+  `req.params.dinas` — Nest yang urus parsing-nya, kamu tinggal declare parameter apa yang
+  kamu mau ambil dari request.
 
-Cara masang middleware ke satu route (dari `confirmation.js`):
+**`DinasAccessGuard` itu setara `requireDinasAccess` di Express lama** — tempat logika
+otorisasi beneran ditulis, cuma bentuknya class dengan satu method wajib
+(`canActivate`), bukan fungsi yang manggil `next()`:
 
-```js
-router.get('/:dinas', requireDinasAccess('dinas'), async (req, res) => { ... });
-//          ^ path        ^ stage 1 (middleware)      ^ stage 2 (handler akhir)
-```
-
-Urutan argumen setelah path itu urutan eksekusi. `requireDinasAccess('dinas')` jalan
-DULU (cek otorisasi), baru kalau dia manggil `next()`, `async (req,res)=>{...}` jalan.
-
-**`requireDinasAccess` itu "middleware factory"** — fungsi yang RETURN fungsi middleware
-lain:
-
-```js
-function requireDinasAccess(dinasParam) {
-  return function (req, res, next) { ... };   // ini yang beneran jadi middleware-nya
+```ts
+@Injectable()
+export class DinasAccessGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const req = context.switchToHttp().getRequest<RequestWithIdentity>();
+    if (!req.identity) {
+      throw new DomainError('Authentication required', 401, 'UNAUTHENTICATED');
+    }
+    if (req.identity.role === 'TAB') return true;          // TAB boleh akses dinas mana pun
+    const targetDinas = String(req.params.dinas ?? '').toUpperCase();
+    if (String(req.identity.dinas).toUpperCase() === targetDinas) return true;
+    throw new DomainError(`... not authorized for dinas=${targetDinas}`, 403, 'FORBIDDEN_DINAS');
+  }
 }
 ```
 
-Kenapa gitu? Biar bisa dipakai ulang dengan parameter beda-beda
-(`requireDinasAccess('dinas')` di satu route, mungkin `requireDinasAccess('targetDinas')`
-di route lain) — kayak *factory function* atau *decorator dengan argumen* di Python
-(`@retry(times=3)` vs `@retry(times=5)`).
+Beda paling penting dari `next()` di Express: **gak ada fungsi "lanjut ke stage
+berikutnya" yang dipanggil manual**. Guard cuma `return true` (boleh lanjut ke handler)
+atau `return false`/`throw` (berhenti, otomatis jadi response error — di sini lewat
+`DomainError` yang ditangkap `GlobalExceptionFilter`,
+`rdt/backend/src/core/exception/global-exception.filter.ts` — dipasang global,
+ngubah semua error jadi response JSON konsisten `{statusCode, message, error}`). Nest yang urus
+"lanjut atau berhenti"-nya di belakang layar, kamu tinggal balikin boolean/throw.
+
+**Dari mana `req.identity` itu datang?** Beda lagi dari Express lama yang re-verify token
+ke `auth` service tiap request (`requireUser` manggil `fetch(AUTH_SERVICE_URL)`) —
+`rdt/backend` punya `IdentityMiddleware` (middleware Express biasa, masih ada karena
+Nest jalan DI ATAS Express) yang nempelin `req.identity` SEKALI per request, sebelum guard
+manapun jalan (didaftarkan di `app.module.ts`: `consumer.apply(IdentityMiddleware).forRoutes('*')`).
+Isinya tergantung `IDENTITY_MODE` di `.env` — `dev-mock` (baca header `x-dev-*` buat lokal)
+atau `ocx` (baca header `x-ocx-*` yang di-suntik OCX di produksi, lihat `rdt/docs/IRS.md`).
+
+**Role check** (analogi `requireRole('TAB')` di kode lama) pakai kombo decorator +
+guard yang mirip, tapi dua file terpisah — `@Roles('TAB')` (nempel metadata doang, gak
+ngecek apa-apa sendiri) dibaca sama `RolesGuard` (yang beneran ngecek):
+
+```ts
+@Controller('repost/export')
+@UseGuards(RolesGuard)
+export class ExportController {
+  @Post()
+  @Roles('TAB')                 // cuma metadata — RolesGuard yang baca & tegakkan ini
+  async createBatch(...) { ... }
+}
+```
 
 ---
 
 ## BAGIAN 3 — PostgreSQL dari Node.js: Parameterized Query & Transaction
 
-File: `rdt/backend/src/routes/confirmation.js`
+File: `rdt/backend/src/modules/repost/confirmation/confirmation.service.ts` +
+`rdt/backend/src/core/database/database.service.ts`
 
 ### Parameterized query — udah familiar dari data engineering
 
-```js
+```ts
 const r = await client.query(
   `SELECT t.id, t.account, t.nominal FROM rdt.transactions t WHERE t.dinas_target=$1 AND t.status_konfirmasi=$2`,
   [dinas, 'PENDING']
@@ -145,30 +184,32 @@ Persis konsep yang sama kayak `cursor.execute(query, (dinas, 'PENDING'))` di
 `psycopg2` — `$1`/`$2` itu placeholder, nilainya disuntikkan AMAN lewat array kedua,
 BUKAN digabung manual ke string SQL (itu yang bikin rawan SQL injection). Aturan di
 project ini: **gak ada satupun query yang nggabung string manual buat data dari
-user** — selalu `$1,$2,...` + array.
+user** — selalu `$1,$2,...` + array. `rdt/backend` gak pakai ORM (lihat
+`RENCANA_REWRITE_NESTJS.md` §5) — raw SQL lewat `pg`, dibungkus satu `DatabaseService`
+yang semua module inject lewat DI, bukan `new Pool()` sendiri-sendiri.
 
-### Transaction — BEGIN...COMMIT, sama kayak yang kamu tau
+### Transaction — `withTransaction`, tetap BEGIN/COMMIT/ROLLBACK di baliknya
 
-```js
-await client.query('BEGIN');
-try {
-  // ...banyak query UPDATE/INSERT di sini...
-  await client.query('COMMIT');
-} catch (err) {
-  await client.query('ROLLBACK');
-}
+```ts
+await this.db.withTransaction(async (client) => {
+  // ...banyak query UPDATE/INSERT di sini, pakai `client`, bukan `this.db.query`...
+});
 ```
 
-Sama persis konsep ACID transaction yang udah kamu kenal — kalau ADA SATU query di
-tengah yang gagal (`throw`), SEMUA perubahan sebelumnya di transaction itu dibatalin
-(`ROLLBACK`), bukan nyangkut setengah-setengah. Ini penting banget di kode finansial
-kita (konfirmasi + ledger entry harus tercatat BARENG, gak boleh cuma salah satu).
+`withTransaction` (`database.service.ts`) itu pembungkus: `BEGIN` → jalanin fungsi yang
+kamu kasih → `COMMIT` kalau sukses, `ROLLBACK` otomatis + re-throw kalau fungsinya
+`throw`. Konsepnya PERSIS sama kayak `BEGIN`/`try`/`COMMIT`/`catch`/`ROLLBACK` manual di
+Express lama — cuma sekarang pola itu ditulis SEKALI di satu tempat (`DatabaseService`),
+bukan diulang-ulang di tiap route handler. Ini penting banget di kode finansial kita
+(konfirmasi + ledger entry harus tercatat BARENG, gak boleh cuma salah satu).
 
 ### `FOR UPDATE` — row locking
 
-```js
-const q = await client.query(
-  'SELECT ... FROM rdt.transactions WHERE id=$1 FOR UPDATE', [id]
+```ts
+const { rows } = await client.query<LockedTransactionRow>(
+  `SELECT t.id, ... FROM rdt.transactions t JOIN rdt.uploads u ON u.id = t.upload_id
+   WHERE t.id = $1 FOR UPDATE OF t`,
+  [id],
 );
 ```
 
@@ -284,7 +325,7 @@ paling umum buat orang baru pindah dari async/await biasa ke RxJS.
 | Konsep di kode kita | Analogi dari data engineering/Python |
 |---|---|
 | `async`/`await` | `cursor.execute()` lalu `fetchall()` — nunggu I/O selesai |
-| Middleware Express | Stage berurutan di pipeline ETL |
+| Guard/Decorator NestJS (`@UseGuards`, `canActivate`) | Stage berurutan di pipeline ETL (tiap stage boleh/gak boleh lanjut) |
 | `$1,$2` + array | Parameterized query `psycopg2` |
 | `BEGIN`/`COMMIT`/`ROLLBACK` | Transaction SQL standar, sama persis |
 | `interface`/`type` TS | `@dataclass` + type hint, tapi DIPAKSA compiler |
@@ -294,7 +335,9 @@ paling umum buat orang baru pindah dari async/await biasa ke RxJS.
 | RxJS `Observable` + `.pipe()` | Python generator (`yield`) / lazy pipeline Spark |
 
 Cara belajar lanjut yang paling efektif: pas nemu file baru, coba tebak dulu "ini
-file Express (backend) atau Angular (frontend)?" dari extension-nya (`.js` di
-`backend/` = Express, `.ts` di `frontend/` = Angular), terus cari pola dari tabel di
+file `rdt/backend` (Nest, `.ts`, ada `@Controller`/`@Injectable`) atau
+`rdt/frontend` (Angular, `.ts`, ada `@Component`)?" — keduanya sekarang sama-sama
+TypeScript, jadi liat foldernya (`backend/` vs `frontend/`) dan decorator yang
+nempel, bukan extension file. Terus cari pola dari tabel di
 atas satu-satu. Hampir semua file di project ini isinya kombinasi dari pola-pola yang
 udah dijelasin di sini.

@@ -1,0 +1,111 @@
+<div class="counts">
+  <div class="counts__item">
+    <span class="chip chip--pending">PENDING</span>
+    <strong>{{ statusCounts['PENDING'] || 0 }}</strong>
+    <span class="counts__label">tagihan lintas dinas</span>
+  </div>
+  <div class="counts__item">
+    <span class="chip chip--excluded">EXCLUDED</span>
+    <strong>{{ statusCounts['EXCLUDED'] || 0 }}</strong>
+    <span class="counts__label">internal / non-tagihan</span>
+  </div>
+  <div class="counts__item">
+    <span class="chip chip--invalid">INVALID</span>
+    <strong>{{ statusCounts['INVALID'] || 0 }}</strong>
+    <span class="counts__label">perlu diperbaiki</span>
+  </div>
+  <div class="counts__item">
+    <span class="chip chip--needs_review">NEEDS_REVIEW</span>
+    <strong>{{ statusCounts['NEEDS_REVIEW'] || 0 }}</strong>
+    <span class="counts__label">prefix tak dikenal</span>
+  </div>
+  <div class="counts__item">
+    <span class="chip chip--needs_investigation">NEEDS_INVESTIGATION</span>
+    <strong>{{ statusCounts['NEEDS_INVESTIGATION'] || 0 }}</strong>
+    <span class="counts__label">perlu investigasi TAB</span>
+  </div>
+</div>
+
+<h3 class="card__subtitle" style="margin-top:26px;padding-top:16px;border-top:1px solid #dde5ec">
+  Detail baris ({{ filteredRows.length }} dari {{ rows.length }})
+</h3>
+
+<div class="filters">
+  <label>
+    Status
+    <select [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()">
+      <option value="ALL">Semua</option>
+      <option value="PENDING">PENDING</option>
+      <option value="EXCLUDED">EXCLUDED</option>
+      <option value="INVALID">INVALID</option>
+      <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+      <option value="NEEDS_INVESTIGATION">NEEDS_INVESTIGATION</option>
+    </select>
+  </label>
+  <label>
+    Dinas target
+    <select [(ngModel)]="dinasFilter" (ngModelChange)="onFilterChange()">
+      <option value="ALL">Semua</option>
+      <option *ngFor="let d of dinasOptions" [value]="d">{{ d }}</option>
+    </select>
+  </label>
+  <label class="filters__search">
+    Cari
+    <input
+      type="search"
+      placeholder="account / remark / kategori…"
+      [(ngModel)]="searchText"
+      (ngModelChange)="onSearchInput()"
+    />
+  </label>
+</div>
+
+<div class="table-scroll">
+  <table class="rows">
+    <thead>
+      <tr>
+        <th *ngFor="let col of previewColumns" [class.rows__num]="col.numeric">
+          {{ col.label }}
+          <rdt-multi-value-filter
+            [placeholder]="'Tempel banyak nilai ' + col.label + ' sekaligus (satu per baris/koma)...'"
+            (valuesChange)="onColumnFilterChange(col.key, $event)"
+          ></rdt-multi-value-filter>
+        </th>
+        <th>Dinas target</th>
+        <th>Status</th>
+        <th class="reviewer-note-col">Catatan Reviewer</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let r of pagedRows; trackBy: trackByIndex">
+        <ng-container *ngFor="let col of previewColumns">
+          <td *ngIf="col.numeric" class="rows__num" [class.rows__num--negative]="(r.nominal || 0) < 0">
+            {{ r.nominal | number: '1.2-2' }}
+          </td>
+          <td *ngIf="col.key === 'remark'" class="rows__remark" [title]="r.remark || ''">{{ r.remark }}</td>
+          <td *ngIf="col.key !== 'remark' && !col.numeric">
+            {{ getCellValue(r, col.key) ?? '—' }}
+          </td>
+        </ng-container>
+        <td>{{ r.dinas_target ?? '—' }}</td>
+        <td>
+          <span [class]="statusClass(r.status_konfirmasi)">{{ r.status_konfirmasi }}</span>
+        </td>
+        <td class="reviewer-note-col">
+          <rdt-mention-input
+            [(ngModel)]="r.reviewer_note"
+            [rows]="2"
+            [autoGrow]="false"
+            extraClass="reviewer-note-input"
+            placeholder="Catatan opsional..."
+          ></rdt-mention-input>
+        </td>
+      </tr>
+      <tr *ngIf="!pagedRows.length">
+        <td [attr.colspan]="previewColumns.length + 3" class="rows__empty">Tidak ada baris yang cocok dengan filter.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<rdt-pagination [page]="page" [totalItems]="filteredRows.length" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></rdt-pagination>

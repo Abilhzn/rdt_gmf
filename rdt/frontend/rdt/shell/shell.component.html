@@ -110,7 +110,10 @@
               class="notif-item"
               [class.notif-item--unread]="!n.read_at"
               style="cursor:pointer"
+              role="button"
+              tabindex="0"
               (click)="goToNotifDetail(n)"
+              (keydown.enter)="goToNotifDetail(n)"
             >
               <div class="notif-item__body">{{ n.author_display_name }}: <rdt-mention-text [body]="n.body"></rdt-mention-text></div>
               <div class="notif-item__meta">{{ n.dinas_inisiasi }} → {{ n.dinas_target }} · {{ n.created_at | idDate }}</div>

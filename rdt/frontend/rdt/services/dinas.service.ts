@@ -1,28 +1,23 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
-import { CurrentUserService } from '@auth/services/current-user.service';
+import { API_BASE } from '../core/api-config';
 
 export interface DinasEntry {
   code: string;
   name: string;
 }
 
+// `GET /dinas` (backend's `DinasController`, root-level — not under `repost/`) — active dinas
+// only (`is_active=true`), for picker/reassign dropdowns. Updated Batch 6c for the new response
+// shape (plain `Dinas[]` via `{data,message}`, unwrapped — no more `{ok,dinas}`).
 @Injectable({ providedIn: 'root' })
 export class DinasService {
-  private readonly base = '/api';
+  private readonly base = API_BASE;
 
-  constructor(private http: HttpClient, private currentUser: CurrentUserService) {}
+  constructor(private http: HttpClient) {}
 
   getActiveDinas(): Observable<DinasEntry[]> {
-    // Checklist 3 (12 Agu, caught during manual browser smoke test after service restart): went
-    // out with NO auth header — broke silently once checklist 1.1 added requireUser to
-    // GET /api/dinas (dropdown-populating callers like confirm.component's reassign-target
-    // pickers just rendered empty, no visible error). Same regression class as
-    // TransactionService.getContractFields — see that method's own comment for the full story.
-    return this.http
-      .get<{ ok: boolean; dinas: DinasEntry[] }>(`${this.base}/dinas`, { headers: this.currentUser.authHeaders() })
-      .pipe(map((res) => (res.ok ? res.dinas : [])));
+    return this.http.get<DinasEntry[]>(`${this.base}/dinas`);
   }
 }

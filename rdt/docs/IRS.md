@@ -35,7 +35,12 @@ sendiri dengan VM sendiri.
   TOTAL** saat integrasi OCX beneran terjadi \u2014 bukan sekadar \"ganti isi dalemnya\",
   karena OCX kemungkinan sudah punya sistem identitas sendiri yang lebih lengkap.
   `rdt/backend` tinggal mempercayai identitas yang di-hand-off dari OCX secara
-  langsung.
+  langsung \u2014 ini sudah punya skeleton-nya: `IDENTITY_MODE=ocx` di `.env`
+  mengaktifkan `OcxIdentityProvider`
+  (`rdt/backend/src/core/security/ocx-identity.provider.ts`), yang sekarang baca
+  identitas dari header `x-ocx-user-id`/`x-ocx-dinas`/`x-ocx-role` \u2014 PLACEHOLDER,
+  belum integrasi nyata ke OCX (lihat komentar di file itu sendiri), tapi bentuk
+  provider-nya sudah menyiapkan titik sambung buat pertanyaan section 3.2 di bawah.
 
 ---
 
@@ -46,7 +51,7 @@ sendiri dengan VM sendiri.
 | Server produksi | GMF punya sendiri (bukan cloud pihak ketiga) |
 | Model integrasi | App di-plug-in ke OCX, bukan berdiri sendiri |
 | Auth/session produksi | Diwariskan dari OCX (bukan sistem auth RDT sendiri) |
-| Database saat DEVELOPMENT | PostgreSQL lokal (`rdt_dev`) — sempat Supabase, dipindah balik 20 Agu |
+| Database saat DEVELOPMENT | PostgreSQL lokal (`rdt`, lihat `rdt/backend/.env.example`'s `DB_NAME`) — sempat Supabase, dipindah balik 20 Agu |
 | Database saat PRODUKSI | **Belum dikonfirmasi** \u2014 kemungkinan besar server Postgres GMF sendiri, tapi butuh konfirmasi eksplisit dari IT, JANGAN diasumsikan Supabase tetap dipakai |
 
 ---
@@ -70,7 +75,9 @@ spesifikasi yang dikarang:
 
 ### 3.2 Auth & identitas
 - Format hand-off identitas dari OCX ke app (token JWT? session cookie? header
-  khusus?) \u2014 ini nentuin bentuk ulang `middleware/auth.js` di `rdt/backend`.
+  khusus?) \u2014 ini nentuin bentuk ulang `OcxIdentityProvider`
+  (`rdt/backend/src/core/security/ocx-identity.provider.ts`), yang sekarang
+  masih placeholder baca header `x-ocx-*` mentah.
 - Struktur data karyawan yang OCX/IT punya (sudah disinggung sebelumnya di
   percakapan \u2014 employee ID, field \"dinas\", dst) \u2014 buat mastiin asumsi
   `dinas_target` kita di database cocok sama struktur data mereka.

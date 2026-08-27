@@ -1,0 +1,42 @@
+<div class="split-original card">
+  <h3 class="card__subtitle">Baris asli</h3>
+  <div class="split-original__grid">
+    <span>{{ selected?.dinas_inisiasi }} → {{ selected?.dinas_target }}</span>
+    <span>{{ selected?.account }}</span>
+    <span *ngIf="selected?.ref_doc">Ref.Doc {{ selected?.ref_doc }}</span>
+    <span class="split-original__nominal">{{ selected?.nominal | number: '1.2-2' }}</span>
+  </div>
+  <!-- Tombol download file asli, sama pola dengan fitur lain, disiapkan sebelum split. -->
+  <div class="original-file-downloads" *ngIf="selected?.upload_id">
+    <button class="btn btn--ghost" type="button" (click)="downloadOriginal.emit()"
+    >⬇ Download file asli: {{ selected?.upload_filename }}</button>
+  </div>
+</div>
+
+<h3 class="card__subtitle">Baris hasil split</h3>
+<div class="split-row" *ngFor="let r of splitRows; let i = index">
+  <select [(ngModel)]="r.dinas_target">
+    <option value="">Pilih dinas...</option>
+    <option *ngFor="let d of dinasOptions" [value]="d.code">{{ d.code }}</option>
+  </select>
+  <input type="number" step="0.01" [(ngModel)]="r.nominal" placeholder="Nominal" />
+  <button class="btn btn--ghost" type="button" (click)="removeSplitRow(i)" [disabled]="splitRows.length <= 2">Hapus</button>
+</div>
+<div class="card__actions">
+  <button class="btn btn--ghost" type="button" (click)="addSplitRow()">+ Tambah baris</button>
+</div>
+
+<div class="split-sum" [class.split-sum--mismatch]="!sumMatches">
+  Total baris split: {{ sumNominal | number: '1.2-2' }} / Baris asli: {{ selected?.nominal | number: '1.2-2' }}
+  <span *ngIf="!sumMatches"> — selisih {{ sumDiff | number: '1.2-2' }}, harus 0 sebelum submit</span>
+</div>
+
+<label class="batch-note-label">
+  Alasan split (wajib, bisa @mention)
+  <rdt-mention-input [(ngModel)]="note" [rows]="2" [autoGrow]="false" extraClass="batch-note" placeholder="mis. dari 100rb ini, 65rb sebenarnya jatah @TU..."></rdt-mention-input>
+</label>
+
+<div class="card__actions">
+  <button class="btn btn--ghost" type="button" (click)="cancelled.emit()">Batal</button>
+  <button class="btn btn--primary" type="button" [disabled]="!canSubmit()" (click)="submit()">Simpan Pembagian</button>
+</div>

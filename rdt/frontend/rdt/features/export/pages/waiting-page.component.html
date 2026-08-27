@@ -1,0 +1,104 @@
+<div class="page-card">
+  <p class="note">
+    Antrian per pasangan dinas yang siap di-repost. Download file, posting manual ke SAP, lalu
+    Confirm dan masukkan nomor subdoc hasil posting. Hanya role TAB yang bisa bertindak di sini.
+  </p>
+  <div class="card__actions">
+    <button class="btn btn--ghost" type="button" (click)="load()">Muat ulang</button>
+  </div>
+  <p class="alert alert--error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+  <h3 class="card__subtitle">Menunggu Repost</h3>
+  <!-- Skeleton rows saat loading, bukan blank gap — lihat `loading` field di .ts-nya. -->
+  <div class="skeleton-list" *ngIf="loading">
+    <div class="skeleton-row" *ngFor="let i of [1, 2, 3]"></div>
+  </div>
+  <p class="note" *ngIf="!loading && !waiting.length">Belum ada pasangan yang siap di-repost.</p>
+  <ng-container *ngFor="let w of waiting">
+    <div class="batch-row">
+      <div class="batch-row__id">{{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</div>
+      <div class="batch-row__period">
+        {{ w.total }} transaksi <span class="state-label">{{ w.state_label }}</span>
+        <!-- Pasangan overdue tetap di list ini, ditag juga di sini (bukan cuma Dashboard) —
+             sticky, gak hilang walau periode baru mulai. -->
+        <span *ngIf="w.overdue" class="state-label state-label--overdue">Overdue</span>
+      </div>
+      <div class="batch-row__action">
+        <!-- Download langsung tersedia, gak perlu Confirm dulu. Format TAB satu-satunya format
+             sekarang (REQ-RDT-SAP-06 diganti total, 15 Agu) — detail transaksi lengkap sudah ada
+             di SAP sendiri, repost cuma soal pindah kepemilikan. -->
+        <button
+          class="btn btn--ghost"
+          type="button"
+          [disabled]="downloadingPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)"
+          (click)="download(w)"
+        >&#8659; Download Format Repost SAP</button>
+        <!-- Klik tampilkan transparansi SEKALIGUS form deskripsi+subdoc, satu layar
+             (.transparency-panel di bawah). Toggle ke closeTransparency saat panel sudah terbuka. -->
+        <button
+          class="btn btn--ghost"
+          type="button"
+          (click)="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target) ? closeTransparency() : openTransparency(w.dinas_inisiasi, w.dinas_target)"
+        >
+          {{ expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target) ? 'Tutup' : 'Confirm Reposted' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="transparency-panel" *ngIf="expandedPairKey === pairKey(w.dinas_inisiasi, w.dinas_target)">
+      <p class="alert alert--error" *ngIf="transparencyError">{{ transparencyError }}</p>
+      <!-- Preview table 12-kolom sengaja gak dirender lagi di sini — TAB udah lihat datanya
+           lewat Download/breakdown drill-down sebelumnya. transparencyRows tetap di-fetch
+           (dibutuhin buat sizing subdoc input per chunk), cuma gak ditampilkan sebagai tabel. -->
+      <p class="note" *ngIf="transparencyRows.length">
+        {{ transparencyRows.length }} transaksi CONFIRMED siap di-repost. Lihat detail lengkap lewat
+        tombol Download di atas, atau breakdown per pasangan di Summary Progress All Dinas.
+      </p>
+
+      <!-- Satu form — deskripsi penutup + nomor subdoc pertama sekaligus. Submit ini bikin
+           batch DAN attach subdoc pertamanya. -->
+      <label class="batch-note-label">
+        Deskripsi penutup (opsional)
+        <rdt-mention-input
+          [(ngModel)]="closingDescription"
+          [rows]="2"
+          [autoGrow]="false"
+          extraClass="batch-note"
+          placeholder="mis. repost sudah beres, terima kasih ke semua dinas terkait"
+        ></rdt-mention-input>
+      </label>
+      <!-- Pasangan yang di-chunk >300 baris (chunk-1.xlsx/chunk-2.xlsx/dst) butuh satu nomor
+           subdoc per chunk — kolom terpisah "Repost 1"/"Repost 2"/dst sesuai urutan file. Yang
+           gak di-chunk tetap 1 input polos. -->
+      <ng-container *ngIf="chunkCount === 1; else chunkedSubdocInputs">
+        <label class="batch-note-label">
+          Nomor subdoc SAP (wajib — hasil posting manual dari file yang sudah diunduh)
+          <input class="subdoc-input" type="text" [(ngModel)]="subdocNumbers[0]" placeholder="Nomor subdoc SAP" />
+        </label>
+      </ng-container>
+      <ng-template #chunkedSubdocInputs>
+        <p class="note">
+          Pasangan ini di-chunk jadi {{ chunkCount }} file saat diunduh ({{ maxRowsPerFile }} baris/file) —
+          masukkan nomor subdoc hasil posting tiap file secara terpisah.
+        </p>
+        <label class="batch-note-label" *ngFor="let n of chunkIndexes">
+          Repost {{ n }}: nomor subdoc SAP (wajib)
+          <input class="subdoc-input" type="text" [(ngModel)]="subdocNumbers[n - 1]" [placeholder]="'Nomor subdoc SAP untuk Repost ' + n" />
+        </label>
+      </ng-template>
+      <div class="card__actions">
+        <button
+          class="btn btn--primary"
+          type="button"
+          [class.btn--busy]="confirming"
+          [disabled]="!canConfirm() || confirming"
+          [title]="canConfirm() ? '' : 'Deskripsi penutup dan nomor subdoc wajib diisi'"
+          (click)="confirmPair(w.dinas_inisiasi, w.dinas_target)"
+        >Confirm {{ w.dinas_inisiasi }} &rarr; {{ w.dinas_target }}</button>
+        <!-- Panel bisa ditutup tanpa wajib isi form Confirm — closeTransparency() gak menyentuh
+             data, cuma menutup panel. -->
+        <button class="btn btn--ghost" type="button" [disabled]="confirming" (click)="closeTransparency()">✕ Batal</button>
+      </div>
+    </div>
+  </ng-container>
+</div>
