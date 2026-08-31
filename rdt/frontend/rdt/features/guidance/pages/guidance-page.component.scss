@@ -1,0 +1,73 @@
+.guidance-page {
+  // Fill halaman — bukan card kecil ngambang di tengah. .main-area (shell) yang atur scroll/padding
+  // luar, di sini cukup gak bikin card kekunci ke max-width sempit.
+  width: 100%;
+
+  .card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 24px;
+    width: 100%;
+  }
+
+  .intro {
+    color: #4b5563;
+    margin: 0 0 20px 0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .accordion__item {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+
+    &--open {
+      border-color: #d1d5db;
+    }
+  }
+
+  .accordion__header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #f9fafb;
+    border: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover { background: #f3f4f6; }
+  }
+
+  // Baris role (accordion tingkat-2) — bukan header yang expand apa-apa lagi, langsung link ke
+  // PDF, jadi ditandai visual beda: indented, regular weight, border pemisah tipis antar baris.
+  .accordion__header--nested {
+    padding-left: 28px;
+    background: #fff;
+    font-weight: 400;
+    color: #374151;
+    border-top: 1px solid #f3f4f6;
+
+    &:hover { background: #f9fafb; color: #1f2937; }
+  }
+
+  .accordion__chevron {
+    color: #6b7280;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+}

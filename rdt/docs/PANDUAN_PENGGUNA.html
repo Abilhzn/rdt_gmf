@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Panduan Pengguna RDT — Repost Detail Transaksi</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #1f2937;
+    margin: 0;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+  .cover {
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    page-break-after: always;
+    padding: 40px 10px;
+  }
+  .cover .eyebrow {
+    color: #0f5f96;
+    font-weight: 700;
+    letter-spacing: 2px;
+    font-size: 13px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .cover h1 {
+    font-size: 42px;
+    margin: 0 0 8px 0;
+    color: #0b3d5c;
+    line-height: 1.15;
+  }
+  .cover .subtitle {
+    font-size: 18px;
+    color: #4b5563;
+    margin-bottom: 40px;
+    max-width: 560px;
+  }
+  .cover .meta {
+    border-top: 2px solid #e5e7eb;
+    padding-top: 16px;
+    font-size: 13px;
+    color: #6b7280;
+  }
+  .cover .role-pills { display:flex; gap:10px; margin-top: 28px; }
+  .role-pill {
+    padding: 8px 18px; border-radius: 999px; font-weight: 700; font-size: 13px;
+  }
+  .role-pill.pic { background:#e6f0fa; color:#0f5f96; border:1px solid #b9d7ef; }
+  .role-pill.tab { background:#fdeee0; color:#a4520a; border:1px solid #f3c69a; }
+
+  h2.section-title {
+    font-size: 26px;
+    color: #0b3d5c;
+    border-bottom: 3px solid #0f5f96;
+    padding-bottom: 8px;
+    margin-top: 0;
+    margin-bottom: 4px;
+  }
+  .section-desc { color:#4b5563; margin-bottom: 28px; font-size: 14px; }
+  .role-banner {
+    display:flex; align-items:center; gap:10px;
+    padding: 10px 16px; border-radius: 8px; margin-bottom: 24px; font-weight:600; font-size: 13px;
+  }
+  .role-banner.pic { background:#e6f0fa; color:#0f5f96; }
+  .role-banner.tab { background:#fdeee0; color:#a4520a; }
+
+  .feature {
+    page-break-inside: avoid;
+    margin-bottom: 34px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .feature-header {
+    background: #f8fafc;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .feature-header h3 {
+    margin: 0 0 3px 0;
+    font-size: 17px;
+    color: #0b3d5c;
+  }
+  .feature-header .path {
+    font-family: "Consolas", monospace;
+    font-size: 11px;
+    color: #6b7280;
+  }
+  .feature-body { padding: 16px 18px; }
+  .shot {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    margin-bottom: 14px;
+    display: block;
+  }
+  .steps { margin: 0 0 10px 0; padding-left: 20px; }
+  .steps li { margin-bottom: 5px; }
+  .callout {
+    background: #fff8e1;
+    border-left: 4px solid #e0a800;
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin: 10px 0;
+    font-size: 13px;
+  }
+  .callout.info {
+    background: #eef6fb;
+    border-left-color: #0f5f96;
+  }
+  .callout strong { color: #1f2937; }
+  .badge {
+    display:inline-block; font-size: 11px; font-weight:700; padding: 2px 8px;
+    border-radius: 4px; margin-right:6px;
+  }
+  .badge.pic { background:#dbeafe; color:#1d4ed8; }
+  .badge.tab { background:#fde3c8; color:#a4520a; }
+  .badge.both { background:#e5e7eb; color:#374151; }
+  table.status-table { width:100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0; }
+  table.status-table th, table.status-table td {
+    text-align:left; padding: 6px 10px; border: 1px solid #e5e7eb;
+  }
+  table.status-table th { background:#f8fafc; color:#374151; }
+  .toc { margin-bottom: 40px; }
+  .toc a { color: #0f5f96; text-decoration:none; }
+  .toc ul { list-style: none; padding-left: 0; }
+  .toc li { padding: 6px 0; border-bottom: 1px dotted #e5e7eb; font-size: 14px; }
+  .pagebreak { page-break-before: always; }
+  footer.doc-footer { margin-top: 60px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color:#9ca3af; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="eyebrow">GMF AeroAsia · Repost Detail Transaction</div>
+  <h1>Panduan Pengguna<br>Aplikasi RDT</h1>
+  <p class="subtitle">Panduan visual per fitur dan per jenis akun — PIC (Person In Charge dinas) dan TAB (Profitability &amp; Budget Control) — untuk proses repost detail transaksi budget lintas dinas.</p>
+  <div class="role-pills">
+    <span class="role-pill pic">Akun PIC</span>
+    <span class="role-pill tab">Akun TAB</span>
+  </div>
+  <div class="meta">Screenshot diambil langsung dari aplikasi berjalan (28 Agustus 2026) · GMF AeroAsia — Garuda Indonesia Group</div>
+</div>
+
+<!-- ============ TOC ============ -->
+<div class="toc">
+  <h2 class="section-title">Daftar Isi</h2>
+  <ul>
+    <li><a href="#konsep">0. Konsep Dasar &amp; Dua Jenis Akun</a></li>
+    <li><a href="#pic-login">1. Login &amp; Pilih Platform</a> <span class="badge both">Semua Akun</span></li>
+    <li><a href="#pic-dashboard">2. Dashboard PIC</a> <span class="badge pic">PIC</span></li>
+    <li><a href="#pic-upload">3. Upload Detail Transaction</a> <span class="badge pic">PIC</span></li>
+    <li><a href="#pic-confirm">4. Detail Confirmation</a> <span class="badge pic">PIC</span></li>
+    <li><a href="#pic-detail">5. Diskusi &amp; Progress Pasangan Dinas</a> <span class="badge both">Semua Akun</span></li>
+    <li><a href="#pic-history">6. Repost History</a> <span class="badge pic">PIC</span></li>
+    <li><a href="#tab-dashboard">7. Dashboard TAB</a> <span class="badge tab">TAB</span></li>
+    <li><a href="#tab-need">8. Need Identification (Corp / Ask TA / Share-Cost)</a> <span class="badge tab">TAB</span></li>
+    <li><a href="#tab-wait">9. Wait to Repost</a> <span class="badge tab">TAB</span></li>
+    <li><a href="#tab-history">10. TAB Repost History</a> <span class="badge tab">TAB</span></li>
+    <li><a href="#tab-period">11. Period Settings</a> <span class="badge tab">TAB</span></li>
+    <li><a href="#notif">12. Notifikasi</a> <span class="badge both">Semua Akun</span></li>
+  </ul>
+</div>
+
+<!-- ============ KONSEP DASAR ============ -->
+<div id="konsep">
+<h2 class="section-title">0. Konsep Dasar &amp; Dua Jenis Akun</h2>
+<p class="section-desc">RDT mengelola proses <strong>repost</strong> — transaksi budget yang harus dipindahkan tanggung jawabnya dari satu dinas (pengaju) ke dinas lain (target) — sebelum akhirnya diposting ke SAP oleh TAB.</p>
+
+<div class="callout info">
+<strong>Dua jenis akun punya tampilan &amp; hak akses berbeda:</strong><br><br>
+<span class="badge pic">PIC</span> — Person In Charge tiap dinas (mis. TJ, TB, TE). PIC menerima transaksi dari dinas lain, lalu <em>Confirm</em> (setuju) atau <em>Reject</em> (tolak, bisa langsung dialihkan ke dinas lain).<br><br>
+<span class="badge tab">TAB</span> — Tim Profitability &amp; Budget Control. TAB memantau <em>seluruh</em> dinas, menangani transaksi yang dinas targetnya tidak jelas ("Ask TA"), membelah transaksi lintas-dinas (Share-Cost), mem-posting hasil final ke SAP, dan mengatur deadline periode.
+</div>
+
+<table class="status-table">
+<tr><th>Status Transaksi</th><th>Artinya</th></tr>
+<tr><td><strong>Pending</strong></td><td>Menunggu keputusan dinas target (Confirm/Reject)</td></tr>
+<tr><td><strong>Confirmed</strong></td><td>Sudah disetujui dinas target, siap direpost TAB ke SAP</td></tr>
+<tr><td><strong>Declined</strong></td><td>Ditolak dinas target tanpa pengalihan — kembali ke dinas pengaju untuk ditindaklanjuti</td></tr>
+<tr><td><strong>Butuh Investigasi (Ask TA)</strong></td><td>Dinas target tidak jelas dari data Excel — TAB yang menentukan tujuannya</td></tr>
+<tr><td><strong>Waiting to repost</strong></td><td>Sudah Confirmed, menunggu TAB posting manual ke SAP</td></tr>
+</table>
+</div>
+
+<!-- ============ 1. LOGIN ============ -->
+<div class="pagebreak" id="pic-login">
+<h2 class="section-title">1. Login &amp; Pilih Platform</h2>
+<div class="role-banner both" style="background:#e5e7eb;color:#374151;">Berlaku untuk akun PIC maupun TAB</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Halaman Login</h3>
+    <div class="path">rdt/login</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144627828-8.jpg" alt="Halaman login RDT">
+    <ol class="steps">
+      <li>Masukkan <strong>Username</strong> dan <strong>Password</strong> yang diberikan admin/IT.</li>
+      <li>Klik <strong>Login</strong>.</li>
+      <li>Selanjutnya akan muncul layar <strong>Pilih Platform</strong> — klik kartu <strong>RDT</strong> untuk masuk ke aplikasi (saat ini RDT adalah satu-satunya platform yang tersedia di layar ini).</li>
+    </ol>
+    <div class="callout info">Sistem login ini dipakai bersama oleh beberapa aplikasi GMF (bukan hanya RDT), jadi satu akun bisa dipakai untuk platform lain di masa depan.</div>
+  </div>
+</div>
+</div>
+
+<!-- ============ 2. DASHBOARD PIC ============ -->
+<div class="pagebreak" id="pic-dashboard">
+<h2 class="section-title">2. Dashboard PIC</h2>
+<div class="role-banner pic">Halaman ini hanya menampilkan data dinas Anda sendiri</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Need to Confirm — transaksi yang menunggu keputusan Anda</h3>
+    <div class="path">rdt/dashboard</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144647673-9.jpg" alt="Dashboard PIC - Need to Confirm">
+    <ol class="steps">
+      <li>Kartu di sini menunjukkan <strong>pasangan dinas</strong> (mis. "TB → TJ") yang punya transaksi menunggu keputusan dinas Anda.</li>
+      <li>Progress bar oranye = <em>Open</em> (belum diputuskan), hijau = <em>Confirmed</em>, merah = <em>Declined</em>.</li>
+      <li>Klik kartu untuk langsung menuju halaman <strong>Detail Confirmation</strong> pasangan dinas tersebut.</li>
+      <li>Badge merah di sebelah menu <strong>Dashboard</strong> menunjukkan jumlah pasangan yang masih butuh tindakan Anda.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Report Submission / Submission Status — ringkasan transaksi yang Anda ajukan</h3>
+    <div class="path">rdt/dashboard?sub=own</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144677182-13.jpg" alt="Report Submission KPI PIC">
+    <ol class="steps">
+      <li>4 kartu KPI di atas: <strong>Total Transaksi Diajukan</strong>, <strong>Total Nilai</strong>, <strong>Open/Menunggu</strong> (perlu follow-up), dan <strong>Selesai/Reposted</strong>.</li>
+      <li>Di bawahnya, progress per pasangan dinas yang <em>Anda</em> ajukan ke dinas lain — label "Waiting to repost" berarti sudah Confirmed, tinggal menunggu TAB posting ke SAP.</li>
+      <li>Klik jumlah komentar (mis. "1 comment") untuk membuka diskusi pasangan dinas tersebut.</li>
+    </ol>
+  </div>
+</div>
+</div>
+
+<!-- ============ 3. UPLOAD ============ -->
+<div class="pagebreak" id="pic-upload">
+<h2 class="section-title">3. Upload Detail Transaction</h2>
+<div class="role-banner pic">PIC — mengunggah file Excel repost dinas Anda</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Upload file Excel (Format CBO)</h3>
+    <div class="path">rdt/repost</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144656983-10.jpg" alt="Upload Detail Transaction kosong">
+    <ol class="steps">
+      <li>Tarik (drag) file <strong>.xlsx</strong> ke kotak dropzone, atau klik <strong>Pilih file</strong>.</li>
+      <li>Field <strong>"Dinas pengunggah"</strong> otomatis terisi sesuai dinas akun Anda.</li>
+      <li>Klik <strong>Proses file</strong> — sistem akan membaca isi file dan menampilkan preview baris per baris beserta status masing-masing (lihat tabel status di bagian 0).</li>
+    </ol>
+    <div class="callout">
+      <strong>Penting:</strong> sistem membaca kolom <em>Recipient</em> di Excel untuk menentukan dinas target tiap baris secara otomatis. Kalau nilainya tidak dikenali sistem, baris itu akan berstatus <strong>Butuh Investigasi</strong> dan diteruskan ke TAB. Kalau kolom nominal (In PCLC) tidak terbaca sebagai angka, baris tersebut otomatis ditandai <strong>tidak valid</strong> dan tidak akan diproses lebih lanjut walau kondisi lain terpenuhi.
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ 4. CONFIRM ============ -->
+<div class="pagebreak" id="pic-confirm">
+<h2 class="section-title">4. Detail Confirmation</h2>
+<div class="role-banner pic">PIC — memutuskan Confirm / Reject transaksi masuk</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Antrian konfirmasi per pasangan dinas</h3>
+    <div class="path">rdt/confirm</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144663545-11.jpg" alt="Detail Confirmation queue">
+    <ol class="steps">
+      <li>Pilih dinas pengaju di dropdown atas (atau "Semua dinas") untuk menyaring antrian.</li>
+      <li>Untuk tiap baris, centang <strong>Confirm</strong> (setuju) atau <strong>Reject</strong> (tolak).</li>
+      <li>Kalau memilih <strong>Reject</strong>, dropdown <strong>"Jika Reject"</strong> di kolom paling kanan menentukan apa yang terjadi: <em>"Balik ke pengajuan"</em> (tanpa pengalihan — dinas pengaju harus menindaklanjuti sendiri) atau langsung dialihkan ke dinas lain yang Anda pilih (transaksi langsung pindah, tidak perlu tahap tolak-dulu).</li>
+      <li>Isi <strong>Deskripsi (opsional)</strong> — teks ini otomatis menjadi komentar balasan di diskusi pasangan dinas terkait, dan mengirim notifikasi ke pihak terkait.</li>
+      <li>Tombol <strong>Download file asli</strong> menyediakan file Excel sumber transaksi ini untuk verifikasi silang.</li>
+      <li>Centang baris yang diinginkan (atau <strong>Select All</strong>), lalu klik <strong>Submit</strong>.</li>
+    </ol>
+    <div class="callout">
+      <strong>Semua-atau-tidak-sama-sekali:</strong> Submit memproses seluruh baris tercentang sebagai satu paket. Kalau ada satu saja yang gagal (misalnya sudah diproses pihak lain lebih dulu), <em>tidak ada satu pun</em> perubahan yang tersimpan — Anda perlu submit ulang.
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ 5. DETAIL & DISKUSI ============ -->
+<div class="pagebreak" id="pic-detail">
+<h2 class="section-title">5. Diskusi &amp; Progress Pasangan Dinas</h2>
+<div class="role-banner both" style="background:#e5e7eb;color:#374151;">Bisa diakses PIC (dinas pengaju/target) maupun TAB</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Progress ring + thread diskusi per pasangan</h3>
+    <div class="path">rdt/dashboard/detail/:dinasPengaju/:dinasTarget</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144691096-14.jpg" alt="Dashboard detail dengan komentar mention">
+    <ol class="steps">
+      <li>Diakses lewat tombol <strong>"Lihat & balas di Dashboard-Detailing"</strong> di halaman Confirm, atau klik kartu progress di Dashboard.</li>
+      <li>Ring progress menunjukkan persentase transaksi yang sudah selesai untuk pasangan dinas ini.</li>
+      <li>Kotak <strong>Diskusi</strong> di bawahnya adalah percakapan bersama — semua komentar terkait pasangan dinas ini (dari confirm, decline, reassign, dsb.) muncul di sini secara kronologis.</li>
+      <li>Ketik <strong>@</strong> di kotak komentar untuk mention dinas atau user tertentu — orang yang di-mention akan menerima notifikasi.</li>
+      <li>Klik <strong>Balas</strong> di bawah komentar tertentu untuk membalas langsung ke komentar itu (bukan komentar baru terpisah).</li>
+    </ol>
+  </div>
+</div>
+</div>
+
+<!-- ============ 6. REPOST HISTORY PIC ============ -->
+<div class="pagebreak" id="pic-history">
+<h2 class="section-title">6. Repost History (PIC)</h2>
+<div class="role-banner pic">PIC — hanya menampilkan riwayat repost dinas Anda sendiri</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Log pasangan yang sudah di-repost TAB ke SAP</h3>
+    <div class="path">rdt/repost-history</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144671089-12.jpg" alt="Repost History PIC dengan badge overdue">
+    <ol class="steps">
+      <li>Filter berdasarkan <strong>Bulan</strong>/<strong>Tahun</strong>, lalu klik <strong>Terapkan filter</strong>.</li>
+      <li>Setiap entri menampilkan nomor <strong>subdoc SAP</strong> hasil posting TAB — gunakan nomor ini untuk cross-check ke rekapan internal dinas Anda.</li>
+      <li>Klik <strong>Lihat thread & riwayat lengkap</strong> untuk membuka diskusi lengkap pasangan tersebut.</li>
+    </ol>
+    <div class="callout">
+      <strong>Badge "Overdue"</strong> muncul kalau transaksi baru selesai dikonfirmasi <em>setelah</em> deadline periode berjalan — sistem otomatis mencatat transaksi tersebut masuk ke periode efektif bulan berikutnya, dan badge ini bersifat permanen (tidak hilang meski deadline baru diatur ulang).
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ 7. DASHBOARD TAB ============ -->
+<div class="pagebreak" id="tab-dashboard">
+<h2 class="section-title">7. Dashboard TAB</h2>
+<div class="role-banner tab">TAB — memantau progress SELURUH dinas dalam satu layar</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Summary Progress All Dinas</h3>
+    <div class="path">rdt/dashboard</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144559138-1.jpg" alt="Dashboard TAB dengan KPI dan rollup">
+    <ol class="steps">
+      <li>5 kartu KPI: <strong>Dinas Aktif</strong>, <strong>Total Transaksi</strong> (seluruh sistem), <strong>Butuh Investigasi</strong> (Ask TA), <strong>Waiting to Repost</strong> (siap diproses TAB), dan <strong>Reposted</strong> periode ini.</li>
+      <li>Tabel di bawah merangkum <em>seluruh</em> transaksi per dinas pengaju (bukan per pasangan), dengan kolom status berupa satu label ringkas:</li>
+    </ol>
+    <table class="status-table">
+      <tr><th>Label Status</th><th>Artinya</th></tr>
+      <tr><td>🔴 Butuh Investigasi (n)</td><td>Prioritas tertinggi — ada baris "Ask TA" milik dinas ini yang perlu di-assign TAB</td></tr>
+      <tr><td>🟠 Waiting for confirmation</td><td>Masih ada transaksi Pending menunggu keputusan dinas target</td></tr>
+      <tr><td>🟡 Waiting to repost</td><td>Semua sudah Confirmed, tinggal menunggu TAB posting manual ke SAP</td></tr>
+      <tr><td>🟢 Semua reposted</td><td>Tuntas — semua transaksi dinas ini sudah diposting ke SAP</td></tr>
+    </table>
+    <li style="list-style:none;">Klik ikon mata di ujung kanan baris untuk melihat breakdown pasangan dinas milik dinas tersebut.</li>
+  </div>
+</div>
+</div>
+
+<!-- ============ 8. NEED IDENTIFICATION ============ -->
+<div class="pagebreak" id="tab-need">
+<h2 class="section-title">8. Need Identification</h2>
+<div class="role-banner tab">TAB — menangani transaksi yang butuh keputusan manual TAB</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Corp — bertindak atas nama dinas Corp</h3>
+    <div class="path">rdt/confirm?target=Corp</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144601652-6.jpg" alt="Need Identification - Corp">
+    <p>Dinas <strong>Corp</strong> tidak memiliki PIC sendiri, jadi hanya TAB yang bisa Confirm/Reject transaksi yang ditujukan ke Corp. Halaman ini persis sama seperti Detail Confirmation milik PIC, hanya saja diakses oleh TAB atas nama Corp.</p>
+  </div>
+</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>TAB — assign transaksi "Ask TA" (dinas target belum jelas)</h3>
+    <div class="path">rdt/confirm?target=INVESTIGATION</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144570174-2.jpg" alt="Need Identification - TAB investigation">
+    <ol class="steps">
+      <li>Baris di sini adalah transaksi yang kolom Recipient di Excel-nya <strong>tidak bisa dikenali sistem</strong> sebagai kode dinas manapun (misal tertulis "Ask TA").</li>
+      <li>Cek <strong>Ref.Doc</strong>/<strong>Remark</strong> pada tiap baris, atau tanyakan ke dinas pengaju bila perlu, untuk menentukan dinas target yang benar.</li>
+      <li>Pilih dinas tujuan di dropdown <strong>Assign Ke</strong>, lalu klik <strong>Tetapkan Dinas</strong> per baris — atau centang beberapa baris dan gunakan <strong>Tetapkan Terpilih</strong> / <strong>Tetapkan Semua</strong> untuk assign massal.</li>
+    </ol>
+    <div class="callout">
+      <strong>Keputusan ini final.</strong> Begitu di-assign, transaksi langsung berstatus <em>Confirmed</em> ke dinas tujuan (tidak perlu dikonfirmasi ulang oleh dinas target) — beda dengan alur normal yang masih menunggu persetujuan dinas target.
+    </div>
+  </div>
+</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Share-Cost — membelah satu transaksi jadi beberapa dinas target</h3>
+    <div class="path">rdt/share-cost</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144577218-3.jpg" alt="Share-Cost search">
+    <ol class="steps">
+      <li>Cari baris <strong>Pending</strong> yang dinas targetnya masih "TAB" lewat kolom pencarian (Account/Ref.Doc/Remark).</li>
+      <li>Pilih baris yang ingin dibelah, lalu tentukan beberapa dinas target dengan nominal masing-masing.</li>
+      <li>Isi catatan alasan pembelahan (wajib) — catatan ini masuk ke audit trail dan komentar diskusi pasangan dinas asal.</li>
+    </ol>
+    <div class="callout">
+      <strong>Total nominal hasil split harus sama persis</strong> dengan nominal baris asli (dihitung sampai ke sen, bukan pembulatan kasar) — sistem akan menolak submit kalau totalnya meleset walau hanya selisih kecil akibat pembulatan.
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ 9. WAIT TO REPOST ============ -->
+<div class="pagebreak" id="tab-wait">
+<h2 class="section-title">9. Wait to Repost</h2>
+<div class="role-banner tab">TAB — memposting hasil final ke SAP</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Antrian pasangan dinas siap direpost</h3>
+    <div class="path">rdt/need-approval</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144585106-4.jpg" alt="Wait to Repost dengan form Confirm Reposted terbuka">
+    <ol class="steps">
+      <li>Klik <strong>Download Format Repost SAP</strong> untuk mengunduh file Excel siap-posting (format resmi 8 kolom) berisi transaksi yang sudah Confirmed pasangan dinas tersebut.</li>
+      <li>Posting file itu secara manual ke SAP (di luar aplikasi RDT).</li>
+      <li>Klik <strong>Confirm Reposted</strong> — form akan terbuka seperti gambar di atas.</li>
+      <li>Isi <strong>Nomor subdoc SAP</strong> (wajib — nomor hasil posting manual) dan deskripsi penutup (opsional, akan jadi komentar penutup diskusi).</li>
+      <li>Klik <strong>Confirm [dinas] → [dinas]</strong> untuk menyelesaikan.</li>
+    </ol>
+    <div class="callout info">
+      Kalau satu pasangan punya transaksi terlalu banyak untuk satu file SAP (di atas 300 baris), sistem otomatis membaginya jadi beberapa file (.zip berisi beberapa file Excel) — Anda tinggal posting tiap file dan menambahkan nomor subdoc tambahan lewat menu Repost History (lihat bagian 10).
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ 10. TAB REPOST HISTORY ============ -->
+<div class="pagebreak" id="tab-history">
+<h2 class="section-title">10. TAB Repost History</h2>
+<div class="role-banner tab">TAB — riwayat lintas SEMUA dinas + kelola subdoc tambahan</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Log lengkap semua pasangan yang sudah direpost</h3>
+    <div class="path">rdt/repost-history</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144592818-5.jpg" alt="TAB Repost History dengan tambah subdoc">
+    <ol class="steps">
+      <li>Berbeda dari Repost History milik PIC, di sini TAB melihat riwayat <strong>seluruh dinas</strong>, bukan cuma dinas sendiri.</li>
+      <li>Kalau satu pasangan dinas sempat terpecah jadi beberapa file SAP (kasus &gt;300 baris), gunakan kolom <strong>Nomor subdoc SAP tambahan</strong> + tombol <strong>+ Tambah subdoc</strong> untuk mencatat nomor subdoc dari file kedua, ketiga, dst.</li>
+      <li>Klik <strong>Download</strong> untuk mengunduh ulang file Format TAB yang sudah pernah diposting sebelumnya (untuk verifikasi ulang).</li>
+    </ol>
+  </div>
+</div>
+</div>
+
+<!-- ============ 11. PERIOD SETTINGS ============ -->
+<div class="pagebreak" id="tab-period">
+<h2 class="section-title">11. Period Settings</h2>
+<div class="role-banner tab">TAB — mengatur batas waktu konfirmasi per periode</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Deadline Settings &amp; Active Reposts</h3>
+    <div class="path">rdt/setting-periode</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144224880-0.jpg" alt="Period Settings dengan notifikasi terbuka">
+    <ol class="steps">
+      <li>Pilih <strong>Periode</strong> (bulan-tahun) dan <strong>Deadline</strong> (tanggal &amp; jam), lalu klik <strong>Set Deadline</strong>.</li>
+      <li>Deadline ini mengikat kapan <strong>dinas target</strong> harus Confirm/Reject — bukan kapan TAB harus repost ke SAP. Ini berlaku ke semua pasangan aktif di periode tersebut, termasuk pasangan baru yang muncul belakangan.</li>
+      <li>Lewat deadline, periode efektif transaksi tersebut otomatis bergeser ke bulan berikutnya (lihat penjelasan badge "Overdue" di bagian 6).</li>
+      <li>Tabel <strong>Active Reposts</strong> menunjukkan semua pasangan dinas yang masih berjalan di periode terkait, dengan status open-count masing-masing.</li>
+    </ol>
+    <div class="callout info">
+      Deadline bersifat opsional — kalau tidak diatur, proses repost berjalan normal tanpa batas waktu khusus.
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ 12. NOTIFIKASI ============ -->
+<div class="pagebreak" id="notif">
+<h2 class="section-title">12. Notifikasi</h2>
+<div class="role-banner both" style="background:#e5e7eb;color:#374151;">Tersedia untuk PIC maupun TAB</div>
+
+<div class="feature">
+  <div class="feature-header">
+    <h3>Bell icon — notifikasi mention &amp; balasan komentar</h3>
+    <div class="path">Ikon lonceng di kanan atas, semua halaman</div>
+  </div>
+  <div class="feature-body">
+    <img class="shot" src="screenshots/screenshot-1788144607223-7.jpg" alt="Dropdown notifikasi dengan mention">
+    <ol class="steps">
+      <li>Angka merah di sebelah ikon lonceng menunjukkan jumlah notifikasi belum dibaca.</li>
+      <li>Klik ikon lonceng untuk membuka daftar notifikasi terbaru — setiap entri menunjukkan siapa yang berkomentar, isi komentar (dengan mention di-highlight biru), pasangan dinas terkait, dan waktu.</li>
+      <li>Notifikasi muncul kalau Anda di-<strong>@mention</strong> langsung di komentar, atau kalau Anda adalah PIC dinas target dari pasangan yang baru dapat komentar/keputusan.</li>
+    </ol>
+  </div>
+</div>
+</div>
+
+<footer class="doc-footer">
+Panduan Pengguna RDT — dibuat 28 Agustus 2026 dari aplikasi berjalan langsung (backend NestJS + frontend Angular).
+Dokumen ini mencerminkan fitur yang benar-benar tersedia di aplikasi saat ini.
+</footer>
+
+</body>
+</html>

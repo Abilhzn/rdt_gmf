@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8"><title>Panduan: Dashboard (TAB) — RDT</title>
+<link rel="stylesheet" href="guide-style.css"></head>
+<body>
+<div class="doc-header">
+  <div class="eyebrow">GMF AeroAsia · Panduan Fitur RDT</div>
+  <h1>Dashboard</h1>
+  <span class="role-banner tab">Akun TAB</span>
+</div>
+
+<h3>Summary Progress All Dinas</h3>
+<div class="path">rdt/dashboard</div>
+<img class="shot" src="../screenshots/screenshot-1788144559138-1.jpg" alt="Dashboard TAB dengan KPI dan rollup">
+<ol class="steps">
+  <li>5 kartu KPI: <strong>Dinas Aktif</strong>, <strong>Total Transaksi</strong> (seluruh sistem), <strong>Butuh Investigasi</strong> (Ask TA), <strong>Waiting to Repost</strong> (siap diproses TAB), dan <strong>Reposted</strong> periode ini.</li>
+  <li>Tabel di bawah merangkum <em>seluruh</em> transaksi per dinas pengaju (bukan per pasangan), dengan kolom status berupa satu label ringkas:</li>
+</ol>
+<table class="status-table">
+  <tr><th>Label Status</th><th>Artinya</th></tr>
+  <tr><td>🔴 Butuh Investigasi (n)</td><td>Prioritas tertinggi — ada baris "Ask TA" milik dinas ini yang perlu di-assign TAB</td></tr>
+  <tr><td>🟠 Waiting for confirmation</td><td>Masih ada transaksi Pending menunggu keputusan dinas target</td></tr>
+  <tr><td>🟡 Waiting to repost</td><td>Semua sudah Confirmed, tinggal menunggu TAB posting manual ke SAP</td></tr>
+  <tr><td>🟢 Semua reposted</td><td>Tuntas — semua transaksi dinas ini sudah diposting ke SAP</td></tr>
+</table>
+<p>Klik ikon mata di ujung kanan baris untuk melihat breakdown pasangan dinas milik dinas tersebut.</p>
+
+<footer class="doc-footer">Panduan Pengguna RDT — GMF AeroAsia. Dibuat dari aplikasi berjalan langsung.</footer>
+</body></html>

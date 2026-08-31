@@ -815,6 +815,14 @@ transparency + confirm-batch-dengan-subdoc-pertama) ↔ Batch 4a + 4b + 4c.
 lewat listing — `admin/`=mapping+exclusions, `setting-periode/`=period-deadlines,
 `share-cost/`=share-cost, tiap folder cuma 1 component) ↔ Batch 2 + 5.5a + 5.5b.
 
+⚠️ **Update 28 Agu (ditemukan saat verifikasi UI user guide):** UI Admin (mapping/exclusions)
+**sengaja dihapus oleh user** setelah Batch 6f/7b — keputusan produk, bukan bug/kehilangan.
+Alasan: parser Format CBO sudah tidak butuh koreksi mapping manual seperti format lama.
+Backend `repost/mapping`/`repost/exclusions` (Batch 2) TETAP ada & berfungsi (tak dihapus,
+tak berbahaya dibiarkan nganggur), cuma tak ada UI-nya lagi. `rdt/frontend/rdt/features/`
+sekarang genuinely cuma 6 folder: `confirmation`,`dashboard`,`export`,`period-deadlines`,
+`repost`,`share-cost` — ini bukan gap, ini status final yang benar.
+
 ⚠️ **Status jujur per 27 Agu:** kode restrukturisasi 6a-6f SELESAI (struktur folder bersih, `ng
 build`+lint lolos tiap sub-batch, `git diff` konfirmasi backend & `auth/frontend/` nol perubahan).
 TAPI level verifikasinya BEDA dari backend — **nol file test** (`.spec.ts`/`.test.ts`) ada di

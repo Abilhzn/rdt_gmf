@@ -1,0 +1,55 @@
+/* Shared style untuk semua panduan fitur RDT (satu file per fitur x role, dibuat dari
+   PANDUAN_PENGGUNA.html yang sama, dipecah untuk fitur "Guidance Application" di aplikasi). */
+@page { size: A4; margin: 18mm 16mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #1f2937;
+  margin: 0;
+  line-height: 1.5;
+  font-size: 14px;
+  padding: 20px;
+}
+.doc-header {
+  border-bottom: 3px solid #0f5f96;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+.doc-header .eyebrow {
+  color: #0f5f96;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  font-size: 11px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.doc-header h1 {
+  font-size: 24px;
+  margin: 0 0 6px 0;
+  color: #0b3d5c;
+}
+.role-banner {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 12px;
+}
+.role-banner.pic { background: #e6f0fa; color: #0f5f96; }
+.role-banner.tab { background: #fdeee0; color: #a4520a; }
+.role-banner.both { background: #e5e7eb; color: #374151; }
+h3 { font-size: 16px; color: #0b3d5c; margin: 22px 0 4px 0; }
+.path { font-family: "Consolas", monospace; font-size: 11px; color: #6b7280; margin-bottom: 12px; }
+.shot {
+  width: 100%; border: 1px solid #d1d5db; border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 14px; display: block;
+}
+.steps { margin: 0 0 10px 0; padding-left: 20px; }
+.steps li { margin-bottom: 6px; }
+.callout {
+  background: #fff8e1; border-left: 4px solid #e0a800;
+  padding: 10px 14px; border-radius: 4px; margin: 12px 0; font-size: 13px;
+}
+.callout.info { background: #eef6fb; border-left-color: #0f5f96; }
+.callout strong { color: #1f2937; }
+table.status-table { width:100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0; }
+table.status-table th, table.status-table td { text-align:left; padding: 6px 10px; border: 1px solid #e5e7eb; }
+table.status-table th { background:#f8fafc; color:#374151; }
+footer.doc-footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 10px; color:#9ca3af; }

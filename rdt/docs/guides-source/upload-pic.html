@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8"><title>Panduan: Upload Detail Transaction — RDT</title>
+<link rel="stylesheet" href="guide-style.css"></head>
+<body>
+<div class="doc-header">
+  <div class="eyebrow">GMF AeroAsia · Panduan Fitur RDT</div>
+  <h1>Upload Detail Transaction</h1>
+  <span class="role-banner pic">Akun PIC</span>
+</div>
+
+<h3>Upload file Excel (Format CBO)</h3>
+<div class="path">rdt/repost</div>
+<img class="shot" src="../screenshots/screenshot-1788144656983-10.jpg" alt="Upload Detail Transaction kosong">
+<ol class="steps">
+  <li>Tarik (drag) file <strong>.xlsx</strong> ke kotak dropzone, atau klik <strong>Pilih file</strong>.</li>
+  <li>Field <strong>"Dinas pengunggah"</strong> otomatis terisi sesuai dinas akun Anda.</li>
+  <li>Klik <strong>Proses file</strong> — sistem akan membaca isi file dan menampilkan preview baris per baris beserta status masing-masing.</li>
+</ol>
+<table class="status-table">
+  <tr><th>Status Transaksi</th><th>Artinya</th></tr>
+  <tr><td><strong>Pending</strong></td><td>Menunggu keputusan dinas target (Confirm/Reject)</td></tr>
+  <tr><td><strong>Butuh Investigasi (Ask TA)</strong></td><td>Dinas target tidak jelas dari data Excel — TAB yang menentukan tujuannya</td></tr>
+</table>
+<div class="callout">
+  <strong>Penting:</strong> sistem membaca kolom <em>Recipient</em> di Excel untuk menentukan dinas target tiap baris secara otomatis. Kalau nilainya tidak dikenali sistem, baris itu akan berstatus <strong>Butuh Investigasi</strong> dan diteruskan ke TAB. Kalau kolom nominal (In PCLC) tidak terbaca sebagai angka, baris tersebut otomatis ditandai <strong>tidak valid</strong> dan tidak akan diproses lebih lanjut walau kondisi lain terpenuhi.
+</div>
+
+<footer class="doc-footer">Panduan Pengguna RDT — GMF AeroAsia. Dibuat dari aplikasi berjalan langsung.</footer>
+</body></html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8"><title>Panduan: Share-Cost — RDT</title>
+<link rel="stylesheet" href="guide-style.css"></head>
+<body>
+<div class="doc-header">
+  <div class="eyebrow">GMF AeroAsia · Panduan Fitur RDT</div>
+  <h1>Share-Cost</h1>
+  <span class="role-banner tab">Akun TAB</span>
+</div>
+
+<h3>Membelah satu transaksi jadi beberapa dinas target</h3>
+<div class="path">rdt/share-cost</div>
+<img class="shot" src="../screenshots/screenshot-1788144577218-3.jpg" alt="Share-Cost search">
+<ol class="steps">
+  <li>Cari baris <strong>Pending</strong> yang dinas targetnya masih "TAB" lewat kolom pencarian (Account/Ref.Doc/Remark).</li>
+  <li>Pilih baris yang ingin dibelah, lalu tentukan beberapa dinas target dengan nominal masing-masing.</li>
+  <li>Isi catatan alasan pembelahan (wajib) — catatan ini masuk ke audit trail dan komentar diskusi pasangan dinas asal.</li>
+</ol>
+<div class="callout">
+  <strong>Total nominal hasil split harus sama persis</strong> dengan nominal baris asli (dihitung sampai ke sen, bukan pembulatan kasar) — sistem akan menolak submit kalau totalnya meleset walau hanya selisih kecil akibat pembulatan.
+</div>
+
+<footer class="doc-footer">Panduan Pengguna RDT — GMF AeroAsia. Dibuat dari aplikasi berjalan langsung.</footer>
+</body></html>

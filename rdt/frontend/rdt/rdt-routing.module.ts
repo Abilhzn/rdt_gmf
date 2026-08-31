@@ -30,6 +30,8 @@ const routes: Routes = [
       { path: 'share-cost', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./features/share-cost/share-cost.module').then(m => m.ShareCostModule) },
       { path: 'repost-history', loadChildren: () => import('./features/export/history.module').then(m => m.HistoryModule) },
       { path: 'setting-periode', canActivate: [RoleGuard], data: { requiredRole: 'TAB' }, loadChildren: () => import('./features/period-deadlines/period-deadlines.module').then(m => m.PeriodDeadlinesModule) },
+      // Tersedia untuk semua role login — murni dokumentasi, tak ada akses data sensitif.
+      { path: 'guidance', loadChildren: () => import('./features/guidance/guidance.module').then(m => m.GuidanceModule) },
       // Informative 403 — RoleGuard above redirects here instead of leaving a role-mismatched
       // user in a broken page.
       { path: 'forbidden', component: ErrorPageComponent, data: { code: 403 } },

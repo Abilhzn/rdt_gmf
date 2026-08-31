@@ -13,10 +13,11 @@ const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   'share-cost': 'Share-Cost',
   'setting-periode': 'Period Settings',
+  guidance: 'Guidance Application',
 };
 
-// Persistent sidebar wrapping <router-outlet>. "Guidance Application"/"Feedback Application"
-// sengaja non-clickable — placeholder tanpa spec.
+// Persistent sidebar wrapping <router-outlet>. "Feedback Application" sengaja non-clickable —
+// placeholder tanpa spec. "Guidance Application" sekarang aktif, lihat features/guidance/.
 @Component({
   selector: 'rdt-shell',
   standalone: false,
